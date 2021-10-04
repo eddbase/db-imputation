@@ -1,0 +1,3 @@
+* Lift function implemented in C
+* Parallelisation and partial aggregation
+* half cofactor matrix
