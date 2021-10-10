@@ -21,8 +21,6 @@ typedef struct Triple
     //int32		padding;
     int		count;
     int size;
-    double *sum_vector;
-    double *matrix;
     double array[FLEXIBLE_ARRAY_MEMBER];//1
 }
 Triple;
@@ -31,6 +29,10 @@ Triple;
 /*****************************************************************************
  * Input/Output functions
  *****************************************************************************/
+
+inline double* sum_vector(double *array, int size) { return array; }
+
+inline double* matrix(double *array, int size) { return &array[size]; }
 
 PG_FUNCTION_INFO_V1(triple_in);
 
@@ -63,9 +65,6 @@ Datum triple_in(PG_FUNCTION_ARGS)
     sscanf(str, " %lf] ", &(result->array[attrs+(attrs*attrs)-1]));
 
     result -> count = x;
-    result -> sum_vector = &(result -> array[0]);
-    result -> matrix = &(result -> array[attrs]);
-
     PG_RETURN_POINTER(result);
 }
 
@@ -76,22 +75,16 @@ Datum lift(PG_FUNCTION_ARGS) {
     int b = (int) PG_GETARG_INT64(1);
     int attrs = (int) PG_GETARG_INT64(2);
 
-    //struct varlena* rr = (struct varlena*)palloc0(sizeof(Triple) + ((((attrs*(attrs+1))/2) + attrs) * sizeof(double)));
-    //SET_VARSIZE(rr, sizeof(Triple) + 4 + ((((attrs*(attrs+1))/2) + attrs) * sizeof(double)));
-
     Triple *result = (Triple *) palloc0(sizeof(Triple) + ((((attrs*(attrs+1))/2) + attrs) * sizeof(double)));
     SET_VARSIZE(result, sizeof(Triple) + ((((attrs*(attrs+1))/2) + attrs) * sizeof(double)));
     //SET_VARSIZE(result, VARHDRSZ + (sizeof(int)*2) + (2*sizeof(double *)) + ((((attrs*(attrs+1))/2) + attrs) * sizeof(double)));
     result -> size = attrs;
-
     result->count = 1;
-    result -> sum_vector = &(result -> array[0]);
-    result -> matrix = &(result -> array[attrs]);
-    result->sum_vector[b] = a;
+    sum_vector(result->array, result->size)[b] = a;
     if (b == 0)
-        result->matrix[(b*attrs)] = (a*a);
+        matrix(result->array, result->size)[(b*attrs)] = (a*a);
     else
-        result->matrix[(b*attrs) - (((b-1)*(b))/2)] = (a*a);
+        matrix(result->array, result->size)[(b*attrs) - (((b-1)*(b))/2)] = (a*a);
     PG_RETURN_POINTER(result);
 }
 
@@ -105,12 +98,12 @@ Datum triple_out(PG_FUNCTION_ARGS)
     char	   *result = (char *) palloc0(length_out);
     int out_char = sprintf(result, "%d , (%d,[", triple->size, triple->count);
     for (int i=0;i<triple->size-1;i++)
-        out_char+=sprintf(&result[out_char], "%lf,", triple->sum_vector[i]);
-    out_char+=sprintf(&result[out_char], "%lf],[", triple->sum_vector[triple->size-1]);
+        out_char+=sprintf(&result[out_char], "%lf,", sum_vector(triple->array, triple->size)[i]);
+    out_char+=sprintf(&result[out_char], "%lf],[", sum_vector(triple->array, triple->size)[triple->size-1]);
 
     for (int i=0;i<(triple->size*(triple->size+1)/2)-1;i++)
-        out_char+=sprintf(&result[out_char], "%lf,", triple->matrix[i]);
-    out_char+=sprintf(&result[out_char], "%lf])", triple->matrix[(triple->size*(triple->size+1)/2)-1]);
+        out_char+=sprintf(&result[out_char], "%lf,", matrix(triple->array, triple->size)[i]);
+    out_char+=sprintf(&result[out_char], "%lf])", matrix(triple->array, triple->size)[(triple->size*(triple->size+1)/2)-1]);
 
     PG_RETURN_CSTRING(result);
 }
@@ -155,25 +148,20 @@ Datum triple_add(PG_FUNCTION_ARGS)
     Triple    *a = (Triple *) PG_GETARG_VARLENA_P(0);
     Triple    *b = (Triple *) PG_GETARG_VARLENA_P(1);
 
-    //Triple *result = (Triple *) palloc0(VARHDRSZ + (sizeof(int)*2) + (2*sizeof(double *)) + ((((a->size*(a->size+1))/2) + a->size) * sizeof(double)));
-    //SET_VARSIZE(result, VARHDRSZ + (sizeof(int)*2) + (2*sizeof(double *)) + ((((a->size*(a->size+1))/2) + a->size) * sizeof(double)));
-
     Triple *result = (Triple *) palloc0(sizeof(Triple) + ((((a->size*(a->size+1))/2) + a->size) * sizeof(double)));
     SET_VARSIZE(result, sizeof(Triple) + ((((a->size*(a->size+1))/2) + a->size) * sizeof(double)));
 
     result -> size = a -> size;
     result->count = a->count + b->count;
-    result -> sum_vector = &(result -> array[0]);
-    result -> matrix = &(result -> array[result -> size]);
 
     for(unsigned int i=0;i<result->size;i++) {
-        result->sum_vector[i] = a->sum_vector[i] + b->sum_vector[i];
-        if (i == 0)
-            elog(WARNING,"result: %lf, a: %lf, b: %lf",result->sum_vector[i], a->sum_vector[i], b->sum_vector[i]);
+        //elog(WARNING,"sum vector init: %lf", sum_vector(result->array, result->size)[i]);
+        sum_vector(result->array, result->size)[i] = sum_vector(a->array, a->size)[i] + sum_vector(b->array, b->size)[i];
+        //elog(WARNING,"a: %lf + b: %lf = %lf (%lf stored)", sum_vector(a->array, a->size)[i], sum_vector(b->array, b->size)[i], sum_vector(a->array, a->size)[i] + sum_vector(b->array, b->size)[i], sum_vector(result->array, result->size)[i]);
     }
 
     for(unsigned int i=0;i<(result->size*(result->size+1))/2;i++)
-        result->matrix[i] = a->matrix[i] + b->matrix[i];
+        matrix(result->array, result->size)[i] = matrix(a->array, a->size)[i] + matrix(b->array, b->size)[i];
 
     PG_RETURN_POINTER(result);
 }
@@ -193,19 +181,17 @@ Datum triple_mul(PG_FUNCTION_ARGS)
 
     result->count = a->count * b->count;
     result -> size = a -> size;
-    result -> sum_vector = &(result -> array[0]);
-    result -> matrix = &(result -> array[result -> size]);
 
     for(int i=0;i<a->size;i++)
-        result->sum_vector[i] = (a->count * b->sum_vector[i]) + (b->count * a->sum_vector[i]);
+        sum_vector(result->array, result->size)[i] = (a->count * sum_vector(b->array, b->size)[i]) + (b->count * sum_vector(a->array, a->size)[i]);
 
     for(int i=0;i<(a->size*(a->size+1))/2;i++)
-        result->matrix[i] = (b->count * a->matrix[i]) + (a->count * b->matrix[i]);
+        matrix(result->array, result->size)[i] = (b->count * matrix(a->array, a->size)[i]) + (a->count * matrix(b->array, b->size)[i]);
 
     for (int i=0;i<a->size;i++) {
         for (int j = 0; j < a->size; j++) {
-            result->matrix[(i * a->size) + j] += (a->sum_vector[i] * b->sum_vector[j]);
-            result->matrix[(i * a->size) + j] += (b->sum_vector[i] * a->sum_vector[j]);
+            matrix(result->array, result->size)[(i * a->size) + j] += (sum_vector(a->array, a->size)[i] * sum_vector(b->array, b->size)[j]);
+            matrix(result->array, result->size)[(i * a->size) + j] += (sum_vector(b->array, b->size)[i] * sum_vector(a->array, a->size)[j]);
         }
     }
 
