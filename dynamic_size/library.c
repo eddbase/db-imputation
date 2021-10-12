@@ -51,15 +51,11 @@ Datum triple_in(PG_FUNCTION_ARGS)
 
     if (sz > 0) {
         sscanf(str, "(%d, [ ", &(result->count));
-
-        for (size_t i = 0; i < sum1_array_size(sz) - 1; i++) {
+        for (size_t i = 0; i < sum1_array_size(sz) - 1; i++)
             sscanf(str, " %lf, ", sum1_array(result) + i);
-        }
         sscanf(str, " %lf ], [ ", sum1_array(result) + sum1_array_size(sz) - 1);
-
-        for (size_t i = 0; i < sum2_array_size(sz) - 1; i++) {
+        for (size_t i = 0; i < sum2_array_size(sz) - 1; i++)
             sscanf(str, " %lf, ", sum2_array(result) + i);
-        }
         sscanf(str, " %lf ])", sum2_array(result) + sum2_array_size(sz) - 1);
     }
     else {
@@ -74,25 +70,33 @@ PG_FUNCTION_INFO_V1(triple_out);
 Datum triple_out(PG_FUNCTION_ARGS)
 {
     Triple *triple = (Triple *) PG_GETARG_VARLENA_P(0);
-    
-    // TODO: fix buffer size
-    size_t length_out = 255 * sizeof(char);
-    char *result = (char *) palloc0(length_out);
+    ssize_t bufsz;
+    if (triple->size == 0) {
+        bufsz = snprintf(NULL, 0, "%d, (%d, [ ], [ ])", triple->size, triple->count);
+    }
+    else {
+        bufsz = snprintf(NULL, 0, "%d, (%d, [ ", triple->size, triple->count);
+        for (size_t i = 0; i < sum1_array_size(triple->size) - 1; i++)
+            bufsz += snprintf(NULL, 0, "%lf, ", sum1_array(triple)[i]);
+        bufsz += snprintf(NULL, 0, "%lf ], [ ", sum1_array(triple)[sum1_array_size(triple->size) - 1]);
+        for (size_t i = 0; i < sum2_array_size(triple->size) - 1; i++)
+            bufsz += snprintf(NULL, 0, "%lf, ", sum2_array(triple)[i]);
+        bufsz += snprintf(NULL, 0, "%lf ])", sum2_array(triple)[sum2_array_size(triple->size) - 1]);
+    }
+
+
+    char *result = (char *) palloc0((bufsz+1) * sizeof(char));
 
     if (triple->size == 0) {
         sprintf(result, "%d, (%d, [ ], [ ])", triple->size, triple->count);
     }
     else {
         int out_char = sprintf(result, "%d, (%d, [ ", triple->size, triple->count);
-
-        for (size_t i = 0; i < sum1_array_size(triple->size) - 1; i++) {
+        for (size_t i = 0; i < sum1_array_size(triple->size) - 1; i++)
             out_char += sprintf(result + out_char, "%lf, ", sum1_array(triple)[i]);
-        }
         out_char += sprintf(result + out_char, "%lf ], [ ", sum1_array(triple)[sum1_array_size(triple->size) - 1]);
-
-        for (size_t i = 0; i < sum2_array_size(triple->size) - 1; i++) {
+        for (size_t i = 0; i < sum2_array_size(triple->size) - 1; i++)
             out_char += sprintf(result + out_char, "%lf, ", sum2_array(triple)[i]);
-        }
         out_char += sprintf(result + out_char, "%lf ])", sum2_array(triple)[sum2_array_size(triple->size) - 1]);
     }
 
@@ -108,11 +112,13 @@ triple_recv(PG_FUNCTION_ARGS)
 {
     StringInfo buf = (StringInfo) PG_GETARG_POINTER(0);
     Triple *result;
-
-    result = (Triple *) palloc(sizeof(Triple));
-    result->count = pq_getmsgfloat8(buf);
-    // TODO: finish this
-
+    uint32 size = pq_getmsgint64(buf);
+    result = (Triple *) palloc0(sizeof(Triple) + (array_size(size)*sizeof(double)));
+    SET_VARSIZE(result, sizeof(Triple) + array_size(size) * sizeof(double));
+    result -> size = size;
+    result -> count = pq_getmsgint64(buf);
+    for (size_t i = 0; i < array_size(result -> size); i++)
+        result->array[i] = pq_getmsgfloat8(buf);
     PG_RETURN_POINTER(result);
 }
 
@@ -125,9 +131,10 @@ triple_send(PG_FUNCTION_ARGS)
     StringInfoData buf;
 
     pq_begintypsend(&buf);
-    pq_sendfloat8(&buf, triple->count);
-    // TODO: finish this
-
+    pq_sendint64(&buf, triple->size);
+    pq_sendint64(&buf, triple->count);
+    for (size_t i = 0; i < array_size(triple -> size); i++)
+        pq_sendfloat8(&buf, triple->array[i]);
     PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
