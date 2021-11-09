@@ -156,63 +156,67 @@ Datum cofactor_send(PG_FUNCTION_ARGS)
     PG_RETURN_ARRAYTYPE_P(a);
 }
 
-void compute_gradient(double* grad, Triple *triple, const double* learned_coeff, int label) {
-    /* Compute Sigma * Theta */
-    for (size_t col = 0; col < (triple->size); col++) {
-        //grad[col + 1] = 0.0;
-        grad[col + 1] = sum1_array(triple)[col] * learned_coeff[0];
-        for (size_t row = 0; row < (triple->size); row++) {
-            if (row > col)
-                grad[col + 1] += learned_coeff[row + 1] *
-                                 sum2_array(triple)[(col * triple->size) - (((col) * (col+1)) / 2) + row];//symmetric cofactor matrix
-            else
-                grad[col + 1] += learned_coeff[row + 1] *
-                                 sum2_array(triple)[(row * triple->size) - (((row) * (row+1)) / 2) + col];
-        }
-        //todo check -1
-        grad[col + 1] /= triple->count;
+void build_sigma_matrix(Triple *triple, double *sigma, size_t param_size) {
+    sigma[0] = triple->count;
+
+    for (size_t i = 0; i < (param_size-1); i++) {
+        sigma[i + 1] = sum1_array(triple)[i];
+        sigma[(i + 1) * param_size] = sum1_array(triple)[i];
     }
 
-    grad[0] = triple->count * learned_coeff[0];
-    //compute grad[0] (bias)
-    for (size_t col = 0; col < triple->size; col++)
-        grad[0] += sum1_array(triple)[col] * learned_coeff[col+1];
-
-    grad[label + 1] = 0.0;
+    for (size_t row = 0; row < (param_size-1); row++) {
+        for (size_t col = 0; col < (param_size-1); col++) {
+            if (row > col)
+                sigma[((row+1) * param_size) + (col+1)] = sum2_array(triple)[(col * triple->size) - (((col) * (col+1)) / 2) + row];
+            else
+                sigma[((row+1) * param_size) + (col+1)] = sum2_array(triple)[(row * triple->size) - (((row) * (row+1)) / 2) + col];
+        }
+    }
 }
 
-double compute_error(Triple *triple, double lambda, const double* learned_coeff) {
-    double error = 0.0;
-    /* Compute 1/N * Theta^T * Sigma * Theta */
-    for (size_t col = 0; col < (triple->size); col++) {
-        double tmp = 0.0;
-        for (size_t row = 0; row < (triple->size); row++) {
-            if (row > col)
-                tmp += learned_coeff[row + 1] *
-                       sum2_array(triple)[(col * triple->size) - (((col) * (col+1)) / 2) + row];
-            else
-                tmp += learned_coeff[row + 1] *
-                       sum2_array(triple)[(row * triple->size) - (((row) * (row+1)) / 2) + col];
+void compute_gradient(size_t num_params, int label_idx, double *grad, const double *sigma, const double *params) {
+    /* Compute Sigma * Theta */
+    for (size_t i = 0; i < num_params; i++) {
+        grad[i] = 0.0;
+        for (size_t j = 0; j < num_params; j++) {
+            grad[i] += sigma[(i*num_params)+j] * params[j];
         }
-        error += learned_coeff[col] * tmp;
+        grad[i] /= sigma[0];//count
     }
-    error /= triple->count;
+    grad[label_idx] = 0.0;
+}
+
+double compute_error(size_t num_params, const double* sigma, const double *params, const double lambda) {
+    double error = 0.0;
+
+    /* Compute 1/N * Theta^T * Sigma * Theta */
+    for (size_t i = 0; i < num_params; i++) {
+        double tmp = 0.0;
+        for (size_t j = 0; j < num_params; j++) {
+            tmp += sigma[(i*num_params) + j] * params[j];
+        }
+        error += params[i] * tmp;
+    }
+    //elog(WARNING, "division");
+    error /= sigma[0];//count
 
     /* Add the regulariser to the error */
     double param_norm = 0.0;
-    for (size_t i = 1; i < (triple->size) + 1; i++) {
-        param_norm += learned_coeff[i] * learned_coeff[i];
+    for (size_t i = 1; i < num_params; i++) {
+        param_norm += params[i] * params[i];
     }
+    //elog(WARNING, "second loop");
     param_norm -= 1;    // param_norm -= params[LABEL_IDX] * params[LABEL_IDX];
     error += lambda * param_norm;
 
     return error / 2;
 }
 
-inline double compute_step_size(double step_size, const double* params, const double* prev_params, const double* grad, const double *prev_grad, int n_params) {
+inline double compute_step_size(double step_size, int num_params, const double *params, const double *prev_params, const double *grad, const double *prev_grad) {
     double DSS = 0.0, GSS = 0.0, DGS = 0.0;
-    for (size_t i = 0; i < n_params; i++) {
 
+    for (int i = 0; i < num_params; i++) {
+        //elog(WARNING, "%d ", i);
         double paramDiff = params[i] - prev_params[i];
         double gradDiff = grad[i] - prev_grad[i];
 
@@ -223,6 +227,8 @@ inline double compute_step_size(double step_size, const double* params, const do
 
     if (DGS == 0.0 || GSS == 0.0) return step_size;
 
+    //elog(WARNING, "%lf %lf ", DGS, GSS);
+
     double Ts = DSS / DGS;
     double Tm = DGS / GSS;
 
@@ -231,7 +237,6 @@ inline double compute_step_size(double step_size, const double* params, const do
     return (Tm / Ts > 0.5) ? Tm : Ts - 0.5 * Tm;
 }
 
-
 PG_FUNCTION_INFO_V1(converge);
 Datum converge(PG_FUNCTION_ARGS)
 {
@@ -239,24 +244,26 @@ Datum converge(PG_FUNCTION_ARGS)
     int label = PG_GETARG_INT64(1);
     double step_size = PG_GETARG_FLOAT8(2);
     double lambda = PG_GETARG_FLOAT8(3);
+    int max_num_iterations = PG_GETARG_INT64(4);
 
     size_t num_params = (triple->size)+1;
-    //double *cofactor_matrix = (double *) palloc(sizeof(double) * sum2_array_size(triple->size));
 
     double *grad = (double *) palloc0(sizeof(double) * num_params);
     double *prev_grad = (double *) palloc0(sizeof(double) * num_params);
     double *learned_coeff = (double *) palloc(sizeof(double) * num_params);
     double *prev_learned_coeff = (double *) palloc0(sizeof(double) * num_params);
+    double *sigma = (double *) palloc0(sizeof(double) * num_params * num_params);
+    double *update = (double *) palloc0(sizeof(double) * num_params);
 
+    build_sigma_matrix(triple, sigma, num_params);
     for(size_t i = 0; i < num_params; i++)
-        learned_coeff[i] = ((double) (rand() % 800 + 1) - 400) / 100;
+        learned_coeff[i] = 0;//((double) (rand() % 800 + 1) - 400) / 100;
 
     prev_learned_coeff[label+1] = -1;
     learned_coeff[label+1] = -1;
-
-    //sigma[0,:] = cofactor.sum1[i];
-
-    compute_gradient(grad, triple, learned_coeff, label);
+    //elog(WARNING, "compute gradient");
+    //compute_gradient(grad, triple, learned_coeff, label);
+    compute_gradient(num_params, label+1, grad, sigma, learned_coeff);
     double gradient_norm = grad[0] * grad[0];//bias
     for (size_t i = 1; i < num_params; i++) {
         double upd = grad[i] + lambda * learned_coeff[i];
@@ -264,10 +271,11 @@ Datum converge(PG_FUNCTION_ARGS)
     }
     gradient_norm -= lambda * lambda;   // label correction
     double first_gradient_norm = sqrt(gradient_norm);
+    //elog(WARNING, "compute error");
+    double prev_error = compute_error(num_params, sigma, learned_coeff, lambda);
+    //double prev_error = compute_error(triple, lambda, learned_coeff);
+    //size_t num_params, double* sigma, double *params, double lambda
 
-    double prev_error = compute_error(triple, lambda, learned_coeff);
-
-    double update[num_params];
     int num_iterations = 1;
     do {
         // Update parameters and compute gradient norm
@@ -285,11 +293,11 @@ Datum converge(PG_FUNCTION_ARGS)
             learned_coeff[i] = learned_coeff[i] - step_size * update[i];
             dparam_norm += update[i] * update[i];
         }
-        learned_coeff[label] = -1;
+        learned_coeff[label+1] = -1;
         gradient_norm -= lambda * lambda;   // label correction
         dparam_norm = step_size * sqrt(dparam_norm);
-
-        double error = compute_error(triple, lambda, learned_coeff);
+        //elog(WARNING, "compute error %d", label+1);
+        double error = compute_error(num_params, sigma, learned_coeff, lambda);
 
         /* Backtracking Line Search: Decrease step_size until condition is satisfied */
         size_t backtracking_steps = 0;
@@ -305,8 +313,9 @@ Datum converge(PG_FUNCTION_ARGS)
             }
             dparam_norm = sqrt(dparam_norm);
 
-            learned_coeff[label] = -1;
-            error = compute_error(triple, lambda, learned_coeff);
+            learned_coeff[label+1] = -1;
+            //elog(WARNING, "compute again error %d", label+1);
+            error = compute_error(num_params, sigma, learned_coeff, lambda);
             backtracking_steps++;
         }
 
@@ -316,9 +325,11 @@ Datum converge(PG_FUNCTION_ARGS)
             gradient_norm / (first_gradient_norm + 0.001) < 1e-5) {
             break;
         }
-
-        compute_gradient(grad, triple, learned_coeff, label);
-        step_size = compute_step_size(step_size, learned_coeff, prev_learned_coeff, grad, prev_grad, num_params);
+        //elog(WARNING, "compute gradient");
+        compute_gradient(num_params, label+1, grad, sigma, learned_coeff);
+        //elog(WARNING, "compute step size");
+        step_size = compute_step_size(step_size, num_params, learned_coeff, prev_learned_coeff, grad, prev_grad);
+        //elog(WARNING, "computed");
         prev_error = error;
         num_iterations++;
     } while (num_iterations < 1000);
@@ -450,83 +461,5 @@ Datum triple_mul(PG_FUNCTION_ARGS)
         *out++ = (*in_b++) * a->count;
     }
 
-    PG_RETURN_POINTER(result);
-}
-
-PG_FUNCTION_INFO_V1(partial_mul);
-
-Datum partial_mul(PG_FUNCTION_ARGS)
-{
-    Triple *a = (Triple *) PG_GETARG_VARLENA_P(0);
-    Triple *b = (Triple *) PG_GETARG_VARLENA_P(1);
-
-    uint32 array_sz = array_size(a->size + b->size);
-    Triple *result = (Triple *) palloc0(sizeof(Triple) + array_sz * sizeof(double));
-    SET_VARSIZE(result, sizeof(Triple) + array_sz * sizeof(double));
-
-    result->size = a->size + b->size;
-    result->count = a->count * b->count;
-
-    for (size_t i = 0; i < a->size; i++) {
-        sum1_array(result)[i] = sum1_array(a)[i] * b->count;
-    }
-    for (size_t i = 0; i < b->size; i++) {
-        sum1_array(result)[i + a->size] = sum1_array(b)[i] * a->count;
-    }
-
-    double *out = sum2_array(result);
-    double *in_a = sum2_array(a);
-    for (size_t i = 0; i < a->size; i++) {
-        for (size_t j = i; j < a->size; j++) {
-            *out++ = (*in_a++) * b->count;
-        }
-        for (size_t j = 0; j < b->size; j++) {
-            *out++ = sum1_array(a)[i] * sum1_array(b)[j];
-        }
-    }
-    double *in_b = sum2_array(b);
-    for (size_t i = 0; i < sum2_array_size(b->size); i++) {
-        *out++ = (*in_b++) * a->count;
-    }
-
-    PG_RETURN_POINTER(result);
-}
-
-PG_FUNCTION_INFO_V1(update_triple);
-
-Datum update_triple(PG_FUNCTION_ARGS) {
-    Oid arrayElementType1;
-    int16 arrayElementTypeWidth1;
-    bool arrayElementTypeByValue1;
-    char arrayElementTypeAlignmentCode1;
-    Datum *arrayContent1;
-    bool *arrayNullFlags1;
-    int arrayLength1;
-
-    ArrayType *array1 = PG_GETARG_ARRAYTYPE_P(0);
-    Triple *triple = (Triple *) PG_GETARG_VARLENA_P(1);
-    int col = PG_GETARG_INT64(2);
-
-    Triple *result = (Triple *) palloc0(sizeof(Triple) + (triple->size * sizeof(double)));
-    SET_VARSIZE(result, sizeof(Triple) + (triple->size * sizeof(double)));
-
-    result->size = triple->size;
-    result->count = triple->count;
-    for (size_t i=0; array_size(triple->size); i++)
-    {
-        result->array[i] = triple->array[i];
-    }
-
-    arrayElementType1 = ARR_ELEMTYPE(array1);
-    get_typlenbyvalalign(arrayElementType1, &arrayElementTypeWidth1, &arrayElementTypeByValue1, &arrayElementTypeAlignmentCode1);
-    deconstruct_array(array1, arrayElementType1, arrayElementTypeWidth1, arrayElementTypeByValue1, arrayElementTypeAlignmentCode1, &arrayContent1, &arrayNullFlags1, &arrayLength1);
-
-    for (size_t i = 0; i < arrayLength1; i++)
-    {
-        if (i > col)
-            sum2_array(result)[(col * triple->size) - (((col) * (col+1)) / 2) + i] += DatumGetFloat8(arrayContent1[i]);
-        else
-            sum2_array(result)[(i * triple->size) - (((i) * (i+1)) / 2) + col] += DatumGetFloat8(arrayContent1[i]);
-    }
     PG_RETURN_POINTER(result);
 }

@@ -127,7 +127,7 @@ CREATE OR REPLACE FUNCTION lift2(i float, j float)
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift2'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE OR REPLACE FUNCTION converge(triple triple, label_idx int, step_size float8, lambda float8)
+CREATE OR REPLACE FUNCTION converge(triple triple, label_idx int, step_size float8, lambda float8, max_iterations int)
     RETURNS float8[]
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'converge'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
@@ -140,6 +140,7 @@ CREATE OR REPLACE FUNCTION update_triple(arr_updates float8[], triple triple, co
 DROP TABLE Test1;
 DROP TABLE Test2;
 DROP TABLE Test3;
+DROP TABLE Test4;
 
 CREATE TABLE Test1 (
     A int,
@@ -161,9 +162,16 @@ CREATE TABLE Test3 (
 	D float
 );
 
+CREATE TABLE Test4 (
+    pkey int,
+    A int,
+    B float
+);
+
 insert into Test1 VALUES (1,2,3,4),(1,2,3,4),(1,2,3,4),(1,2,3,4);
 insert into Test2 VALUES (1,2),(1,4),(5,6),(5,8),(9,10);
 insert into Test3 VALUES (1,1,NULL,NULL,4),(2,1,2,3,NULL),(3,1,2,3,4),(4,1,NULL,3,4);
+insert into Test4 VALUES (1,1,NULL),(2,1,2),(3,1,2),(2,1,3),(3,1,3),(4,1,NULL);
 
 -- SELECT SUM(lift(store, 0)) FROM Inventory;
 SELECT (lift(a)) from Test1;

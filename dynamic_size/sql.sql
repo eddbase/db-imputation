@@ -1,26 +1,26 @@
-LOAD '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib';
+LOAD '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so';
 DROP TYPE triple CASCADE;
 
 CREATE TYPE triple;
 
 CREATE OR REPLACE FUNCTION triple_in(cstring)
     RETURNS triple
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
     LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION triple_out(triple)
     RETURNS cstring
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
     LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION triple_recv(internal)
    RETURNS triple
-   AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib'
+   AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
    LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION triple_send(triple)
    RETURNS bytea
-   AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib'
+   AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
    LANGUAGE C IMMUTABLE STRICT;
 
 CREATE TYPE triple (
@@ -34,12 +34,12 @@ CREATE TYPE triple (
 
 CREATE OR REPLACE FUNCTION triple_add(triple, triple)
     RETURNS triple
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib', 'triple_add'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_add'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION triple_mul(triple, triple)
     RETURNS triple
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib', 'triple_mul'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_mul'
     LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR + (
@@ -97,17 +97,17 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION liftConst(i int)
     RETURNS triple
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib', 'lift_const'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift_const'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION lift(i float)
     RETURNS triple
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib', 'lift'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION lift2(i float, j float)
     RETURNS triple
-    AS '/Users/milllic/repo/work/imputation/dynamic_size/libfactMICE.dylib', 'lift2'
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift2'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
