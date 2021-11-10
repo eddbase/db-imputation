@@ -45,7 +45,7 @@ CREATE OR REPLACE FUNCTION triple_sub(triple, triple)
 CREATE OR REPLACE FUNCTION triple_mul(triple, triple)
     RETURNS triple
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_mul'
-    LANGUAGE C IMMUTABLE STRICT;
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OPERATOR + (
     leftarg = triple,

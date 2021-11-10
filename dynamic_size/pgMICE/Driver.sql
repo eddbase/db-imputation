@@ -1,33 +1,56 @@
 CREATE OR REPLACE FUNCTION prepare_imputation(table_n text, _col_nan text[]) RETURNS void AS $$
 DECLARE
     col text;
+    _nan_cols_names text[];
    _start_ts timestamptz;
    _end_ts   timestamptz;
+    _query_update text := 'UPDATE %s SET ';
 BEGIN
    _start_ts := clock_timestamp();
     FOREACH col IN ARRAY _col_nan
     LOOP
         EXECUTE format('ALTER TABLE %s ADD COLUMN IF NOT EXISTS %s BOOLEAN DEFAULT FALSE;', table_n, col || '_is_nan');
         RAISE NOTICE 'ALTER TABLE ADD COLUMN IF NOT EXISTS';
-        EXECUTE format('UPDATE %s SET %s = true WHERE (%s is NULL);', table_n, col || '_is_nan', col);--, col || '_is_nan'
-        RAISE NOTICE 'UPDATE SET true WHERE ( is NULL AND is NULL);';
-        EXECUTE format('CREATE INDEX %s_index ON %s (%s) WHERE %s is TRUE', col || '_is_nan', table_n, col || '_is_nan', col || '_is_nan');
-        RAISE NOTICE 'CREATE INDEX s_index ON WHERE is TRUE';
-        --EXECUTE format('UPDATE %s SET %s = false WHERE (%s is NOT NULL AND %s is NULL);', table_n, col || '_is_nan', col, col || '_is_nan');
-        --RAISE NOTICE 'UPDATE SET true WHERE ( is NULL AND is NULL);';
+        _query_update := CONCAT(_query_update, '%s = (%s IS NULL), ');
+        _nan_cols_names := _nan_cols_names || ARRAY[col || '_is_nan', col];
     end LOOP;
+    _query_update := RTRIM(_query_update, ', ') || ';';
+    RAISE NOTICE '%', _query_update;
+    EXECUTE format(_query_update, VARIADIC ARRAY[table_n] || _nan_cols_names);--, col || '_is_nan'
+    FOREACH col IN ARRAY _col_nan
+    LOOP
+        EXECUTE format('CREATE INDEX %s_index ON %s (%s) WHERE %s is TRUE', col || '_is_nan', table_n, col || '_is_nan', col || '_is_nan');
+    end LOOP;
+    --EXECUTE format('UPDATE %s SET %s = true WHERE (%s is NULL);', table_n, col || '_is_nan', col);--, col || '_is_nan'
+    --RAISE NOTICE 'UPDATE SET true WHERE ( is NULL AND is NULL);';
+    --EXECUTE format('CREATE INDEX %s_index ON %s (%s) WHERE %s is TRUE', col || '_is_nan', table_n, col || '_is_nan', col || '_is_nan');
+    --RAISE NOTICE 'CREATE INDEX s_index ON WHERE is TRUE';
+    --end LOOP;
    _end_ts := clock_timestamp();
     RAISE NOTICE 'Prepare imputation. Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION standard_imputation(table_n text, _col_nan text[], _columns text[]) RETURNS Triple AS $$
+CREATE OR REPLACE FUNCTION create_triple_query(_columns int) RETURNS text AS $$
+DECLARE
+    _query text := 'SELECT SUM(LIFT(';
+    col text;
+    counter int;
+BEGIN
+    FOR counter in 1..(_columns-1)
+    LOOP
+        _query := CONCAT(_query, '%s)*LIFT(');
+    end LOOP;
+    _query := _query || '%s)) FROM %s';
+    RETURN _query;
+  END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION standard_imputation(table_n text, _col_nan text[]) RETURNS void AS $$
   DECLARE
     _start_ts timestamptz;
     _end_ts timestamptz;
-    _triple Triple;
     col text;
-    _query text := 'SELECT SUM(LIFT(';
   BEGIN
    _start_ts := clock_timestamp();
     FOREACH col IN ARRAY _col_nan
@@ -36,18 +59,24 @@ CREATE OR REPLACE FUNCTION standard_imputation(table_n text, _col_nan text[], _c
     end LOOP;
    _end_ts := clock_timestamp();
     RAISE NOTICE 'AVG Imputation %', 1000 * (extract(epoch FROM _end_ts - _start_ts));
-    --generate full cofactor matrix
-    FOREACH col IN ARRAY _columns[:cardinality(_columns)-1]
-        LOOP
-            _query := CONCAT(_query, col, ')*LIFT(');
-    end LOOP;
-    _query := _query || _columns[cardinality(_columns)] || ')) FROM %s;';
+  END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION generate_full_cofactor(table_n text, _columns text[]) RETURNS Triple AS $$
+DECLARE
+    _start_ts timestamptz;
+    _end_ts timestamptz;
+    _triple Triple;
+    _query text;
+BEGIN
+    _query := create_triple_query(cardinality(_columns)) || ';';
+    RAISE NOTICE '%',_query;
     _start_ts := clock_timestamp();
-    EXECUTE format(_query, table_n) INTO _triple;
+    EXECUTE format(_query, VARIADIC _columns || table_n) INTO _triple;
    _end_ts := clock_timestamp();
     RAISE NOTICE 'Full cofactor matrix %', 1000 * (extract(epoch FROM _end_ts - _start_ts));
     RETURN _triple;
-  END;
+END;
 $$ LANGUAGE plpgsql;
 
 --create cofactor matrix of missing values
@@ -55,27 +84,18 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION cofactor_nan(table_n text, col text, columns text[]) RETURNS Triple AS $$
   DECLARE
     _triple Triple;
-    _query text := 'SELECT SUM(LIFT(';
+    _query text;
     _col_iter text;
   BEGIN
-    --col: col null, columns: columns lifted
-    FOREACH _col_iter IN ARRAY columns[:cardinality(columns)-1]
-        LOOP
-            _query := CONCAT(_query, _col_iter, ')*LIFT(');
-    end LOOP;
-    _query := _query || columns[cardinality(columns)] || ')) FROM %s WHERE %s IS true;';
-    --raise notice '%', format(_query, table_n, col || '_is_nan');
-    --echo _query;
-    EXECUTE format(_query, table_n, col || '_is_nan') INTO _triple;
+    _query := create_triple_query(cardinality(columns)) || ' WHERE %s IS true;';
+    EXECUTE format(_query, VARIADIC columns || ARRAY[table_n, col || '_is_nan']) INTO _triple;
     return _triple;
   END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION update_table_cofactor(table_n text, col_missing text, columns text[], weights float8[]) RETURNS Triple AS $$
+CREATE OR REPLACE FUNCTION update_table_cofactor(table_n text, col_missing text, columns text[], weights float8[]) RETURNS void AS $$
   DECLARE
-    _triple Triple;
     _query text := 'UPDATE %s SET %s = ';
-    _query_update_triple text := 'SELECT SUM(LIFT(';
     _counter int;
     _start_ts timestamptz;
     _end_ts timestamptz;
@@ -87,16 +107,10 @@ CREATE OR REPLACE FUNCTION update_table_cofactor(table_n text, col_missing text,
         end if;
     end LOOP;
     _query := _query || weights[1] || ' WHERE %s IS TRUE;';
-    --raise notice '%', format(_query, table_n, col_missing, p_key, table_n, col_missing || '_is_nan', table_n, p_key, p_key);
     _start_ts := clock_timestamp();
     EXECUTE format(_query, table_n, col_missing, col_missing || '_is_nan');--update imputed values
     _end_ts := clock_timestamp();
     RAISE NOTICE 'Impute new values. Time: = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
-    _start_ts := clock_timestamp();
-    _triple := cofactor_nan(table_n, col_missing, columns);
-    _end_ts := clock_timestamp();
-    RAISE NOTICE 'cofactor nan. Time: = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
-    return _triple;
   END;
 $$ LANGUAGE plpgsql;
 
@@ -115,8 +129,8 @@ CREATE OR REPLACE FUNCTION impute(table_n text, _nan_cols text[], columns text[]
   BEGIN
     --   SELECT is_nullable, COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS GROUP BY is_nullable;
    _start_ts := clock_timestamp();
-    _triple := standard_imputation(table_n, _nan_cols, columns);
-    --RAISE NOTICE '%' , _triple;
+    perform standard_imputation(table_n, _nan_cols);
+    _triple := generate_full_cofactor(table_n, columns);
    _end_ts   := clock_timestamp();
    RAISE NOTICE 'Impute data and generate full triple: Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
     for counter in 1..iterations loop
@@ -128,12 +142,8 @@ CREATE OR REPLACE FUNCTION impute(table_n text, _nan_cols text[], columns text[]
             _end_ts   := clock_timestamp();
             RAISE NOTICE 'Generate cofactor of nan values: Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
             _triple_train := _triple - _triple_removal;
-            --RAISE NOTICE '%' , _triple;
-            --RAISE NOTICE '%' , _triple_train;
-            --RAISE NOTICE '%' , _triple_removal;
             -- fit model over cofactor matrix
             _label_idx := array_position(columns, col)-1;--c code
-            --RAISE NOTICE '% LABEL: %' , col, _label_idx;
 
             _start_ts := clock_timestamp();
             _params := converge(_triple_train, _label_idx, 0.001, 0, 10000);
@@ -142,8 +152,8 @@ CREATE OR REPLACE FUNCTION impute(table_n text, _nan_cols text[], columns text[]
 
             --update cofactor matrix and table
             _start_ts := clock_timestamp();
-            _triple_removal := update_table_cofactor(table_n, col, columns, _params);
-            _triple := _triple_train + _triple_removal;
+            perform update_table_cofactor(table_n, col, columns, _params);
+            _triple := _triple_train + cofactor_nan(table_n, col, columns);
             _end_ts   := clock_timestamp();
             RAISE NOTICE 'Impute new values and update cofactor matrix: Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
 
@@ -163,5 +173,5 @@ select impute('Test4', array['b'], array['a','b'], 10);
 select prepare_imputation('Test3', ARRAY['b','c','d']);
 select impute('Test3', array['b','c','d'], array['a','b','c','d'], 1);
 
-select prepare_imputation('inventory', ARRAY['store','date']);
+select prepare_imputation('inventory', ARRAY['date']);
 select impute('inventory', array['store', 'date'], array['store','date','item','units'], 1);
