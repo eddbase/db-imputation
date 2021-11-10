@@ -187,3 +187,17 @@ SELECT sum(lift2(c, d)) from Test2;
 SELECT sum(lift(c) * lift(d)) from Test2; -- same as previous
 SELECT sum(liftConst(1) * lift(c) * lift(d)) from Test2; -- same as previous
 SELECT sum(liftConst(2) * lift(c) * lift(d)) from Test2;
+
+--UPDATE inventory SET store = NULL WHERE id <= 4200000;
+--UPDATE inventory SET date = NULL WHERE (id <= 8400000 AND id >= 4200000);
+--UPDATE inventory SET item = NULL WHERE id <= 4200000;
+--UPDATE inventory SET units = NULL WHERE id <= 4200000;
+
+--4200000 5% 1 col
+--
+--4200000 5% 2 col
+--4200000 5% 3 col
+--4200000 5% 4 col
+
+--8400000 10%
+--16800000 20%
