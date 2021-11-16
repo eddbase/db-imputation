@@ -127,6 +127,21 @@ CREATE OR REPLACE FUNCTION lift2(i float, j float)
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift2'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE OR REPLACE FUNCTION lift5(i float, j float, k float, l float, m float)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift5'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION lift4(i float, j float, k float, l float)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift4'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION lift3(i float, j float, k float)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift3'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 CREATE OR REPLACE FUNCTION converge(triple triple, label_idx int, step_size float8, lambda float8, max_iterations int)
     RETURNS float8[]
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'converge'
@@ -201,3 +216,8 @@ SELECT sum(liftConst(2) * lift(c) * lift(d)) from Test2;
 
 --8400000 10%
 --16800000 20%
+
+--explain INSERT INTO inventory_tmp(id, date)
+--(
+--  SELECT id, date FROM inventory WHERE id <= 4200000;
+--);

@@ -388,6 +388,99 @@ Datum lift2(PG_FUNCTION_ARGS) {
     PG_RETURN_POINTER(result);
 }
 
+PG_FUNCTION_INFO_V1(lift3);
+
+Datum lift3(PG_FUNCTION_ARGS) {
+    double a = (double) PG_GETARG_FLOAT8(0);
+    double b = (double) PG_GETARG_FLOAT8(1);
+    double c = (double) PG_GETARG_FLOAT8(2);
+
+    Triple *result = (Triple *) palloc0(sizeof(Triple) + 9 * sizeof(double));
+    SET_VARSIZE(result, sizeof(Triple) + 9 * sizeof(double));
+
+    result->size = 3;
+    result->count = 1;
+    result->array[0] = a;
+    result->array[1] = b;
+    result->array[2] = c;
+    result->array[3] = a * a;
+    result->array[4] = a * b;
+    result->array[5] = a * c;
+    result->array[6] = b * b;
+    result->array[7] = b * c;
+    result->array[8] = c * c;
+    PG_RETURN_POINTER(result);
+}
+
+PG_FUNCTION_INFO_V1(lift4);
+
+Datum lift4(PG_FUNCTION_ARGS) {
+    double a = (double) PG_GETARG_FLOAT8(0);
+    double b = (double) PG_GETARG_FLOAT8(1);
+    double c = (double) PG_GETARG_FLOAT8(2);
+    double d = (double) PG_GETARG_FLOAT8(3);
+
+    Triple *result = (Triple *) palloc0(sizeof(Triple) + 14 * sizeof(double));
+    SET_VARSIZE(result, sizeof(Triple) + 14 * sizeof(double));
+
+    result->size = 4;
+    result->count = 1;
+    result->array[0] = a;
+    result->array[1] = b;
+    result->array[2] = c;
+    result->array[3] = d;
+    result->array[4] = a * a;
+    result->array[5] = a * b;
+    result->array[6] = a * c;
+    result->array[7] = a * d;
+    result->array[8] = b * b;
+    result->array[9] = b * c;
+    result->array[10] = b * d;
+    result->array[11] = c * c;
+    result->array[12] = c * d;
+    result->array[13] = d * d;
+    PG_RETURN_POINTER(result);
+}
+
+
+PG_FUNCTION_INFO_V1(lift5);
+
+Datum lift5(PG_FUNCTION_ARGS) {
+    double a = (double) PG_GETARG_FLOAT8(0);
+    double b = (double) PG_GETARG_FLOAT8(1);
+    double c = (double) PG_GETARG_FLOAT8(2);
+    double d = (double) PG_GETARG_FLOAT8(3);
+    double e = (double) PG_GETARG_FLOAT8(4);
+
+
+    Triple *result = (Triple *) palloc0(sizeof(Triple) + 20 * sizeof(double));
+    SET_VARSIZE(result, sizeof(Triple) + 20 * sizeof(double));
+
+    result->size = 5;
+    result->count = 1;
+    result->array[0] = a;
+    result->array[1] = b;
+    result->array[2] = c;
+    result->array[3] = d;
+    result->array[4] = e;
+    result->array[5] = a * a;
+    result->array[6] = a * b;
+    result->array[7] = a * c;
+    result->array[8] = a * d;
+    result->array[9] = a * e;
+    result->array[10] = b * b;
+    result->array[11] = b * c;
+    result->array[12] = b * d;
+    result->array[13] = b * e;
+    result->array[14] = c * c;
+    result->array[15] = c * d;
+    result->array[16] = c * e;
+    result->array[17] = d * d;
+    result->array[18] = d * e;
+    result->array[19] = e * e;
+    PG_RETURN_POINTER(result);
+}
+
 PG_FUNCTION_INFO_V1(triple_add);
 
 Datum triple_add(PG_FUNCTION_ARGS)

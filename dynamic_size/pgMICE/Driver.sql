@@ -1,3 +1,17 @@
+CREATE OR REPLACE FUNCTION test() RETURNS void AS $$
+DECLARE
+   _start_ts timestamptz;
+   _end_ts   timestamptz;
+BEGIN
+   _start_ts := clock_timestamp();
+    EXECUTE format('SELECT SUM(lift5(A,B,C,D,E)*lift5(F,G,H,I,J)*lift5(K,L,M,N,O)*lift5(P,Q,R,S,T)*lift5(U,V,W,X,Y)*lift5(Z,AA,BB,CC,DD)) FROM t_random;');
+    _end_ts := clock_timestamp();
+    RAISE NOTICE 'Test: Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
+END;
+$$ LANGUAGE plpgsql;
+
+
+
 CREATE OR REPLACE FUNCTION prepare_imputation(table_n text, _col_nan text[]) RETURNS void AS $$
 DECLARE
     col text;
