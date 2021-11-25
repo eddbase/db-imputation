@@ -37,16 +37,28 @@ CREATE OR REPLACE FUNCTION triple_add(triple, triple)
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_add'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE OR REPLACE FUNCTION triple_sub(triple, triple)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_sub'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 CREATE OR REPLACE FUNCTION triple_mul(triple, triple)
     RETURNS triple
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_mul'
-    LANGUAGE C IMMUTABLE STRICT;
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OPERATOR + (
     leftarg = triple,
     rightarg = triple,
     procedure = triple_add,
     commutator = +
+);
+
+CREATE OPERATOR - (
+    leftarg = triple,
+    rightarg = triple,
+    procedure = triple_sub,
+    commutator = -
 );
 
 CREATE OPERATOR * (
@@ -63,6 +75,11 @@ CREATE AGGREGATE sum (triple)
 	COMBINEFUNC = triple_add,
 	PARALLEL = SAFE
 );
+
+CREATE OR REPLACE FUNCTION cofactor_send(triple Triple)
+    returns float8[] as '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'cofactor_send'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
 
 CREATE OR REPLACE FUNCTION liftpgsql(i float, j int) RETURNS triple AS $$
   DECLARE
@@ -110,36 +127,47 @@ CREATE OR REPLACE FUNCTION lift2(i float, j float)
     AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift2'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
+CREATE OR REPLACE FUNCTION lift5(i float, j float, k float, l float, m float)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift5'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-DROP TABLE Test1;
-DROP TABLE Test2;
+CREATE OR REPLACE FUNCTION lift4(i float, j float, k float, l float)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift4'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE TABLE Test1 (
-    A int,
-    B float,
-	C float,
-	D float
-);
+CREATE OR REPLACE FUNCTION lift3(i float, j float, k float)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift3'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-CREATE TABLE Test2 (
-    C int,
-    D float
-);
+CREATE OR REPLACE FUNCTION converge(triple triple, label_idx int, step_size float8, lambda float8, max_iterations int)
+    RETURNS float8[]
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'converge'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
-insert into Test1 VALUES (1,2,3,4),(1,2,3,4),(1,2,3,4),(1,2,3,4);
-insert into Test2 VALUES (1,2),(1,4),(5,6),(5,8),(9,10);
+CREATE OR REPLACE FUNCTION update_triple(arr_updates float8[], triple triple, col_update int)
+    RETURNS triple
+    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'converge'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- SELECT SUM(lift(store, 0)) FROM Inventory;
-SELECT (lift(a)) from Test1;
-SELECT (lift2(a, b)) from Test1;
-SELECT (liftConst(12)) from Test1;
 
-SELECT sum(lift(a)) from Test1;
-SELECT sum(lift2(a, b)) from Test1;
-SELECT sum(lift(a) * lift(b)) from Test1;     -- same as previous
-SELECT sum(lift(a) * lift(b) * lift2(c, d)) from Test1;
+--UPDATE inventory SET store = NULL WHERE id <= 4200000;
+--UPDATE inventory SET date = NULL WHERE (id <= 8400000 AND id >= 4200000);
+--UPDATE inventory SET item = NULL WHERE id <= 4200000;
+--UPDATE inventory SET units = NULL WHERE id <= 4200000;
 
-SELECT sum(lift2(c, d)) from Test2;
-SELECT sum(lift(c) * lift(d)) from Test2; -- same as previous
-SELECT sum(liftConst(1) * lift(c) * lift(d)) from Test2; -- same as previous
-SELECT sum(liftConst(2) * lift(c) * lift(d)) from Test2;
+--4200000 5% 1 col
+--
+--4200000 5% 2 col
+--4200000 5% 3 col
+--4200000 5% 4 col
+
+--8400000 10%
+--16800000 20%
+
+--explain INSERT INTO inventory_tmp(id, date)
+--(
+--  SELECT id, date FROM inventory WHERE id <= 4200000;
+--);
