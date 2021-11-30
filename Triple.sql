@@ -1,26 +1,28 @@
-LOAD '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so';
+\set FACTMICE_LIBRARY '''/home/mnikolic/repos/imputation/custom_datatype/libfactMICE.so'''
+
+LOAD :FACTMICE_LIBRARY;
 DROP TYPE triple CASCADE;
 
 CREATE TYPE triple;
 
 CREATE OR REPLACE FUNCTION triple_in(cstring)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
+    AS :FACTMICE_LIBRARY 
     LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION triple_out(triple)
     RETURNS cstring
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
+    AS :FACTMICE_LIBRARY
     LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION triple_recv(internal)
    RETURNS triple
-   AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
+   AS :FACTMICE_LIBRARY
    LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION triple_send(triple)
    RETURNS bytea
-   AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so'
+   AS :FACTMICE_LIBRARY
    LANGUAGE C IMMUTABLE STRICT;
 
 CREATE TYPE triple (
@@ -34,17 +36,17 @@ CREATE TYPE triple (
 
 CREATE OR REPLACE FUNCTION triple_add(triple, triple)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_add'
+    AS :FACTMICE_LIBRARY, 'triple_add'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION triple_sub(triple, triple)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_sub'
+    AS :FACTMICE_LIBRARY, 'triple_sub'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION triple_mul(triple, triple)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'triple_mul'
+    AS :FACTMICE_LIBRARY, 'triple_mul'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OPERATOR + (
@@ -77,9 +79,9 @@ CREATE AGGREGATE sum (triple)
 );
 
 CREATE OR REPLACE FUNCTION cofactor_send(triple Triple)
-    returns float8[] as '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'cofactor_send'
-LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
+    RETURNS float8[] 
+    AS :FACTMICE_LIBRARY, 'cofactor_send'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION liftpgsql(i float, j int) RETURNS triple AS $$
   DECLARE
@@ -114,60 +116,40 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION liftConst(i int)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift_const'
+    AS :FACTMICE_LIBRARY, 'lift_const'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION lift(i float)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift'
+    AS :FACTMICE_LIBRARY, 'lift'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION lift2(i float, j float)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift2'
-    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
-CREATE OR REPLACE FUNCTION lift5(i float, j float, k float, l float, m float)
-    RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift5'
-    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
-CREATE OR REPLACE FUNCTION lift4(i float, j float, k float, l float)
-    RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift4'
+    AS :FACTMICE_LIBRARY, 'lift2'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION lift3(i float, j float, k float)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'lift3'
+    AS :FACTMICE_LIBRARY, 'lift3'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION lift4(i float, j float, k float, l float)
+    RETURNS triple
+    AS :FACTMICE_LIBRARY, 'lift4'
+    LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION lift5(i float, j float, k float, l float, m float)
+    RETURNS triple
+    AS :FACTMICE_LIBRARY, 'lift5'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION converge(triple triple, label_idx int, step_size float8, lambda float8, max_iterations int)
     RETURNS float8[]
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'converge'
+    AS :FACTMICE_LIBRARY, 'converge'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION update_triple(arr_updates float8[], triple triple, col_update int)
     RETURNS triple
-    AS '/mnt/c/Users/massi/phd/dynamic_size/cmake-build-debug/libfactMICE.so', 'converge'
+    AS :FACTMICE_LIBRARY, 'converge'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
-
-
---UPDATE inventory SET store = NULL WHERE id <= 4200000;
---UPDATE inventory SET date = NULL WHERE (id <= 8400000 AND id >= 4200000);
---UPDATE inventory SET item = NULL WHERE id <= 4200000;
---UPDATE inventory SET units = NULL WHERE id <= 4200000;
-
---4200000 5% 1 col
---
---4200000 5% 2 col
---4200000 5% 3 col
---4200000 5% 4 col
-
---8400000 10%
---16800000 20%
-
---explain INSERT INTO inventory_tmp(id, date)
---(
---  SELECT id, date FROM inventory WHERE id <= 4200000;
---);
