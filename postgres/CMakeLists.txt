@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.16)
+project(factML C)
+
+set(HASHTAB_FLAGS "-DHAVE_STDLIB_H -DHAVE_STRING_H -DHAVE_LIMITS_H -D HAVE_INTTYPES_H -DHAVE_STDINT_H -DHAVE_MALLOC_H")
+
+if (APPLE)
+    set(HASHTAB_FLAGS "-DHAVE_STDLIB_H -DHAVE_STRING_H -DHAVE_LIMITS_H -D HAVE_INTTYPES_H -DHAVE_STDINT_H")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flat_namespace -undefined suppress")
+endif()
+
+set(CMAKE_C_FLAGS "-O3 ${HASHTAB_FLAGS} -pedantic")
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY test/bin)
+
+set(PGSQL_DIRECTORY "/usr/include/postgresql/12/server")
+execute_process(
+    COMMAND "pg_config" "--includedir-server"
+    OUTPUT_VARIABLE 
+    PGSQL_DIRECTORY 
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+add_library(factML SHARED 
+    src/relation.c
+    src/serializer.c
+    src/cofactor.c
+    src/gradient_descent.c
+)
+target_include_directories(factML PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
+
+add_executable(test_serializer 
+    src/serializer.c
+    test/src/test_serializer.c
+)
+target_include_directories(test_serializer PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)

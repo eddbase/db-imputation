@@ -1,0 +1,6 @@
+.DS_Store
+.vscode
+postgres/CMakeFiles
+postgres/CMakeCache.txt
+postgres/Makefile
+postgres/cmake_install.cmake
