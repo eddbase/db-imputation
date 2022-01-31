@@ -1,4 +1,4 @@
-\set FACTMICE_LIBRARY '''/home/mnikolic/repos/imputation/custom_datatype/libfactMICE.so'''
+\set FACTMICE_LIBRARY '''/Users/massimo/Documents/imputation/custom_datatype/cmake-build-debug/libfactMICE.dylib'''
 
 LOAD :FACTMICE_LIBRARY;
 DROP TYPE triple CASCADE;

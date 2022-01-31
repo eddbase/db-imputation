@@ -14,6 +14,7 @@
 #include <catalog/pg_type.h>
 #include <math.h>
 #include "utils/lsyscache.h"
+#include "utils/array.h"
 
 
 PG_MODULE_MAGIC;

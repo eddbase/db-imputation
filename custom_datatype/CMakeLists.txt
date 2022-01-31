@@ -4,7 +4,7 @@ project(factMICE C)
 set(CMAKE_C_FLAGS "-O3")
 set(CMAKE_C_STANDARD 11)
 
-set(PGSQL_DIRECTORY "/usr/include/postgresql/12/server")
+set(PGSQL_DIRECTORY "/opt/homebrew/include/postgresql/server")
 execute_process(
     COMMAND "pg_config" "--includedir-server"
     OUTPUT_VARIABLE 
