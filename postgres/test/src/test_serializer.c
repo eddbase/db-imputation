@@ -2,6 +2,13 @@
 #include "relation.h"
 #include "serializer.h"
 
+#include <stdio.h>
+
+#define printf		printf
+#define snprintf		snprintf
+#define sprintf			sprintf
+
+
 void test_scalar_array();
 void test_tuple_array();
 void test_cofactor_data();

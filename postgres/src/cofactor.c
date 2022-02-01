@@ -1,6 +1,9 @@
 #include "cofactor.h"
 #include "serializer.h"
-#include <catalog/pg_type.h>
+#include "utils/lsyscache.h"
+#include "utils/array.h"
+#include "fmgr.h"
+
 
 /*****************************************************************************
  * Input/output functions

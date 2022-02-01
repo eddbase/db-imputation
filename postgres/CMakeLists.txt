@@ -30,7 +30,7 @@ add_library(factML SHARED
 )
 target_include_directories(factML PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
 
-add_executable(test_serializer 
+add_executable(test_serializer
     src/serializer.c
     test/src/test_serializer.c
 )

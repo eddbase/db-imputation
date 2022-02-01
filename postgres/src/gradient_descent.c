@@ -1,34 +1,57 @@
 #include "cofactor.h"
 #include "postgres.h"
+#include "fmgr.h"
 #include <catalog/pg_type.h>
 #include <math.h>
 #include <assert.h>
+#include "utils/array.h"
+#include "relation.h"
 
-void build_sigma_matrix(const cofactor_t *cofactor, size_t num_params,
+void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                         /* out */ double *sigma)
 {
-    assert(num_params == cofactor->num_continuous_vars + 1);
-
+    //assert(numerical_params == cofactor->num_continuous_vars + 1);
+    size_t numerical_params = cofactor->num_continuous_vars + 1;
     sigma[0] = cofactor->count;
 
     const float8 *sum1_scalar_array = (const float8 *)cofactor->data;
-    for (size_t i = 0; i < (num_params - 1); i++)
+    for (size_t i = 0; i < (numerical_params - 1); i++)
     {
         sigma[i + 1] = sum1_scalar_array[i];
-        sigma[(i + 1) * num_params] = sum1_scalar_array[i];
+        sigma[(i + 1) * numerical_params] = sum1_scalar_array[i];
     }
 
     const float8 *sum2_scalar_array = sum1_scalar_array + cofactor->num_continuous_vars;
-    for (size_t row = 0; row < (num_params - 1); row++)
+    for (size_t row = 0; row < (numerical_params - 1); row++)
     {
-        for (size_t col = 0; col < (num_params - 1); col++)
+        for (size_t col = 0; col < (numerical_params - 1); col++)
         {
             if (row > col)
-                sigma[((row + 1) * num_params) + (col + 1)] = sum2_scalar_array[(col * cofactor->num_continuous_vars) - (((col) * (col + 1)) / 2) + row];
+                sigma[((row + 1) * numerical_params) + (col + 1)] = sum2_scalar_array[(col * cofactor->num_continuous_vars) - (((col) * (col + 1)) / 2) + row];
             else
-                sigma[((row + 1) * num_params) + (col + 1)] = sum2_scalar_array[(row * cofactor->num_continuous_vars) - (((row) * (row + 1)) / 2) + col];
+                sigma[((row + 1) * numerical_params) + (col + 1)] = sum2_scalar_array[(row * cofactor->num_continuous_vars) - (((row) * (row + 1)) / 2) + col];
         }
     }
+
+    //add relational data
+
+    ////
+    numerical_params--;
+    size_t n_categorical = cofactor -> num_categorical_vars;
+    
+    /////
+
+    char *relation_data = (char *)cofactor ->data + (numerical_params * sizeof(float8));
+    for (size_t i = 0; i < n_categorical; i++)//each table
+    {
+        relation_t *r = (relation_t *)relation_data;
+
+        //add table to sigma matrix
+
+        r->sz_struct = sizeof_relation_t(r->num_tuples);
+        relation_data += r->sz_struct;
+    }
+
 }
 
 void compute_gradient(size_t num_params, size_t label_idx,
@@ -108,6 +131,8 @@ inline double compute_step_size(double step_size, int num_params,
 
     return (Tm / Ts > 0.5) ? Tm : Ts - 0.5 * Tm;
 }
+
+
 
 PG_FUNCTION_INFO_V1(linear_regression_model);
 

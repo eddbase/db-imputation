@@ -1,6 +1,7 @@
 #include "relation.h"
 #include "serializer.h"
-#include <catalog/pg_type.h>
+
+#include "fmgr.h"
 
 PG_MODULE_MAGIC;
 
