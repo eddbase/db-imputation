@@ -2,6 +2,7 @@
 #include "serializer.h"
 
 #include "fmgr.h"
+#include "hashmap.h"
 
 PG_MODULE_MAGIC;
 
@@ -234,4 +235,25 @@ Datum lift_to_relation(PG_FUNCTION_ARGS)
     out->tuples[0].value = 1.0;
 
     PG_RETURN_POINTER(out);
+}
+
+/***hashmap functions
+ ******/
+
+int tuple_compare(const void *a, const void *b, void *udata) {
+    const tuple_t *ta = a;
+    const tuple_t *tb = b;
+    return (ta->key - tb->key);
+}
+
+bool tuple_iter(const void *item, void *udata) {
+    const tuple_t *t = item;
+    return true;
+}
+
+uint64_t tuple_hash(const void *item, uint64_t seed0, uint64_t seed1) {
+    const tuple_t *t = item;
+    char arr[21];
+    size_t size = sprintf(arr,"%llu", t ->key);//llu vs lu?
+    return hashmap_sip(arr, size, seed0, seed1);
 }

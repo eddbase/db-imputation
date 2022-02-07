@@ -22,11 +22,12 @@ execute_process(
 )
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_library(factML SHARED 
+add_library(factML SHARED
     src/relation.c
     src/serializer.c
     src/cofactor.c
     src/gradient_descent.c
+        src/hashmap.c
 )
 target_include_directories(factML PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
 

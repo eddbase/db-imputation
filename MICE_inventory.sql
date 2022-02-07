@@ -5,9 +5,9 @@ SET work_mem='512MB';
 
 SELECT setseed(0.5);
 
-DROP TABLE IF EXISTS test.minventory;
-CREATE TABLE test.minventory(LIKE test.inventory INCLUDING ALL, id SERIAL);
-INSERT INTO test.minventory
+DROP TABLE IF EXISTS retailer.minventory;
+CREATE TABLE retailer.minventory(LIKE retailer.inventory INCLUDING ALL, id SERIAL);
+INSERT INTO retailer.minventory
 SELECT (CASE WHEN t.locn_rnd <= 0.05 THEN NULL ELSE t.locn END) AS locn,
        (CASE WHEN t.dateid_rnd <= 0.05 THEN NULL ELSE t.dateid END) AS dateid,
        t.ksn,
@@ -16,18 +16,18 @@ FROM (
     SELECT *,
            random() AS locn_rnd, 
            random() AS dateid_rnd
-    FROM test.inventory
+    FROM retailer.inventory
 ) t;
 
 DO $$
 DECLARE
     avg_locn FLOAT;
     avg_dateid FLOAT;
-    cofactor triple;
-    cofactor_locn triple;
-    cofactor_locn_new triple;
-    cofactor_dateid triple;
-    cofactor_dateid_new triple;
+    cofactor cofactor;
+    cofactor_locn cofactor;
+    cofactor_locn_new cofactor;
+    cofactor_dateid cofactor;
+    cofactor_dateid_new cofactor;
     params FLOAT[];
     start_ts timestamptz;
     end_ts timestamptz;
@@ -42,20 +42,19 @@ BEGIN
     SELECT AVG(CASE WHEN locn IS NOT NULL THEN locn END), 
            AVG(CASE WHEN dateid IS NOT NULL THEN dateid END)
            INTO STRICT avg_locn, avg_dateid
-    FROM test.minventory;
+    FROM retailer.minventory;
     end_ts := clock_timestamp();
     RAISE NOTICE '[Init] AVG values: %' , 1000 * (extract(epoch FROM end_ts - start_ts));
 
 
     start_ts := clock_timestamp();
-    SELECT SUM(lift4(
-                coalesce(locn, avg_locn), 
-                coalesce(dateid, avg_dateid), 
-                ksn, 
-                inventoryunits
-           ))
+    SELECT SUM(cont_to_cofactor(coalesce(locn, avg_locn))* 
+                cont_to_cofactor(coalesce(dateid, avg_dateid))* 
+                cont_to_cofactor(ksn)*
+                cont_to_cofactor(inventoryunits)
+           )
            INTO STRICT cofactor
-    FROM test.minventory;
+    FROM retailer.minventory;
     end_ts := clock_timestamp();
     RAISE NOTICE '[Init] Full cofactor matrix: %' , 1000 * (extract(epoch FROM end_ts - start_ts));
 
@@ -66,7 +65,7 @@ BEGIN
     DROP TABLE IF EXISTS tmp_minventory_locn;
     CREATE TEMPORARY TABLE tmp_minventory_locn AS
     SELECT dateid, ksn, inventoryunits, id 
-    FROM test.minventory WHERE locn IS NULL;
+    FROM retailer.minventory WHERE locn IS NULL;
     end_ts := clock_timestamp();
     RAISE NOTICE '[Init] TTable with missing values (locn): %' , 1000 * (extract(epoch FROM end_ts - start_ts));
 
@@ -75,7 +74,7 @@ BEGIN
     DROP TABLE IF EXISTS tmp_minventory_dateid;
     CREATE TEMPORARY TABLE tmp_minventory_dateid AS
     SELECT locn, ksn, inventoryunits, id 
-    FROM test.minventory WHERE dateid IS NULL;
+    FROM retailer.minventory WHERE dateid IS NULL;
     end_ts := clock_timestamp();
     RAISE NOTICE '[Init] TTable with missing values (dateid): %' , 1000 * (extract(epoch FROM end_ts - start_ts));
 
@@ -107,12 +106,11 @@ BEGIN
         -- cofactor on X_locn- 
         start_ts := clock_timestamp();
         start_ts2 := start_ts;
-        SELECT SUM(lift4(
-                    tmp_imputed_locn.locn, 
-                    coalesce(tmp_minventory_locn.dateid, tmp_imputed_dateid.dateid),
-                    tmp_minventory_locn.ksn,
-                    tmp_minventory_locn.inventoryunits
-               )) 
+        SELECT SUM(cont_to_cofactor(tmp_imputed_locn.locn)*
+        			cont_to_cofactor(coalesce(tmp_minventory_locn.dateid, tmp_imputed_dateid.dateid))*
+                    cont_to_cofactor(tmp_minventory_locn.ksn)*
+                    cont_to_cofactor(tmp_minventory_locn.inventoryunits)
+               ) 
                INTO STRICT cofactor_locn 
           FROM (tmp_minventory_locn JOIN tmp_imputed_locn 
             ON tmp_minventory_locn.id = tmp_imputed_locn.id) LEFT OUTER JOIN tmp_imputed_dateid 
@@ -122,7 +120,7 @@ BEGIN
 
         -- train on locn
         start_ts := clock_timestamp();
-        params := converge(cofactor - cofactor_locn, 0, 0.001, 0, 10000);
+        params := linear_regression_model(cofactor - cofactor_locn, 0, 0.001, 0, 10000);
         end_ts := clock_timestamp();
         RAISE NOTICE '[locn, %] Training model: %', i, 1000 * (extract(epoch FROM end_ts - start_ts));
 
@@ -140,12 +138,11 @@ BEGIN
         RAISE NOTICE '[locn, %] Computing values into ttable: %', i, 1000 * (extract(epoch FROM end_ts - start_ts));
 
         start_ts := clock_timestamp();
-        SELECT SUM(lift4(
-                    tmp_imputed_locn.locn,
-                    coalesce(tmp_minventory_locn.dateid, tmp_imputed_dateid.dateid),
-                    tmp_minventory_locn.ksn,
-                    tmp_minventory_locn.inventoryunits
-               )) 
+        SELECT SUM(cont_to_cofactor(tmp_imputed_locn.locn)*
+                    cont_to_cofactor(coalesce(tmp_minventory_locn.dateid, tmp_imputed_dateid.dateid))*
+                    cont_to_cofactor(tmp_minventory_locn.ksn)*
+                    cont_to_cofactor(tmp_minventory_locn.inventoryunits)
+               )
                INTO STRICT cofactor_locn_new
           FROM (tmp_minventory_locn JOIN tmp_imputed_locn 
             ON tmp_minventory_locn.id = tmp_imputed_locn.id) LEFT OUTER JOIN tmp_imputed_dateid 
@@ -162,11 +159,10 @@ BEGIN
         -- column dateid 
         start_ts := clock_timestamp();
         start_ts2 := start_ts;
-        SELECT SUM(lift4(
-                    coalesce(tmp_minventory_dateid.locn, tmp_imputed_locn.locn),
-                    tmp_imputed_dateid.dateid, 
-                    tmp_minventory_dateid.ksn,
-                    tmp_minventory_dateid.inventoryunits
+        SELECT SUM(cont_to_cofactor(coalesce(tmp_minventory_dateid.locn, tmp_imputed_locn.locn))*
+                    cont_to_cofactor(tmp_imputed_dateid.dateid)*
+                    cont_to_cofactor(tmp_minventory_dateid.ksn)*
+                    cont_to_cofactor(tmp_minventory_dateid.inventoryunits)
                 )) 
                INTO STRICT cofactor_dateid 
           FROM (tmp_minventory_dateid JOIN tmp_imputed_dateid 
@@ -177,7 +173,7 @@ BEGIN
 
         -- train on dateid
         start_ts := clock_timestamp();
-        params := converge(cofactor - cofactor_dateid, 1, 0.001, 0, 10000);
+        params := linear_regression_model(cofactor - cofactor_dateid, 1, 0.001, 0, 10000);
         end_ts := clock_timestamp();
         RAISE NOTICE '[dateid, %] Training model: %', i, 1000 * (extract(epoch FROM end_ts - start_ts));
 
@@ -196,11 +192,10 @@ BEGIN
         RAISE NOTICE '[dateid, %] Computing values into ttable: %', i, 1000 * (extract(epoch FROM end_ts - start_ts));
 
         start_ts := clock_timestamp();
-        SELECT SUM(lift4(
-                    coalesce(tmp_minventory_dateid.locn, tmp_imputed_locn.locn),
-                    tmp_imputed_dateid.dateid,
-                    tmp_minventory_dateid.ksn,
-                    tmp_minventory_dateid.inventoryunits
+        SELECT SUM(cont_to_cofactor(coalesce(tmp_minventory_dateid.locn, tmp_imputed_locn.locn))*
+                    cont_to_cofactor(tmp_imputed_dateid.dateid)*
+                    cont_to_cofactor(tmp_minventory_dateid.ksn)*
+                    cont_to_cofactor(tmp_minventory_dateid.inventoryunits)
                )) 
                INTO STRICT cofactor_dateid_new
           FROM (tmp_minventory_dateid JOIN tmp_imputed_dateid 

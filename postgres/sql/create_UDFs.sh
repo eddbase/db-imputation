@@ -8,11 +8,11 @@ then
     echo "Shared library is missing. Need to recompile."
 else
     echo "Creating relation type..."
-    psql -f $SCRIPT_DIR/create_relation_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\'
+    psql -f $SCRIPT_DIR/create_relation_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\' postgres
     
     echo "Creating cofactor type..."
-    psql -f $SCRIPT_DIR/create_cofactor_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\'
+    psql -f $SCRIPT_DIR/create_cofactor_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\' postgres
 
     echo "Creating ML functions..."
-    psql -f $SCRIPT_DIR/create_ML.sql -v FACTML_LIBRARY=\'$SHARED_FILE\'
+    psql -f $SCRIPT_DIR/create_ML.sql -v FACTML_LIBRARY=\'$SHARED_FILE\' postgres
 fi

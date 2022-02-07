@@ -136,10 +136,59 @@ void test_cofactor_data()
     free(buf);
 }
 
+/*
+void test_lift()
+{
+    relation_t *r1 = (relation_t *) malloc(SIZEOF_RELATION_1);
+    r1 ->num_tuples = 1;
+    r1->tuples[0].key = 5;
+    r1->tuples[0].value = 1;
+
+    relation_t *r2 = (relation_t *) malloc(SIZEOF_RELATION_1);
+    r2 ->num_tuples = 1;
+    r2->tuples[0].key = 7;
+    r2->tuples[0].value = 1;
+
+    relation_t *r3 = (relation_t *) malloc(SIZEOF_RELATION_1);
+    r3 ->num_tuples = 1;
+    r3->tuples[0].key = 5;
+    r3->tuples[0].value = 1;
+
+    size_t sz = sizeof_relation_t(r1->num_tuples + r2->num_tuples);
+    relation_t *out = (relation_t *)malloc(sz);
+    add_relations(r1, r2, out);
+
+    sz = sizeof_relation_t(out->num_tuples + r3->num_tuples);
+    relation_t *out2 = (relation_t *)malloc(sz);
+    add_relations(out, r3, out2);
+
+    char *relation_data = (char *)out2->tuples;
+
+    for (size_t i = 0; i < out2->num_tuples; i++)//each table
+    {
+        relation_t *r = (relation_t *)relation_data;
+        for(size_t j=0;j < r->num_tuples; j++){
+            printf("%lu -> %lf ", r->tuples[i].key, r->tuples[i].value);
+        }
+
+        r->sz_struct = sizeof_relation_t(r->num_tuples);
+        relation_data += r->sz_struct;
+    }
+
+
+    free(out);
+    free(out2);
+    free(r1);
+    free(r2);
+    free(r3);
+
+}*/
+
 int main(int argc, char **argv)
 {
     test_scalar_array();
     test_tuple_array();
     test_cofactor_data();
+    //test_lift();
     return 0;
 }
