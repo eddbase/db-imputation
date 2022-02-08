@@ -13,7 +13,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                         /* out */ double *sigma)
 {
     //count categorical
-    char *relation_data = (char *)cofactor ->data + (cofactor->num_continuous_vars * sizeof(float8));
+    const char *relation_data = crelation_array(cofactor);
     elog(NOTICE, "continuous vars: %d categorical vars: %d", cofactor->num_continuous_vars, cofactor ->num_categorical_vars);
     size_t total_keys = 0;
     //compute total keys
@@ -21,6 +21,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
     {
         relation_t *r = (relation_t *) relation_data;
         total_keys += r->num_tuples;
+        elog(NOTICE, "num tuples %d", r->num_tuples);
         r->sz_struct = sizeof_relation_t(r->num_tuples);
         relation_data += r->sz_struct;
     }
@@ -50,11 +51,19 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
         }
     }
 
+    for (size_t i=0;i<(total_keys+numerical_params);i++)
+    {
+        for(size_t j=0;j<(total_keys+numerical_params);j++)
+        {
+            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
+        }
+    }
+
     //(numerical_params)*(numerical_params) allocated
     //add relational data
 
     /////
-    relation_data = (char *)cofactor ->data + (cofactor->num_continuous_vars * sizeof(float8));
+    relation_data = crelation_array(cofactor);
 
     uint64_t *key_idxs = (uint64_t *)palloc0(sizeof(uint64_t) * total_keys); //keep keys idxs
     uint64_t *cat_vars_idxs = (uint64_t *)palloc0(sizeof(uint64_t) * cofactor->num_categorical_vars + 1);//track start each cat. variable
@@ -66,7 +75,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
     cat_vars_idxs[0] = 0;
 
     //allocate group by A, group by B, ...
-    elog(NOTICE, "ALLOCATING SINGLE GROUP BY");
+    elog(NOTICE, "ALLOCATING SINGLE GROUP BY: %d vars ", cofactor->num_categorical_vars);
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)//group by A,B,... (diagonal)
     {
         relation_t *r = (relation_t *) relation_data;
@@ -84,9 +93,14 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                 key_idxs[search_end] = r->tuples[j].key;
                 search_end++;
             }
+            key_index += cofactor->num_continuous_vars + 1;
 
             //key is key_index;
             sigma[(key_index * (total_keys + numerical_params)) + key_index] = r->tuples[j].value;
+
+            sigma[key_index] = r->tuples[j].value;
+            sigma[key_index * (total_keys + numerical_params)] = r->tuples[j].value;
+
             elog(NOTICE, "key: %lu -> %zu", r->tuples[j].key, key_index);
         }
         elog(NOTICE, "----");
@@ -98,13 +112,64 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
         relation_data += r->sz_struct;
     }
 
+    for (size_t i=0;i<(total_keys+numerical_params);i++)
+    {
+        for(size_t j=0;j<(total_keys+numerical_params);j++)
+        {
+            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
+        }
+    }
+
+    //cat * numerical
+    //numerical1*cat1, numerical1*cat2,  numerical2*cat1, numerical2*cat2
+    for (size_t numerical = 1; numerical < cofactor->num_continuous_vars+1; numerical++) {
+        for (size_t categorical = 0; categorical < cofactor->num_categorical_vars; categorical++) {
+            relation_t *r = (relation_t *) relation_data;
+
+            for (size_t j = 0; j < r->num_tuples; j++) {
+                elog(NOTICE, "cofactor numeric-class: (%zu, %lu) -> %f", numerical, r->tuples[j].key,
+                     r->tuples[j].value);
+                //search in the right categorical var
+                search_start = cat_vars_idxs[categorical];
+                search_end = cat_vars_idxs[categorical + 1];
+
+                size_t key_index_curr_var = search_start;
+                while (key_index_curr_var < search_end) {//search in the keys of this col
+                    if (key_idxs[key_index_curr_var] == r->tuples[j].key)
+                        break;
+                    key_index_curr_var++;
+                }
+
+                key_index_curr_var += cofactor->num_continuous_vars + 1;
+
+                elog(NOTICE, "remapped key (%zu, %lu)", numerical, key_index_curr_var);
+                sigma[(key_index_curr_var * (total_keys + numerical_params)) +
+                      numerical] = r->tuples[j].value;
+                sigma[(numerical * (total_keys + numerical_params)) +
+                      key_index_curr_var] = r->tuples[j].value;
+            }
+            r->sz_struct = sizeof_relation_t(r->num_tuples);
+            relation_data += r->sz_struct;
+        }
+    }
+
+    for (size_t i=0;i<(total_keys+numerical_params);i++)
+    {
+        for(size_t j=0;j<(total_keys+numerical_params);j++)
+        {
+            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
+        }
+    }
+
+
     size_t curr_cat_var = 0;//e.g, A
     size_t other_cat_var = 1;//e.g, B
 
-    //pairs (e.g., GROUP BY A,B, A,C, B,C)
-    for (size_t i = 0; i < (cofactor->num_categorical_vars)*((cofactor->num_categorical_vars-1)/2); i++) {
-        elog(NOTICE, "pairs %zu", i);
+    elog(NOTICE, "allocationg pairs %zu", size_relation_array(cofactor->num_continuous_vars, cofactor->num_categorical_vars) - (cofactor->num_categorical_vars*cofactor->num_continuous_vars));
 
+    //pairs (e.g., GROUP BY A,B, A,C, B,C)
+    for (size_t i = 0; i < size_relation_array_cat_cat(cofactor->num_categorical_vars); i++) {
+        elog(NOTICE, "relation: %zu", i);
         relation_t *r = (relation_t *) relation_data;
         for (size_t j = 0; j < r->num_tuples; j++) {
             elog(NOTICE, "cofactor joined keys: (%u, %u) -> %f", r->tuples[j].slots[0], r->tuples[j].slots[1],
@@ -114,24 +179,26 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
             search_end = cat_vars_idxs[curr_cat_var+1];
 
             size_t key_index_curr_var = search_start;
-            while (key_index_curr_var < search_end){
+
+            while (key_index_curr_var < search_end){//search in the keys of this col
                 if (key_idxs[key_index_curr_var] == r->tuples[j].slots[0])
                     break;
                 key_index_curr_var++;
             }
-
             search_start = cat_vars_idxs[other_cat_var];
-            search_end = cat_vars_idxs[other_cat_var+1];
+            search_end = cat_vars_idxs[other_cat_var + 1];
 
             size_t key_index_other_var = search_start;
-            while (key_index_other_var < search_end){
+            while (key_index_other_var < search_end) {
                 if (key_idxs[key_index_other_var] == r->tuples[j].slots[1])
                     break;
                 key_index_other_var++;
             }
 
-            elog(NOTICE, "cofactor joined keys: (%u, %u) -> (%zu, %zu)", r->tuples[j].slots[0], r->tuples[j].slots[1],
-                 key_index_curr_var, key_index_other_var);
+            key_index_curr_var += cofactor->num_continuous_vars + 1;
+            key_index_other_var += cofactor->num_continuous_vars + 1;
+
+            elog(NOTICE, "cofactor joined keys: (%u, %u) -> (%zu, %zu)", r->tuples[j].slots[0], r->tuples[j].slots[1],key_index_curr_var, key_index_other_var);
 
             sigma[(key_index_curr_var * (total_keys + numerical_params)) + key_index_other_var] = r->tuples[j].value;
             sigma[(key_index_other_var * (total_keys + numerical_params)) + key_index_curr_var] = r->tuples[j].value;
@@ -147,8 +214,16 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
 
         elog(NOTICE, "current cat %zu , other cat %zu", curr_cat_var, other_cat_var);
 
-             r->sz_struct = sizeof_relation_t(r->num_tuples);
+        r->sz_struct = sizeof_relation_t(r->num_tuples);
         relation_data += r->sz_struct;
+    }
+
+    for (size_t i=0;i<(total_keys+numerical_params);i++)
+    {
+        for(size_t j=0;j<(total_keys+numerical_params);j++)
+        {
+            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
+        }
     }
 
 }
@@ -250,7 +325,8 @@ Datum linear_regression_model(PG_FUNCTION_ARGS)
     //struct hashmap *map = hashmap_new(sizeof(tuple_t), 0, 0, 0,user_hash, user_compare, NULL, NULL);
 
     //get and sort keys
-    char *relation_data = (char *)cofactor ->data + (cofactor->num_continuous_vars * sizeof(float8));
+    elog(NOTICE, "num_cont_vals %u", cofactor->num_continuous_vars);
+    const char *relation_data = crelation_array(cofactor);
     //count classes and add to num_params
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)//n. classes for each variable (scan GRP BY A, GRP BY B, ...)
     {
