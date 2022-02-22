@@ -28,11 +28,11 @@ add_library(factML SHARED
     src/cofactor.c
     src/gradient_descent.c
         src/hashmap.c
-)
+        src/lda.c)
 target_include_directories(factML PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
 
 add_executable(test_serializer
     src/serializer.c
     test/src/test_serializer.c
-)
+        src/lda.c)
 target_include_directories(test_serializer PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)

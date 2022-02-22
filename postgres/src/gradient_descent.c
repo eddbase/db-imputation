@@ -50,14 +50,6 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                 sigma[((row + 1) * (numerical_params + total_keys)) + (col + 1)] = sum2_scalar_array[(row * cofactor->num_continuous_vars) - (((row) * (row + 1)) / 2) + col];
         }
     }
-    /*
-    for (size_t i=0;i<(total_keys+numerical_params);i++)
-    {
-        for(size_t j=0;j<(total_keys+numerical_params);j++)
-        {
-            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
-        }
-    }*/
 
     //(numerical_params)*(numerical_params) allocated
     //add relational data
@@ -70,7 +62,6 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
 
     size_t search_start = 0;
     size_t search_end = search_start;
-    //size_t offset = numerical_params+1;
 
     cat_vars_idxs[0] = 0;
 
@@ -111,15 +102,6 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
         r->sz_struct = sizeof_relation_t(r->num_tuples);
         relation_data += r->sz_struct;
     }
-    /*
-    for (size_t i=0;i<(total_keys+numerical_params);i++)
-    {
-        for(size_t j=0;j<(total_keys+numerical_params);j++)
-        {
-            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
-        }
-    }*/
-
     //cat * numerical
     //numerical1*cat1, numerical1*cat2,  numerical2*cat1, numerical2*cat2
     for (size_t numerical = 1; numerical < cofactor->num_continuous_vars+1; numerical++) {
@@ -152,15 +134,6 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
             relation_data += r->sz_struct;
         }
     }
-    /*
-    for (size_t i=0;i<(total_keys+numerical_params);i++)
-    {
-        for(size_t j=0;j<(total_keys+numerical_params);j++)
-        {
-            elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
-        }
-    }*/
-
 
     size_t curr_cat_var = 0;//e.g, A
     size_t other_cat_var = 1;//e.g, B
@@ -205,27 +178,19 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
 
         }
         //elog(NOTICE, "current cat %zu , other cat %zu", curr_cat_var, other_cat_var);
-
         other_cat_var++;
         if (other_cat_var == cofactor->num_categorical_vars){
             curr_cat_var++;
             other_cat_var = curr_cat_var+1;
         }
-
         //elog(NOTICE, "current cat %zu , other cat %zu", curr_cat_var, other_cat_var);
-
         r->sz_struct = sizeof_relation_t(r->num_tuples);
         relation_data += r->sz_struct;
     }
 
     for (size_t i=0;i<(total_keys+numerical_params);i++)
-    {
         for(size_t j=0;j<(total_keys+numerical_params);j++)
-        {
             elog(NOTICE, "%zu, %zu -> %f", i, j, sigma[(i*(numerical_params+total_keys)) + j]);
-        }
-    }
-
 }
 
 void compute_gradient(size_t num_params, size_t label_idx,
