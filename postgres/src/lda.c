@@ -5,11 +5,7 @@
 #include "postgres.h"
 #include "fmgr.h"
 #include <catalog/pg_type.h>
-#include <math.h>
-#include <assert.h>
-#include "utils/array.h"
 #include "relation.h"
-
 #include "hashmap.h"
 
 
@@ -29,12 +25,12 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
     }
     //start numerical
 
-    size_t numerical_params = cofactor->num_continuous_vars + 1;
+    size_t numerical_params = cofactor->num_continuous_vars;
     const float8 *sum1_scalar_array = (const float8 *)cofactor->data;
     const float8 *sum2_scalar_array = sum1_scalar_array + cofactor->num_continuous_vars;
-    for (size_t row = 0; row < (numerical_params - 1); row++)
+    for (size_t row = 0; row < numerical_params; row++)
     {
-        for (size_t col = 0; col < (numerical_params - 1); col++)
+        for (size_t col = 0; col < numerical_params; col++)
         {
             if (row > col)
                 sigma[((row) * (numerical_params + total_keys)) + (col)] = sum2_scalar_array[(col * cofactor->num_continuous_vars) - (((col) * (col + 1)) / 2) + row];
@@ -69,7 +65,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                 key_idxs[search_end] = r->tuples[j].key;
                 search_end++;
             }
-            key_index += cofactor->num_continuous_vars + 1;
+            key_index += cofactor->num_continuous_vars;//todo +1?
 
             //key is key_index;
             sigma[(key_index * (total_keys + numerical_params)) + key_index] = r->tuples[j].value;
@@ -84,7 +80,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
     }
     //cat * numerical
     //numerical1*cat1, numerical1*cat2,  numerical2*cat1, numerical2*cat2
-    for (size_t numerical = 1; numerical < cofactor->num_continuous_vars+1; numerical++) {
+    for (size_t numerical = 0; numerical < cofactor->num_continuous_vars; numerical++) {
         for (size_t categorical = 0; categorical < cofactor->num_categorical_vars; categorical++) {
             relation_t *r = (relation_t *) relation_data;
 
@@ -102,7 +98,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                     key_index_curr_var++;
                 }
 
-                key_index_curr_var += cofactor->num_continuous_vars + 1;
+                key_index_curr_var += cofactor->num_continuous_vars;
                 sigma[(key_index_curr_var * (total_keys + numerical_params)) +
                       numerical] = r->tuples[j].value;
                 sigma[(numerical * (total_keys + numerical_params)) +
@@ -144,11 +140,9 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
                 key_index_other_var++;
             }
 
-            key_index_curr_var += cofactor->num_continuous_vars + 1;
-            key_index_other_var += cofactor->num_continuous_vars + 1;
-
+            key_index_curr_var += cofactor->num_continuous_vars;
+            key_index_other_var += cofactor->num_continuous_vars;
             //elog(NOTICE, "cofactor joined keys: (%u, %u) -> (%zu, %zu)", r->tuples[j].slots[0], r->tuples[j].slots[1],key_index_curr_var, key_index_other_var);
-
             sigma[(key_index_curr_var * (total_keys + numerical_params)) + key_index_other_var] = r->tuples[j].value;
             sigma[(key_index_other_var * (total_keys + numerical_params)) + key_index_curr_var] = r->tuples[j].value;
 
