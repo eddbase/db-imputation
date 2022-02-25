@@ -23,6 +23,7 @@ execute_process(
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(factML SHARED
+        src/matrix.c
     src/relation.c
     src/serializer.c
     src/cofactor.c
@@ -32,7 +33,8 @@ add_library(factML SHARED
 target_include_directories(factML PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
 
 add_executable(test_serializer
+        src/matrix.c
     src/serializer.c
     test/src/test_serializer.c
-        src/lda.c)
+        )
 target_include_directories(test_serializer PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)

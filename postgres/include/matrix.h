@@ -15,9 +15,9 @@ typedef double            float32;
 typedef double            float64;
 #else
 typedef    unsigned int    Uint16;
-typedef    int                int16;
+typedef    short                int16;
 typedef    unsigned long    Uint32;
-typedef long            int32;
+typedef int            int32;
 typedef float            float32;
 typedef long double        float64;
 #endif
@@ -39,7 +39,7 @@ extern "C"
 
     int16 m_joint(float32* M, Uint16 n, float32*ans);
 
-    int16 m_inv(float32 *M, Uint16 n, float32* M_inv);
+    int16 m_inverse(float32 *M, Uint16 n, float32* M_inv);
 
     int16 m_trans(float32*M, Uint16 row, Uint16 col, float32 *M_tran);
 

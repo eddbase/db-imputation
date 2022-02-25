@@ -346,6 +346,7 @@ int16 m_cholupdate(float32* mat, const float32* vec, const Uint16 row, const Uin
 		}
 	}
 	m_copy(R, mat, n, n);
+    return 0;
 }
 
 void m_print(const float32* mat, const Uint16 m, const Uint16 n, const char *prompt)

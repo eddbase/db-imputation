@@ -13,9 +13,7 @@
 #include "matrix.h"
 #include <math.h>
 
-
-
-void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
+void build_cov_matrix(const cofactor_t *cofactor, size_t num_total_params,
         /* out */ double *sigma, size_t total_keys)
 {
     //start numerical
@@ -225,7 +223,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
     double *sigma_matrix = (double *)palloc0(sizeof(double) * num_params * num_params);
     double *sum_vector = (double *)palloc0(sizeof(double) * num_params);
 
-    build_sigma_matrix(cofactor, num_params, sigma_matrix, num_params);
+    build_cov_matrix(cofactor, num_params, sigma_matrix, num_params);
     build_sum_vector(cofactor, num_params, sum_vector, num_params);
     //compute covariance
     for (size_t i = 0; i < num_params * num_params; i++) {
@@ -261,21 +259,21 @@ Datum lda_invert(PG_FUNCTION_ARGS)
                       &arrayContent1, &arrayNullFlags1, &arrayLength1);
 
     float32 *matrix = malloc(arrayLength1 * sizeof(float32));
-    float32 *m_inverse = malloc(arrayLength1 * sizeof(float32));
+    float32 *m_inv = malloc(arrayLength1 * sizeof(float32));
     //unpack matrix
     for (int i=0;i<arrayLength1;i++)
         matrix[i] = DatumGetFloat4(arrayContent1[i]);
 
-    m_inv(matrix, arrayLength1, m_inverse);
+    m_inverse(matrix, arrayLength1, m_inv);
     Datum *d = (Datum *)palloc(sizeof(Datum) * arrayLength1);
 
     for (int i = 0; i < arrayLength1; i++)
-        d[i] = Float4GetDatum(m_inverse[i]);
+        d[i] = Float4GetDatum(m_inv[i]);
 
     ArrayType *a = construct_array(d, (arrayLength1), FLOAT4OID, sizeof(float4), true, 'd');
 
     free(matrix);
-    free(m_inverse);
+    free(m_inv);
 
     PG_RETURN_ARRAYTYPE_P(a);
 }
