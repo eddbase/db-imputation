@@ -31,14 +31,14 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t num_total_params,
     sigma[0] = cofactor->count;
 
     //elog(NOTICE, "one row is %lu values", numerical_params + total_keys);
-
+    //sum1
     const float8 *sum1_scalar_array = (const float8 *)cofactor->data;
     for (size_t i = 0; i < (numerical_params - 1); i++)
     {
         sigma[i + 1] = sum1_scalar_array[i];
         sigma[(i + 1) * (numerical_params + total_keys)] = sum1_scalar_array[i];
     }
-
+    //sum2 full matrix (from half)
     const float8 *sum2_scalar_array = sum1_scalar_array + cofactor->num_continuous_vars;
     for (size_t row = 0; row < (numerical_params - 1); row++)
     {
