@@ -7,7 +7,7 @@ from sklearn.datasets import make_classification
 col_drop = ["OHX02CTC","OHX03CTC","OHX04CTC","OHX05CTC","OHX06CTC","OHX07CTC","OHX08CTC","OHX09CTC","OHX10CTC","OHX11CTC","OHX12CTC","OHX13CTC","OHX14CTC","OHX15CTC","OHX18CTC","OHX19CTC","OHX20CTC","OHX21CTC","OHX22CTC","OHX23CTC","OHX24CTC","OHX25CTC","OHX26CTC","OHX27CTC","OHX28CTC","OHX29CTC","OHX30CTC","OHX31CTC","CSXTSEQ"]
 
 def acs_dataset(nulls=0.2):
-    table = pd.read_csv(r"~/phd/data_imputation/dataset/acs/acs_no_header.csv", header=None)
+    table = pd.read_csv(r"datasets/acs_no_header.csv", header=None)
 
     vals = table.values
 
@@ -51,9 +51,9 @@ def inventory_dataset(nulls=0.2):
     return vals, None #pd.DataFrame(vals, columns=table.columns).values, None
 
 def cdc_dataset():
-    demographic = pd.read_csv(r"~/phd/data_imputation/dataset/cdc/demographic.csv")
-    labs = pd.read_csv(r"~/phd/data_imputation/dataset/cdc/labs.csv")
-    exams = pd.read_csv(r"~/phd/data_imputation/dataset/cdc/examination.csv")
+    demographic = pd.read_csv(r"datasets/cdc/demographic.csv")
+    labs = pd.read_csv(r"datasets/cdc/labs.csv")
+    exams = pd.read_csv(r"datasets/cdc/examination.csv")
     exams.drop(col_drop, inplace=True, axis=1)
     df = demographic.merge(labs, left_on="SEQN", right_on="SEQN")
     df = df.merge(exams, left_on="SEQN", right_on="SEQN")

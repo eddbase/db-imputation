@@ -70,7 +70,7 @@ def removal_appr(x, nan_cols_, materialize_cof_diff, test_bug=False, itr = 5):
     print("done")
     return pre_cofactor
 
-x, labels = inventory_dataset()#synth_dataset(10000, 6, nan_cols_)
+x, labels = acs_dataset()#synth_dataset(10000, 6, nan_cols_)
 itr = 1 #iterations
 
 nan_cols_ = np.where(np.isnan(x).any(axis=0))[0]
@@ -78,7 +78,7 @@ print(nan_cols_)
 
 test_bug = False
 
-print("1")
+print("1")#full cofactor - nan cofactor
 start_best = time.time()
 imputed_data_1 = removal_appr(x, nan_cols_, True, test_bug=test_bug, itr=itr)#best approach so far
 end_best = time.time()
@@ -86,27 +86,28 @@ end_best = time.time()
 print("time best: ", end_best-start_best)
 
 
-#start_best = time.time()
-#print("2")
-#imputed_data_2 = removal_appr(x, nan_cols_, False, test_bug=True, itr=itr)
-#end_best = time.time()
-#print("time second best: ", end_best-start_best)
+start_best = time.time()
+#full cofactor - nan cofactor, second approach
+imputed_data_2 = removal_appr(x, nan_cols_, False, test_bug=test_bug, itr=itr)
+end_best = time.time()
+print("time second best: ", end_best-start_best)
 
+#standard sklearn
 start_best = time.time()
 estimator = StandardSKLearnImputation()
 imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
-#imputed_standard = imputer.fit_transform(x)
+imputed_standard = imputer.fit_transform(x)
 end_best = time.time()
 print("time sklearn: ", end_best-start_best)
 
+#generates a cofactor matrix for every column
+estimator = UnoptimizedMICE()
+imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
+imputed_fact_no_opt = imputer.fit_transform(x)
 
-#estimator = UnoptimizedMICE()
-#imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
-#imputed_fact_no_opt = imputer.fit_transform(x)
 
 
-
-#####
+#multiple cofactor + updates
 start_best = time.time()
 fact_matrices, len_train_matrices, imputed_matrix = build_matrices(x, nan_cols=nan_cols_)
 end_build_matrix=time.time()
