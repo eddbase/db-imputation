@@ -1,19 +1,43 @@
 from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import mean_squared_error
 
 import numpy as np
+import time
 
 learningRate = 1e-3
 
 class StandardSKLearnImputation(BaseEstimator, RegressorMixin):
-    def __init__(self):
+    def __init__(self, models={2:'regression', 4:'regression', 3:'regression', 1:'classification'}):
         self.best_params = None
+        self.models = models
+        self.cols = list(models.keys())
+        self.cols.sort()
+        self.trained = ''
 
     '''
     fit the model. tol and max_iter_no_change: early stopping parameters
     '''
 
     def fit(self, X, y, compute_only_gradient=True, max_epochs=4000, tol=1e-5, max_iter_no_change=20):
+        t = time.time()
+
+        y_int = y.astype(int)
+        if len(np.unique(y)) < 200 and np.all(y_int == y):
+            print('train classifier')
+            self.trained = 'classifier'
+            self.train_lda(X, y)
+        else:
+            print('train regression')
+            self.trained = 'regression'
+            self.train_linear_reg(X, y, compute_only_gradient, max_epochs, tol, max_iter_no_change)
+
+
+    def train_lda(self, X, y):
+        self.clf = LinearDiscriminantAnalysis()
+        self.clf.fit(X, y)
+
+    def train_linear_reg(self, X, y, compute_only_gradient, max_epochs, tol, max_iter_no_change):
         coeff_matrix = np.concatenate([X, np.ones(len(X))[:, None]], axis=1)
         self.learned_coeffs = np.zeros(coeff_matrix.shape[1])
 
@@ -44,6 +68,20 @@ class StandardSKLearnImputation(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, X, y=None, params=None):
+        t = time.time()
+
+        if self.trained == 'regression':
+            res = self.predict_linear_reg(X, y, params)
+        else:
+            res = self.predict_lda(X, y)
+
+        print('time predict: ', time.time()-t)
+        return res
+
+    def predict_lda(self, X, y=None):
+        return self.clf.predict(X)
+
+    def predict_linear_reg(self, X, y=None, params=None):
         if params is None:
             predictions = np.sum(np.multiply(self.best_params[:-1], X), axis=1) + self.best_params[-1]
         else:
@@ -56,10 +94,35 @@ class StandardSKLearnImputation(BaseEstimator, RegressorMixin):
 
 ##given a matrix trains a regression model. Always generates cofactor matrix
 class UnoptimizedMICE(BaseEstimator, RegressorMixin):
-    def __init__(self):
+    def __init__(self, models={2:'regression', 4:'regression', 3:'regression', 1:'classification'}):
         self.best_params = None
 
+        self.best_params = None
+        self.models = models
+        self.cols = list(models.keys())
+        self.cols.sort()
+        self.trained = ''
+
+
     def fit(self, X, y, compute_only_gradient=True, max_epochs=4000, tol=1e-5, max_iter_no_change=20):
+        t_1 = time.time()
+        y_int = y.astype(int)
+        if len(np.unique(y)) < 200 and np.all(y_int == y):
+            print('train classifier')
+            self.trained = 'classifier'
+            self.train_lda(X, y)
+        else:
+            print('train regression')
+            self.trained = 'regression'
+            self.train_linear_reg(X, y, compute_only_gradient, max_epochs, tol, max_iter_no_change)
+        print('time train: ', time.time()-t_1)
+
+
+    def train_lda(self, X, y):
+        self.clf = LinearDiscriminantAnalysis()
+        self.clf.fit(X, y)
+
+    def train_linear_reg(self, X, y, compute_only_gradient=True, max_epochs=4000, tol=1e-5, max_iter_no_change=20):
         coeff_matrix = np.concatenate([X, np.ones(len(X))[:, None], y[:, None]], axis=1)
         coeff_matrix = np.matmul(coeff_matrix.T, coeff_matrix)
 
@@ -95,6 +158,20 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, X, y=None, params=None):
+        t = time.time()
+        if self.trained == 'regression':
+            pred = self.predict_linear_reg(X, y, params)
+        else:
+            pred = self.predict_lda(X, y)
+
+        print('time predict: ', time.time() - t)
+        return pred
+
+    def predict_lda(self, X, y=None):
+        return self.clf.predict(X)
+
+
+    def predict_linear_reg(self, X, y=None, params=None):
         if params is None:
             predictions = np.sum(np.multiply(self.best_params[:-2], X), axis=1) + self.best_params[-2]
         else:
@@ -103,6 +180,7 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
 
     def get_learned_params(self):
         return self.best_params[:-2], self.best_params[-2]
+
 
 
 ##given a matrix trains a regression model.
@@ -163,15 +241,6 @@ class CustomMICERegressor(BaseEstimator, RegressorMixin):
                 #sec = np.matmul(second_norm[None], submatrices)
                 gradient_constraint = np.squeeze(beta*(first + sec))/ len(equality_constraint_feats)
 
-                '''
-                for constraints in equality_constraint_feats:
-                    predictions = self.predict(constraints, params=self.learned_coeffs)
-                    first = np.matmul(constraints.T * (2/predictions.shape[0]), predictions[None].T).squeeze()
-                    sec = ((-2/(predictions.shape[0] ** 2)) * (predictions.sum())) * (constraints.sum(axis=0))
-                    gradient_constraint += (beta*((first + sec)))
-                gradient_constraint /= len(equality_constraint_feats)
-                '''
-
             gradient *= (2 / len_original_data)
             #gradient_constraint = np.zeros(len(self.learned_coeffs))
             complete_gradient = gradient + gradient_constraint
@@ -188,8 +257,6 @@ class CustomMICERegressor(BaseEstimator, RegressorMixin):
                 loss = np.linalg.norm(gradient[order])
                 loss_c = np.linalg.norm(gradient_constraint[order])
                 loss_complete = np.linalg.norm(complete_gradient[order])
-                #if epoch%200 == 0:
-                #    print("label: ", self.label, "loss: ", loss_complete, "constraint ", loss_c, "MSE ",loss,flush=True)
 
             if best_loss is None or (loss_complete + tol) < best_loss:
                 best_loss = loss_complete

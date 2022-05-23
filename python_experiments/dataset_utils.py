@@ -7,7 +7,7 @@ from sklearn.datasets import make_classification
 col_drop = ["OHX02CTC","OHX03CTC","OHX04CTC","OHX05CTC","OHX06CTC","OHX07CTC","OHX08CTC","OHX09CTC","OHX10CTC","OHX11CTC","OHX12CTC","OHX13CTC","OHX14CTC","OHX15CTC","OHX18CTC","OHX19CTC","OHX20CTC","OHX21CTC","OHX22CTC","OHX23CTC","OHX24CTC","OHX25CTC","OHX26CTC","OHX27CTC","OHX28CTC","OHX29CTC","OHX30CTC","OHX31CTC","CSXTSEQ"]
 
 def acs_dataset(nulls=0.2):
-    table = pd.read_csv(r"datasets/acs_no_header.csv", header=None)
+    table = pd.read_csv(r"../datasets/acs_no_header.csv", header=None)
 
     vals = table.values
 
@@ -25,6 +25,7 @@ def acs_dataset(nulls=0.2):
     ix = np.random.choice(n, size=int(nulls * n), replace=False)
     vals[ix] = np.nan
     vals = vals.reshape(shape)
+    print(vals.shape)
 
     return vals, None #pd.DataFrame(vals, columns=table.columns).values, None
 

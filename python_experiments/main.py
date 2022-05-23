@@ -1,8 +1,10 @@
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 from sklearn.linear_model import LinearRegression
+
+from bgd_classifier import CustomMICEClassifier
 from dataset_utils import inventory_dataset
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score, f1_score
 import time
 
 from bgd_linear_regression import *
@@ -10,13 +12,18 @@ from dataset_utils import acs_dataset, synth_dataset, cdc_dataset
 
 
 ### subtraction
+from load_inventory import load_inventory
 
-def generate_full_cofactor(x):
+
+def generate_full_cofactor(x, numerical_classes, categorical_classes):
 
     x_1 = np.concatenate([x, np.ones(len(x))[:, None]], axis=1)
     from sklearn.impute import SimpleImputer
     imp_mean = SimpleImputer(missing_values=np.nan, strategy='mean')
-    pre_cofactor = imp_mean.fit_transform(x_1)
+    imp_class = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+    pre_cofactor = x_1.copy()
+    pre_cofactor[:, numerical_classes] = imp_mean.fit_transform(pre_cofactor[:, numerical_classes])
+    pre_cofactor[:, categorical_classes] = imp_class.fit_transform(pre_cofactor[:, categorical_classes])
     coeff_matrix = np.matmul(pre_cofactor.T, pre_cofactor)
 
     return coeff_matrix, pre_cofactor, x_1#cofactor, full table imputed, table with nan
@@ -27,17 +34,29 @@ def generate_full_cofactor(x):
 remove cofactor matrix
 '''
 
-def removal_appr(x, nan_cols_, materialize_cof_diff, test_bug=False, itr = 5):
-    coeff_matrix, pre_cofactor, x_1 = generate_full_cofactor(x)
+def removal_appr(x, nan_cols_, materialize_cof_diff, test_bug=False, itr = 5, models = {2:'regression', 4:'regression', 3:'regression', 1:'classification'}):
+    classification_cols = []
+    numerical_cols = []
+    for k, v in models.items():
+        if v == 'regression':
+            numerical_cols += [k]
+        else:
+            classification_cols += [k]
+
+    coeff_matrix, pre_cofactor, x_1 = generate_full_cofactor(x, numerical_cols, classification_cols)#cofactor matrix
+
+    classifier = CustomMICEClassifier(pre_cofactor, x_1, classification_cols)
 
     for iteration in range(itr):
         for col in nan_cols_:
-            if col%10 == 0:
-                print(col)
+            model = models[col]
+            if model == 'regression':
+                mice_model = CustomMICERegressor(col)
+            else:
+                mice_model = classifier
+                mice_model.set_current_col(col)
 
-            mice_model = CustomMICERegressor(col)
             idx_nan = np.argwhere(np.isnan(x_1[:, col]))[:, 0]
-            #print("IDX NAN: ", idx_nan)
             feats_nan = pre_cofactor[idx_nan, :]#nan rows
             if materialize_cof_diff:
                 mk = np.matmul(feats_nan.T, feats_nan)#train over original cofactor - delta
@@ -49,12 +68,17 @@ def removal_appr(x, nan_cols_, materialize_cof_diff, test_bug=False, itr = 5):
             old_vals = np.sum(feats_nan * feats_nan[:, col][:, None], axis=0)
             predictions = mice_model.predict(feats_nan)
             #print("col: ",col,"constraints: ", predictions[:6], " no constraints ", predictions[6:12])
-            pre_cofactor[idx_nan, col] = predictions
+
+            if model == 'classification':
+                print("updating data...")
+                mice_model.update_data_struct_1(pre_cofactor, x_1)
+
+            pre_cofactor[idx_nan, col] = predictions #updating dataset preprocessed
             feats_nan = pre_cofactor[idx_nan, :]
-            #print(idx_nan.shape)
-            #print(feats_nan.shape)
-            #print(predictions.shape)
-            new_vals = np.sum(feats_nan * predictions[:, None], axis=0)
+            new_vals = np.sum(feats_nan * predictions[:, None], axis=0)#new vals for cofactor
+            if model == 'classification':
+                print("updating data...")
+                mice_model.update_data_struct_2(pre_cofactor, x_1)
 
             delta = new_vals - old_vals
             coeff_matrix[:, col] += delta
@@ -70,17 +94,29 @@ def removal_appr(x, nan_cols_, materialize_cof_diff, test_bug=False, itr = 5):
     print("done")
     return pre_cofactor
 
-x, labels = acs_dataset()#synth_dataset(10000, 6, nan_cols_)
-itr = 1 #iterations
+def test_result(data_changed, nan_dataset, true_labels, models = {2:'regression', 4:'regression', 3:'regression', 1:'classification'}):
+    for col, model in models.items():
+        idx_nan = np.argwhere(np.isnan(nan_dataset.values[:, col]))[:, 0]
+        imputed_data = data_changed[idx_nan, col]
+        if model == 'regression':
+            print('MSE', mean_squared_error(true_labels[col], imputed_data))
+            print('R2', r2_score(true_labels[col], imputed_data))
+        else:
+            print('F1', f1_score(true_labels[col], imputed_data, average='micro'))
+
+
+models = {2:'regression', 3:'regression', 1:'classification', 0:'classification', 11:'regression', 15:'regression'}
+x, labels = load_inventory()#synth_dataset(10000, 6, nan_cols_)
+itr = 4 #iterations
 
 nan_cols_ = np.where(np.isnan(x).any(axis=0))[0]
-print(nan_cols_)
 
 test_bug = False
 
 print("1")#full cofactor - nan cofactor
 start_best = time.time()
-imputed_data_1 = removal_appr(x, nan_cols_, True, test_bug=test_bug, itr=itr)#best approach so far
+imputed_data_1 = removal_appr(x, nan_cols_, True, test_bug=test_bug, itr=itr, models=models)#best approach so far
+test_result(imputed_data_1, x, labels, models=models)
 end_best = time.time()
 
 print("time best: ", end_best-start_best)
@@ -88,25 +124,31 @@ print("time best: ", end_best-start_best)
 
 start_best = time.time()
 #full cofactor - nan cofactor, second approach
-imputed_data_2 = removal_appr(x, nan_cols_, False, test_bug=test_bug, itr=itr)
+imputed_data_2 = removal_appr(x, nan_cols_, False, test_bug=test_bug, itr=itr, models=models)
+test_result(imputed_data_2, x, labels, models=models)
 end_best = time.time()
 print("time second best: ", end_best-start_best)
 
 #standard sklearn
 start_best = time.time()
-estimator = StandardSKLearnImputation()
+estimator = StandardSKLearnImputation(models=models)
 imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
 imputed_standard = imputer.fit_transform(x)
+test_result(imputed_standard, x, labels, models=models)
 end_best = time.time()
 print("time sklearn: ", end_best-start_best)
 
 #generates a cofactor matrix for every column
-estimator = UnoptimizedMICE()
+start_best = time.time()
+estimator = UnoptimizedMICE(models = models)
 imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
 imputed_fact_no_opt = imputer.fit_transform(x)
+test_result(imputed_fact_no_opt, x, labels, models=models)
+end_best = time.time()
+print("time unoptimized: ", end_best-start_best)
 
 
-
+'''
 #multiple cofactor + updates
 start_best = time.time()
 fact_matrices, len_train_matrices, imputed_matrix = build_matrices(x, nan_cols=nan_cols_)
@@ -219,7 +261,7 @@ print(len(imputed_values_original[~np.isclose(imputed_values_original, imputed_v
 print(imputed_values_original[~np.isclose(imputed_values_original, imputed_values_1)])
 print(imputed_values_1[~np.isclose(imputed_values_original, imputed_values_1)])
 
-
+'''
 #########
 
 
