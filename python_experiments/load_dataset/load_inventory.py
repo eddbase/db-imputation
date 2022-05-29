@@ -9,22 +9,25 @@ from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
-def load_inventory(nulls={'maxtemp': 0.2, 'mintemp': 0.2, 'snow':0.2, 'rain':0.2, 'supertargetdistance': 0.2, 'walmartdistance':0.2}):#'snow':0.1
+def load_inventory(path = "../datasets/retailer/", nulls={'maxtemp': 0.2, 'mintemp': 0.2, 'snow':0.2, 'rain':0.2, 'supertargetdistance': 0.2, 'walmartdistance':0.2}, max_rows = None, models = {'maxtemp':'regression', 'mintemp':'regression', 'snow':'classification', 'rain':'classification', 'supertargetdistance': 'regression', 'walmartdistance': 'regression'}):#'snow':0.1
 
     #inventory = pd.read_csv('inventory.tbl', sep='|', names=['locn', 'dateid', 'ksn', 'inventoryunits'])
     #item = pd.read_csv('item.tbl', sep='|', names=['ksn', 'subcategory', 'category', 'categoryCluster', 'prize'])
-    weather = pd.read_csv('../datasets/retailer/weather.tbl', sep='|', names=['locn', 'dateid', 'rain', 'snow', 'maxtemp', 'mintemp', 'meanwind', 'thunder'])
-    location = pd.read_csv('../datasets/retailer/location.tbl', sep='|', names=['locn', 'zip', 'rgn_cd', 'clim_zn_nbr', 'tot_area', 'sell_area', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime'])
+    weather = pd.read_csv(path+'weather.tbl', sep='|', names=['locn', 'dateid', 'rain', 'snow', 'maxtemp', 'mintemp', 'meanwind', 'thunder'])
+    location = pd.read_csv(path+'location.tbl', sep='|', names=['locn', 'zip', 'rgn_cd', 'clim_zn_nbr', 'tot_area', 'sell_area', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime'])
     #census = pd.read_csv('census.tbl', sep='|', names=['zip', 'population', 'white', 'asian', 'pacific', 'black', 'mediange', 'occupiedhouseunits', 'houseunits', 'family', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic'])
     #inventory = inventory.drop_duplicates(subset=['locn'])#CHANGE HERE IF COL IS CHANGED
-
     df = weather.merge(location, on=['locn'])
+    print(len(df))
     #df = df.merge(item, on=['ksn'])
     #df = df.merge(location, on=['locn'])
     #df = df.merge(census, on=['zip'])
     #df.head()
 
     result = df
+    if max_rows is not None:
+        result = result[0:max_rows].copy()
+
 
     result.drop(['zip', 'dateid', 'locn'], axis=1, inplace=True)
 
@@ -37,14 +40,17 @@ def load_inventory(nulls={'maxtemp': 0.2, 'mintemp': 0.2, 'snow':0.2, 'rain':0.2
     #X_train, X_test, y_train, y_test = train_test_split(result.drop([col], axis=1), result[col], test_size=0.2, random_state=1)
 
     true_vals = {}
+    cols_models = {}
 
     for k, v in nulls.items():
         print(k)
+        index_no = result.columns.get_loc(k)
         ix = np.sort(np.random.choice(len(result), size=int(v * len(result)), replace=False))
-        true_vals[result.columns.get_loc(k)] = result.loc[ix, k].copy()
+        true_vals[index_no] = result.loc[ix, k].copy()
         result.loc[ix, k] = np.nan
+        cols_models[index_no] = models[k]
 
-    return result, true_vals
+    return result, true_vals, cols_models
 
 '''
 model = LinearRegression(normalize=True)

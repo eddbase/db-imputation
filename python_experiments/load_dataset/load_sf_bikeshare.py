@@ -11,9 +11,9 @@ from sklearn.preprocessing import StandardScaler
 
 def load_sf_bike(nulls={'trips': 0.2, 'mean_visibility_miles': 0.1, 'mean_temperature_f':0.1}):
 
-    df = pd.read_csv("../datasets/sf_bike_sharing/trip.csv")
-    weather = pd.read_csv("../datasets/sf_bike_sharing/weather.csv")
-    stations = pd.read_csv("../datasets/sf_bike_sharing/station.csv")
+    df = pd.read_csv("../../datasets/sf_bike_sharing/trip.csv")
+    weather = pd.read_csv("../../datasets/sf_bike_sharing/weather.csv")
+    stations = pd.read_csv("../../datasets/sf_bike_sharing/station.csv")
 
     print(len(df))
 

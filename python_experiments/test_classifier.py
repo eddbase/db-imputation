@@ -1,7 +1,7 @@
 import numpy as np
 
 from bgd_classifier import CustomMICEClassifier
-from dataset_utils import acs_dataset, synth_dataset_classification
+from load_dataset.dataset_utils import synth_dataset_classification
 
 
 def generate_full_cofactor(x, numeric=np.array([False, True])):

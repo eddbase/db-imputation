@@ -23,9 +23,9 @@ from sklearn.preprocessing import StandardScaler
 
 def load_flights(nulls={'DEPARTURE_DELAY': 0.2}):
 
-    airlines_path = "../datasets/next_try/2015_flight_delays/airlines.csv"
-    airport_path = "../datasets/next_try/2015_flight_delays/airports.csv"
-    flights_path = "../datasets/next_try/2015_flight_delays/flights.csv"
+    airlines_path = "../../datasets/next_try/2015_flight_delays/airlines.csv"
+    airport_path = "../../datasets/next_try/2015_flight_delays/airports.csv"
+    flights_path = "../../datasets/next_try/2015_flight_delays/flights.csv"
 
     # Load the data
     airlines_data = pd.read_csv(airlines_path)

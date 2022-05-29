@@ -22,6 +22,7 @@ class CustomMICEClassifier(BaseEstimator, RegressorMixin):
             #print('check ', classes)
 
             for i in classes:  # for each class
+                print("classifier init, class: ", i, "col: ", col)
                 tmp = feats_not_nan[np.where(feats_not_nan[:, col] == i)]
                 self.sums[col][i] = tmp.sum(axis=0)
                 self.items[col][i] = len(tmp)
@@ -35,34 +36,42 @@ class CustomMICEClassifier(BaseEstimator, RegressorMixin):
             max_iter_no_change=20, nan_raw_data = None, equality_constraint_feats=None, beta=0):
 
         self.covariance = np.copy(coeff_matrix)
-        self.means = {}
+        #print('covariance start: ', self.covariance)
+        #self.means = {}
 
         #build covariance
         for i in self.items[self.current_col].keys():#for each class
+            self.covariance -= (np.matmul(self.sums[self.current_col][i].reshape(-1,1), self.sums[self.current_col][i].reshape(-1,1).T) / self.items[self.current_col][i])
             #print('col: ', self.current_col, 'i ', i, self.sums[self.current_col], self.items[self.current_col])
-            self.means[i] = self.sums[self.current_col][i]/self.items[self.current_col][i]#already removed nans for each class
-            self.covariance += (self.items[self.current_col][i] * np.matmul(self.means[i][None].T, self.means[i][None]))
-            product = np.matmul(self.means[i][None].T, self.sums[self.current_col][i][None])
-            self.covariance -= product
-            self.covariance -= product.T
+            #self.means[i] = self.sums[self.current_col][i]/self.items[self.current_col][i]#already removed nans for each class
+            #self.covariance += (self.items[self.current_col][i] * np.matmul(self.means[i][None].T, self.means[i][None]))
+            #product = np.matmul(self.means[i][None].T, self.sums[self.current_col][i][None])
+            #self.covariance -= product
+            #self.covariance -= product.T
 
         self.covariance /= len_original_data
+
+        self.col_index = np.r_[0:self.current_col, self.current_col+1:coeff_matrix.shape[1]]
+        covariance_impute = self.covariance[self.col_index,:]
+        covariance_impute = covariance_impute[:,self.col_index]
+
+        #print('covariance: ', covariance_impute)
+
+        self.inv_matrix = np.linalg.pinv(covariance_impute)
+
+        #print('covariance end: ', self.covariance)
         return self
 
     def predict(self, X):
-        col_index = np.r_[0:self.current_col, self.current_col+1:X.shape[1]]
-        feat_impute = X[:, col_index]#filter label
-        covariance_impute = self.covariance[col_index,:]
-        covariance_impute = covariance_impute[:,col_index]
-        inv_matrix = np.linalg.inv(covariance_impute)
 
+        feat_impute = X[:, self.col_index]#filter label
         imputed_probs = []
         classes = []
-        for k, v in self.means.items():#k = class, v=mean
+        for k, v in self.sums[self.current_col].items():#k = class, v=mean
             classes += [k]
-            curr_means = self.means[k][col_index].reshape(-1,1)
-            sec_part = (1/2)*np.matmul(np.matmul(curr_means.T, inv_matrix), curr_means)
-            third_part = np.matmul(np.matmul(feat_impute, inv_matrix), curr_means)
+            curr_means = (v[self.col_index] / self.items[self.current_col][k]).reshape(-1,1)
+            sec_part = (1/2)*np.matmul(np.matmul(curr_means.T, self.inv_matrix), curr_means)
+            third_part = np.matmul(np.matmul(feat_impute, self.inv_matrix), curr_means)
             #print('shapes ', sec_part.shape, third_part.shape)
             imputed_probs += [math.log(self.items[self.current_col][k] / self.tot_items[self.current_col]) - sec_part + third_part]
 
@@ -77,18 +86,20 @@ class CustomMICEClassifier(BaseEstimator, RegressorMixin):
             if self.current_col == col_upd:
                 continue#skip col label
             #print('tot items keys', self.tot_items[self.current_col])
-            for klass in self.items[self.current_col].keys():  # update mean each class
+            for klass in self.items[col_upd].keys():  # update mean each class
+                #print("col upd: ", col_upd)
+                #print("klass: ", klass)
                 self.sums[col_upd][klass] -= original_dataset[
-                                         (original_dataset[:, col_upd] == klass) & ~(np.isnan(data_with_nan[:, col_upd])), :].sum(
+                                         (original_dataset[:, col_upd] == klass) & (np.isnan(data_with_nan[:, col_upd])), :].sum(
                     axis=0)#rows that are labelled as klass and are null (imputation changed)
 
     def update_data_struct_2(self, original_dataset, data_with_nan):
         for col_upd in self.items.keys():  # for each col
             if self.current_col == col_upd:
                 continue
-            for klass in self.items[self.current_col].keys():  # update mean each class
+            for klass in self.items[col_upd].keys():  # update mean each class
                 self.sums[col_upd][klass] += original_dataset[
-                                         (original_dataset[:, col_upd] == klass) & ~(np.isnan(data_with_nan[:, col_upd])), :].sum(
+                                         (original_dataset[:, col_upd] == klass) & (np.isnan(data_with_nan[:, col_upd])), :].sum(
                     axis=0)
 
     def set_current_col(self, current_col):
