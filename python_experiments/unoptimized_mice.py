@@ -10,7 +10,7 @@ learningRate = 1e-3
 
 ##given a matrix trains a regression model. Always generates cofactor matrix
 class UnoptimizedMICE(BaseEstimator, RegressorMixin):
-    def __init__(self, models={2:'regression', 4:'regression', 3:'regression', 1:'classification'}):
+    def __init__(self, models={2:'regression', 4:'regression', 3:'regression', 1:'classification'}, regr_max_iter=1000, max_iter_no_change = 5, regr_tol=1e-3):
         self.best_params = None
 
         self.best_params = None
@@ -18,10 +18,14 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
         self.cols = list(models.keys())
         self.cols.sort()
         self.trained = ''
+        self.regr_max_iter = regr_max_iter
+        self.max_iter_no_change = max_iter_no_change
+        self.regr_tol=regr_tol
+
         #self.logger = logger
 
 
-    def fit(self, X, y, compute_only_gradient=True, max_epochs=4000, tol=1e-5, max_iter_no_change=20):
+    def fit(self, X, y, compute_only_gradient=True):
         self.t_start = time.time()
         y_int = y.astype(int)
         if len(np.unique(y)) < 200 and np.all(y_int == y):
@@ -31,7 +35,7 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
         else:
             print('train regression')
             self.trained = 'regression'
-            self.train_linear_reg(X, y, compute_only_gradient, max_epochs, tol, max_iter_no_change)
+            self.train_linear_reg(X, y, compute_only_gradient)
         #print('time train: ', time.time()-t_1)
 
 
@@ -55,7 +59,7 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
         #self.clf = LinearDiscriminantAnalysis()
         #self.clf.fit(X, y)
 
-    def train_linear_reg(self, X, y, compute_only_gradient=True, max_epochs=4000, tol=1e-5, max_iter_no_change=20):
+    def train_linear_reg(self, X, y, compute_only_gradient=True):
         coeff_matrix = np.concatenate([X, np.ones(len(X))[:, None], y[:, None]], axis=1)
         coeff_matrix = np.matmul(coeff_matrix.T, coeff_matrix)
 
@@ -66,7 +70,7 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
         epoch = 0
         best_loss = None
 
-        while n_iter_no_change < max_iter_no_change and epoch < max_epochs:  # epochs
+        while n_iter_no_change < self.max_iter_no_change and epoch < self.regr_max_iter:  # epochs
             self.learned_coeffs[-1] = -1
             gradient = np.matmul(self.learned_coeffs, coeff_matrix)#((np.sum(np.multiply(self.learned_coeffs, coeff_matrix), axis=1)))
             self.learned_coeffs -= learningRate * (2 / X.shape[0]) * gradient
@@ -79,7 +83,7 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
                 loss = mean_squared_error(y, self.predict(X, params=self.learned_coeffs))
                 #print("loss: ", loss)
 
-            if best_loss is None or (loss + tol) < best_loss:
+            if best_loss is None or (loss + self.regr_tol) < best_loss:
                 best_loss = loss
                 n_iter_no_change = 0
                 self.best_params = self.learned_coeffs.copy()
@@ -100,7 +104,7 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
         #self.logger.log_sklearn(self.t_end-self.t_start)
 
         f = open('metrics.txt', 'a+')
-        f.write(str(4) + ";" + str(0) + ";" + str(0) + ";" + str(self.t_start - self.t_end) + "\n")
+        f.write(str(3) + ";" + str(0) + ";;" + str(self.t_end - self.t_start) + "\n")
         f.close()
         print('time predict: ', time.time() - t)
         return pred
@@ -117,8 +121,8 @@ class UnoptimizedMICE(BaseEstimator, RegressorMixin):
             imputed_probs += [math.log(self.items[k] / self.tot_items) - sec_part + third_part]
 
         classes = np.array(classes)
-        best_classes = classes[np.argmax(imputed_probs, axis=0)]
-        return np.array(best_classes)
+        best_classes = np.ravel(classes[np.argmax(imputed_probs, axis=0)])
+        return best_classes
         #return self.clf.predict(X)
 
 

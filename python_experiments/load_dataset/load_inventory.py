@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge
@@ -38,7 +39,8 @@ def load_inventory(path = "../datasets/retailer/", nulls={'maxtemp': 0.2, 'minte
     result[numerical] = scaler.fit_transform(result[numerical])
 
     #X_train, X_test, y_train, y_test = train_test_split(result.drop([col], axis=1), result[col], test_size=0.2, random_state=1)
-
+    print("original dataset: ", len(result))
+    
     true_vals = {}
     cols_models = {}
 

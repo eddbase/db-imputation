@@ -6,16 +6,16 @@ class Logger():
     def log(self, text):
         self.f.write(text)
 
-    def log_train(self, iteration, col, time):
+    def log_train(self, col, time, type=""):
         if self.f.closed:
             self.f = open('metrics.txt', 'a+')
-        self.f.write(str(self.model)+";"+str(iteration)+";"+str(col)+";"+str(time)+"\n")
+        self.f.write(str(self.model)+";"+str(col)+";"+type+";"+str(time)+"\n")
 
-    def log_test(self, metric, performance):
+    def log_test(self, column, metric, performance):
         if self.f.closed:
-            self.f = open('metrics.txt', 'a+')
+            self.f = open('results.txt', 'a+')
 
-        self.f.write(str(self.model)+";"+str(metric)+";"+str(performance)+"\n")
+        self.f.write(str(self.model)+";"+str(column)+";"+str(metric)+";"+str(performance)+"\n")
 
     def log_sklearn(self, time):
         if self.f.closed:

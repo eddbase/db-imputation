@@ -1,116 +1,131 @@
+from collections import Counter
+
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 
-from SKLearn_bgd import StandardSKLearnImputation
+from SKLearn_bgd import SKLearn_bgd
+from SKLearn_sgd import SKLearn_sgd
 from bgd_classifier import CustomMICEClassifier
 from sklearn.metrics import r2_score, f1_score
 
 from load_dataset.load_inventory import load_inventory
-from mice_optimized import mice, generate_full_cofactor
+from mice_optimized import generate_full_cofactor, OptimizedMICE
 from unoptimized_mice import *
 
 ### subtraction
-from load_dataset.load_flights import load_flights
+from load_dataset.load_flights import Flights
 from logger import Logger
 
+def metrics(predictions, q1, q3, true):
+    #each experiment removes data and imputes k multiple imputations
+    #this func receives a single experiment and extracts values
+    bias = np.mean(predictions) - true
+    percent_bias = np.abs(bias / true)*100
+    avg_width = np.mean(q3 - q1)
+    #check if true is in interval
+    coverage_rate = np.mean((q1 < true) & (true < q3))
 
+dataset = Flights()
 
-'''
-remove cofactor matrix
-'''
-
-
-def test_result(data_changed, nan_dataset, true_labels, models = {2:'regression', 4:'regression', 3:'regression', 1:'classification'}, logger=None):
-    for col, model in models.items():
-        idx_nan = np.argwhere(np.isnan(nan_dataset.values[:, col]))[:, 0]
-        imputed_data = data_changed[idx_nan, col]
-        if model == 'regression':
-            print('MSE', mean_squared_error(true_labels[col], imputed_data))
-            print('R2', r2_score(true_labels[col], imputed_data))
-
-            logger.log_test('MSE', mean_squared_error(true_labels[col], imputed_data))
-            logger.log_test('R2', r2_score(true_labels[col], imputed_data))
-        else:
-            print('F1', f1_score(true_labels[col], imputed_data, average='micro'))
-            logger.log_test('F1', f1_score(true_labels[col], imputed_data, average='micro'))
-
-
-
-#models = {2:'regression', 3:'regression', 1:'classification', 0:'classification', 11:'regression', 15:'regression'}#INVENTORY
-#models = {2: 'regression', 3:'classification',6:'classification', 7:'regression'}#FAVORITA
-#models = {0: 'regression', 3:'regression',4:'regression', 7:'classification', 8:'classification', 9:'classification'}#0,3,4,7,8,9
-#x, labels = load_inventory()#synth_dataset(10000, 6, nan_cols_)
-x, labels, models = load_inventory()#synth_dataset(10000, 6, nan_cols_)
-print(x.columns)
-print(models)
-
-itr = 4 #iterations
-
-nan_cols_ = np.where(np.isnan(x).any(axis=0))[0]
+x, models, idxs_nan = dataset.load_flights()#load_flights()#load_inventory()#synth_dataset(10000, 6, nan_cols_)
+itr = 14 #iterations
 
 logger = Logger()
-
 test_bug = False
 
-print("1")#full cofactor - nan cofactor
+
+print("----------START OPTIMIZED-------")#full cofactor - nan cofactor
 start_best = time.time()
-imputed_data_1 = mice(x, nan_cols_, True, test_bug=test_bug, itr=itr, models=models, logger=logger, sample_distribution=False)#best approach so far
-test_result(imputed_data_1, x, labels, models=models, logger=logger)
+
+mice = OptimizedMICE(models=models, logger=logger, regr_max_iter=10000, regr_max_iter_no_change=12, regr_tol=1e-4)
+imputed_data = mice.single_mice(x.values, True, test_bug=False, itr = itr, sample_distribution=False)
+dataset.test_result(imputed_data, logger)
 end_best = time.time()
 
 print("time best: ", end_best-start_best)
 
 logger.next_model()
-'''
-start_best = time.time()
-#full cofactor - nan cofactor, second approach
-imputed_data_2 = removal_appr(x, nan_cols_, False, test_bug=test_bug, itr=itr, models=models, logger=logger)
-test_result(imputed_data_2, x, labels, models=models, logger=logger)
-end_best = time.time()
-print("time second best: ", end_best-start_best)
 
-logger.next_model()
-'''
 #standard sklearn
 start_best = time.time()
-estimator = StandardSKLearnImputation(models=models)
+print("----------START BGD-------")
+
+estimator = SKLearn_bgd(models=models, regr_max_iter=500, max_iter_no_change = 5, regr_tol=1e-3)
 imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
+x_bk = x.copy()
 imputed_standard = imputer.fit_transform(x)
-test_result(imputed_standard, x, labels, models=models, logger=logger)
+imputed_vals = {}
+for k, v in models.items():
+    imputed_vals[k] = imputed_standard[idxs_nan[k], k]
+
+dataset.test_result(imputed_vals, logger)
 end_best = time.time()
 print("time sklearn: ", end_best-start_best)
 
+x = x_bk
+x_bk = x.copy()
 logger.next_model()
 
 #generates a cofactor matrix for every column
 start_best = time.time()
-estimator = UnoptimizedMICE(models = models)
+print("----------START UNOPTIMIZED-------")
+estimator = UnoptimizedMICE(models = models, regr_max_iter=10000, max_iter_no_change = 12, regr_tol=1e-4)
 imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
-imputed_fact_no_opt = imputer.fit_transform(x)
-test_result(imputed_fact_no_opt, x, labels, models=models, logger=logger)
+imputed_standard = imputer.fit_transform(x)
+
+imputed_vals = {}
+for k, v in models.items():
+    imputed_vals[k] = imputed_standard[idxs_nan[k], k]
+
+#test_result(imputed_vals, labels, models=models, logger=logger)
+dataset.test_result(imputed_vals, logger)
 end_best = time.time()
 print("time unoptimized: ", end_best-start_best)
 
 #mean - most popular baseline
 logger.next_model()
-
-classification_cols = []
-numerical_cols = []
+print("----------START MEAN AND MOST POPULAR-------")
+imputed_vals = {}
 for k, v in models.items():
+    start = time.time()
+    elements = np.delete(x.values[:,k], idxs_nan[k], axis=0)
+    count_missing = len(idxs_nan[k])#idxs_nan[k].sum()
     if v == 'regression':
-        numerical_cols += [k]
+        imputed_vals[k] = np.ones(count_missing) * np.mean(elements)
     else:
-        classification_cols += [k]
+        imputed_vals[k] = np.ones(count_missing) * Counter(elements).most_common(1)[0][0]
+    end = time.time()
+    logger.log_train(k, end-start, "")
 
-cof_matrix, imputed_dataset, null_dataset = generate_full_cofactor(x, numerical_cols,
-                                                                   classification_cols)  # cofactor matrix
-test_result(imputed_dataset, x, labels, models=models, logger=logger)
+#test_result(imputed_vals, labels, models=models, logger=logger)
+dataset.test_result(imputed_vals, logger)
 
 ##### single round performance
+logger.next_model()
 
-imputed_data_1 = mice(x, nan_cols_, True, test_bug=test_bug, itr=1, models=models, logger=logger)#best approach so far
-test_result(imputed_data_1, x, labels, models=models, logger=logger)
+print("----------START SINGLE ROUND-------")
+mice = OptimizedMICE(models=models, logger=logger, regr_max_iter=10000, regr_max_iter_no_change=12, regr_tol=1e-4)
+imputed_data = mice.single_mice(x.values, True, test_bug=False, itr = 1, sample_distribution=False)
+dataset.test_result(imputed_data, logger)
 
-#add sample from distribution + mi convergence check
+####SGD
+logger.next_model()
+
+print("----------START SGD-------")
+start_best = time.time()
+estimator = SKLearn_sgd(models=models)
+imputer = IterativeImputer(estimator, skip_complete=True, verbose=2, imputation_order="roman", sample_posterior=False, max_iter=itr)
+imputed_standard = imputer.fit_transform(x)
+
+imputed_vals = {}
+for k, v in models.items():
+    imputed_vals[k] = imputed_standard[idxs_nan[k], k]
+
+print("SGD::: ")
+dataset.test_result(imputed_vals, logger)
+end_best = time.time()
+
 
 logger.close()
+
+#dataset + test

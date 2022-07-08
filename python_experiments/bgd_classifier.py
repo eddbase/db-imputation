@@ -4,7 +4,7 @@ import math
 import scipy
 
 class CustomMICEClassifier(BaseEstimator, RegressorMixin):
-    def __init__(self, preproc_dataset, original_dataset, nan_cols_):#index label
+    def __init__(self, preproc_dataset, mask_missing_values, nan_cols_):#index label
         self.sums = {}
         self.items = {}
         self.tot_items = {}
@@ -15,7 +15,9 @@ class CustomMICEClassifier(BaseEstimator, RegressorMixin):
             self.sums[col] = {}
             self.items[col] = {}
 
-            idx_nan = np.argwhere(~np.isnan(original_dataset[:, col]))[:, 0]
+            idx_nan = np.argwhere(~mask_missing_values[:, col])[:, 0]
+            print("idx_nan: ", idx_nan)
+            #idx_nan = np.argwhere(~np.isnan(original_dataset[:, col]))[:, 0]
             feats_not_nan = preproc_dataset[idx_nan, :]  # non nan rows
             classes = np.unique(feats_not_nan[:, col])
 
@@ -80,7 +82,7 @@ class CustomMICEClassifier(BaseEstimator, RegressorMixin):
 
         return best_classes.flatten()
 
-    def update_data_struct_1(self, original_dataset, data_with_nan):
+    def update_data_struct_1(self, original_dataset, idx_nan):
         # update means, covariance, ...
         for col_upd in self.items.keys():  # for each col
             if self.current_col == col_upd:
@@ -89,17 +91,17 @@ class CustomMICEClassifier(BaseEstimator, RegressorMixin):
             for klass in self.items[col_upd].keys():  # update mean each class
                 #print("col upd: ", col_upd)
                 #print("klass: ", klass)
+                ##(np.isnan(data_with_nan[:, col_upd]))
                 self.sums[col_upd][klass] -= original_dataset[
-                                         (original_dataset[:, col_upd] == klass) & (np.isnan(data_with_nan[:, col_upd])), :].sum(
-                    axis=0)#rows that are labelled as klass and are null (imputation changed)
+                                         (original_dataset[:, col_upd] == klass) & idx_nan, :].sum(axis=0)#rows that are labelled as klass and are null (imputation changed)
 
-    def update_data_struct_2(self, original_dataset, data_with_nan):
+    def update_data_struct_2(self, original_dataset, idx_nan):
         for col_upd in self.items.keys():  # for each col
             if self.current_col == col_upd:
                 continue
             for klass in self.items[col_upd].keys():  # update mean each class
                 self.sums[col_upd][klass] += original_dataset[
-                                         (original_dataset[:, col_upd] == klass) & (np.isnan(data_with_nan[:, col_upd])), :].sum(
+                                         (original_dataset[:, col_upd] == klass) & idx_nan, :].sum(
                     axis=0)
 
     def set_current_col(self, current_col):

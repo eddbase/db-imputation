@@ -5,19 +5,23 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 
-learningRate = 1e-3
+learningRate = 0.001
+power_t = 0.25
 
 class CustomMICERegressor(BaseEstimator, RegressorMixin):
-    def __init__(self, label, sample_dist = False):#index label
+    def __init__(self, label, sample_dist = False, max_epochs=1000, max_iter_no_change=12, regr_tol=1e-4):#index label
         self.best_params = None
         self.label = label
         self.sample_dist = sample_dist
+        self.max_epochs = max_epochs
+        self.max_iter_no_change = max_iter_no_change
+        self.regr_tol = regr_tol
 
     '''
     last col of coeff_matrix MUST be of 1s
     '''
-    def fit(self, coeff_matrix, len_original_data, original_data=None, y=None, max_epochs=6000, tol=1e-6,
-            max_iter_no_change=20, nan_raw_data = None, equality_constraint_feats=None, beta=0):#sequence of submatrices where constraint should hold
+    def fit(self, coeff_matrix, len_original_data, original_data=None, y=None,
+            nan_raw_data = None, equality_constraint_feats=None, beta=0):#sequence of submatrices where constraint should hold
 
         #print("matrix ", coeff_matrix)
 
@@ -27,7 +31,8 @@ class CustomMICERegressor(BaseEstimator, RegressorMixin):
         epoch = 0
         best_loss = None
 
-        while n_iter_no_change < max_iter_no_change and epoch < max_epochs:  # epochs
+        while n_iter_no_change < self.max_iter_no_change and epoch < self.max_epochs:
+        #while n_iter_no_change < max_iter_no_change and epoch < max_epochs:  # epochs
             self.learned_coeffs[self.label] = -1
             #print(np.multiply(self.learned_coeffs, coeff_matrix))
             #gradient = ((np.sum(np.multiply(self.learned_coeffs, coeff_matrix), axis=1)))
@@ -69,29 +74,53 @@ class CustomMICERegressor(BaseEstimator, RegressorMixin):
             gradient *= (2 / len_original_data)
             #gradient_constraint = np.zeros(len(self.learned_coeffs))
             complete_gradient = gradient + gradient_constraint
-            self.learned_coeffs -= learningRate * complete_gradient
+
+            #inv.scale lr
+            curr_lr = learningRate#(float(learningRate) / ((epoch + 1) ** power_t ))
+
+            self.learned_coeffs -= curr_lr * complete_gradient
             #print("coeffs: ", self.learned_coeffs)
             # print("gradient: ", np.linalg.norm(gradient[:-1]))
-
+            '''
             if y is not None and original_data is not None:  # stop using train/validation loss
                 predictions = self.predict(original_data, params=self.learned_coeffs)
                 loss_complete = mean_squared_error(y, predictions)
                 print("epoch: ", epoch, "loss: ", loss_complete)
+                
             else:  # stop using train gradient
                 order = np.r_[0:self.label, self.label + 1:len(self.learned_coeffs)]
                 loss = np.linalg.norm(gradient[order])
                 loss_c = np.linalg.norm(gradient_constraint[order])
                 loss_complete = np.linalg.norm(complete_gradient[order])
                 #print("loss: ", loss_complete)
+            '''
+            row_y = coeff_matrix[self.label, :]
+            first_part = row_y[self.label]
+            filter_y = np.ones(coeff_matrix.shape[1], dtype=bool)
+            filter_y[self.label] = False
+            params_sigma = self.learned_coeffs[filter_y].reshape(-1,1)
+            sec_part = row_y[filter_y].reshape(1,-1)  # cofactor y without y*y
+            sec_part = np.matmul(sec_part, params_sigma)
+            filter_cofactor = coeff_matrix[filter_y, :]
+            filter_cofactor = filter_cofactor[:, filter_y]
+            third_part = np.matmul(params_sigma.T, np.matmul(filter_cofactor, params_sigma))
+            loss_complete = ((first_part - (2*sec_part) + third_part)/(len_original_data))
+            #loss_complete = best_loss
+            self.best_params = self.learned_coeffs
+            loss_complete = loss_complete[0][0]
+            #print("LOSS: ", loss_complete)
 
-            if best_loss is None or (loss_complete + tol) < best_loss:
+            if best_loss is None or (loss_complete + self.regr_tol) < best_loss:
                 best_loss = loss_complete
                 n_iter_no_change = 0
                 self.best_params = self.learned_coeffs.copy()
             else:
                 n_iter_no_change += 1
+
             epoch += 1
         #print("------")
+        if epoch == self.max_epochs:
+            print("MODEL NOT FULLY CONVERGED! NO EARLY STOPPING")
 
         if self.sample_dist:
             #estimate variance
@@ -108,6 +137,9 @@ class CustomMICERegressor(BaseEstimator, RegressorMixin):
             third_part = np.matmul(params_sigma.T, np.matmul(filter_cofactor, params_sigma))
             self.sigma = np.sqrt((first_part - (2*sec_part) + third_part)/(len_original_data - coeff_matrix.shape[1] - 1))
             print("sigma: ", self.sigma)
+
+
+        print("Iterations required: ", epoch, ". Final loss: ", loss_complete)
         return self
 
     def predict(self, X, y=None, params=None):
@@ -125,7 +157,7 @@ class CustomMICERegressor(BaseEstimator, RegressorMixin):
         if self.sample_dist:
             noise = np.ravel(np.random.normal(size=len(predictions)) * self.sigma)
             predictions += noise
-            print("predictions: ", predictions)
+            #print("predictions: ", predictions)
 
         return predictions
 
