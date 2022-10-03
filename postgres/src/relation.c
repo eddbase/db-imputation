@@ -1,8 +1,8 @@
 #include "relation.h"
 #include "serializer.h"
 
-#include "fmgr.h"
-#include "hashmap.h"
+#include <fmgr.h>
+#include <catalog/pg_type.h>
 
 PG_MODULE_MAGIC;
 
@@ -227,33 +227,13 @@ PG_FUNCTION_INFO_V1(lift_to_relation);
 
 Datum lift_to_relation(PG_FUNCTION_ARGS)
 {
-    relation_t *out = (relation_t *)palloc0(SIZEOF_RELATION_1);
-    SET_VARSIZE(out, SIZEOF_RELATION_1);
+    size_t sz = SIZEOF_RELATION(1);
+    relation_t *out = (relation_t *)palloc0(sz);
+    SET_VARSIZE(out, sz);
 
     out->num_tuples = 1;
     out->tuples[0].key = PG_GETARG_UINT32(0);
     out->tuples[0].value = 1.0;
 
     PG_RETURN_POINTER(out);
-}
-
-/***hashmap functions
- ******/
-
-int tuple_compare(const void *a, const void *b, void *udata) {
-    const tuple_t *ta = a;
-    const tuple_t *tb = b;
-    return (ta->key - tb->key);
-}
-
-bool tuple_iter(const void *item, void *udata) {
-    const tuple_t *t = item;
-    return true;
-}
-
-uint64_t tuple_hash(const void *item, uint64_t seed0, uint64_t seed1) {
-    const tuple_t *t = item;
-    char arr[21];
-    size_t size = sprintf(arr,"%llu", t ->key);//llu vs lu?
-    return hashmap_sip(arr, size, seed0, seed1);
 }

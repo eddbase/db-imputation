@@ -1,4 +1,8 @@
-CREATE OR REPLACE FUNCTION linear_regression_model(
+--SET client_min_messages TO WARNING;
+
+LOAD :FACTML_LIBRARY;
+
+CREATE OR REPLACE FUNCTION ridge_linear_regression(
         c cofactor, 
         label_idx int, 
         step_size float8, 
@@ -6,7 +10,7 @@ CREATE OR REPLACE FUNCTION linear_regression_model(
         max_iterations int
     )
     RETURNS float8[]
-    AS :FACTML_LIBRARY, 'linear_regression_model'
+    AS :FACTML_LIBRARY, 'ridge_linear_regression'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 CREATE OR REPLACE FUNCTION lda_train(

@@ -1,5 +1,4 @@
-\pset pager off 
--- \pset tuples_only
+\pset pager off
 
 DROP TABLE IF EXISTS Test1;
 CREATE TABLE Test1(A int, B int);

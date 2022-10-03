@@ -1,9 +1,9 @@
 #include "cofactor.h"
 #include "serializer.h"
-#include "utils/lsyscache.h"
-#include "utils/array.h"
-#include "fmgr.h"
 
+#include <fmgr.h>
+#include <catalog/pg_type.h>
+#include <utils/array.h>
 
 /*****************************************************************************
  * Input/output functions
@@ -438,7 +438,7 @@ PG_FUNCTION_INFO_V1(lift_cont_to_cofactor);
 
 Datum lift_cont_to_cofactor(PG_FUNCTION_ARGS)
 {
-    size_t sz_scalar_data = SIZE_SCALAR_ARRAY_1 * sizeof(float8);
+    size_t sz_scalar_data = SIZE_SCALAR_ARRAY(1) * sizeof(float8);
     size_t sz_relation_data = 0;
     size_t sz_cofactor = sizeof(cofactor_t) + sz_scalar_data + sz_relation_data;
 
@@ -463,7 +463,7 @@ PG_FUNCTION_INFO_V1(lift_cat_to_cofactor);
 Datum lift_cat_to_cofactor(PG_FUNCTION_ARGS)
 {
     size_t sz_scalar_data = 0;
-    size_t sz_relation_data = SIZEOF_RELATION_1;
+    size_t sz_relation_data = SIZEOF_RELATION(1);
     size_t sz_cofactor = sizeof(cofactor_t) + sz_scalar_data + sz_relation_data;
 
     cofactor_t *out = (cofactor_t *)palloc0(sz_cofactor);
@@ -475,7 +475,7 @@ Datum lift_cat_to_cofactor(PG_FUNCTION_ARGS)
     out->count = 1;
 
     relation_t *r = (relation_t *)out->data;
-    r->sz_struct = SIZEOF_RELATION_1;
+    r->sz_struct = SIZEOF_RELATION(1);
     r->num_tuples = 1;
     r->tuples[0].key = PG_GETARG_UINT32(0);
     r->tuples[0].value = 1.0;
@@ -496,7 +496,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
     size_t sz_scalar_array = size_scalar_array(num_cont);
     size_t sz_scalar_data = sz_scalar_array * sizeof(float8);
     size_t sz_relation_array = size_relation_array(num_cont, num_cat);
-    size_t sz_relation_data = sz_relation_array * SIZEOF_RELATION_1;
+    size_t sz_relation_data = sz_relation_array * SIZEOF_RELATION(1);
     size_t sz_cofactor = sizeof(cofactor_t) + sz_scalar_data + sz_relation_data;
     cofactor_t *out = (cofactor_t *)palloc0(sz_cofactor);
     SET_VARSIZE(out, sz_cofactor);
@@ -507,7 +507,8 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
     out->count = 1;
 
     const float8 *cont_values = (float8 *)ARR_DATA_PTR(cont_array);
-    float8 *out_scalar_array = (float8 *)out->data;
+    float8 *out_scalar_array = scalar_array(out);
+    
     switch (num_cont)
     {
         case 0:
@@ -604,7 +605,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
     };
 
     uint32_t *cat_values = (uint32_t *)ARR_DATA_PTR(cat_array);
-    char *out_relation_array = (char *)out_scalar_array;
+    char *out_relation_array = relation_array(out);
     switch (num_cat)
     {
         case 0:
@@ -614,7 +615,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
             for (size_t i = 0; i < num_cont; i++)
             {
                 relation_t *r = (relation_t *)out_relation_array;
-                r->sz_struct = SIZEOF_RELATION_1;
+                r->sz_struct = SIZEOF_RELATION(1);
                 r->num_tuples = 1;
                 r->tuples[0].key = cat_values[0];
                 r->tuples[0].value = cont_values[i];
@@ -622,7 +623,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
             }
 
             relation_t *r = (relation_t *)out_relation_array;
-            r->sz_struct = SIZEOF_RELATION_1;
+            r->sz_struct = SIZEOF_RELATION(1);
             r->num_tuples = 1;
             r->tuples[0].key = cat_values[0];
             r->tuples[0].value = 1.0;
@@ -634,7 +635,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
             for (size_t i = 0; i < num_cat; i++)
             {
                 relation_t *r = (relation_t *)out_relation_array;
-                r->sz_struct = SIZEOF_RELATION_1;
+                r->sz_struct = SIZEOF_RELATION(1);
                 r->num_tuples = 1;
                 r->tuples[0].key = cat_values[i];
                 r->tuples[0].value = 1.0;
@@ -646,7 +647,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
                 for (size_t j = 0; j < num_cat; j++)
                 {
                     relation_t *r = (relation_t *)out_relation_array;
-                    r->sz_struct = SIZEOF_RELATION_1;
+                    r->sz_struct = SIZEOF_RELATION(1);
                     r->num_tuples = 1;
                     r->tuples[0].key = cat_values[j];
                     r->tuples[0].value = cont_values[i];
@@ -659,7 +660,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
                 for (size_t j = i + 1; j < num_cat; j++)
                 {
                     relation_t *r = (relation_t *)out_relation_array;
-                    r->sz_struct = SIZEOF_RELATION_1;
+                    r->sz_struct = SIZEOF_RELATION(1);
                     r->num_tuples = 1;
                     r->tuples[0].slots[0] = cat_values[i];
                     r->tuples[0].slots[1] = cat_values[j];
@@ -672,3 +673,169 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
 
     PG_RETURN_POINTER(out);
 }
+
+/*****************************************************************************
+ * Sigma matrix functions
+ *****************************************************************************/
+
+// number of categories in relations formed for group by A, group by B, ...
+// assumption: relations contain distinct tuples
+size_t get_num_categories(const cofactor_t *cofactor)
+{
+    size_t num_categories = 0;
+    
+    const char *relation_data = crelation_array(cofactor);
+    for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
+    {
+        relation_t *r = (relation_t *) relation_data;
+        num_categories += r->num_tuples;
+        relation_data += r->sz_struct;
+    }
+    return num_categories;
+}
+
+size_t sizeof_sigma_matrix(const cofactor_t *cofactor)
+{
+    // count :: numerical :: 1-hot_categories
+    return 1 + cofactor->num_continuous_vars + get_num_categories(cofactor);
+}
+
+size_t find_in_array(uint64_t a, const uint64_t *array, size_t start, size_t end)
+{
+    size_t index = start;
+    while (index < end)
+    {
+        if (array[index] == a)
+            break;
+        index++;
+    }
+    return index;
+} 
+
+void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, 
+                        /* out */ float8 *sigma)
+{   
+    // start numerical data: 
+    // numerical_params = cofactor->num_continuous_vars + 1
+
+    // count
+    sigma[0] = cofactor->count;
+    
+    // sum1
+    const float8 *sum1_scalar_array = cscalar_array(cofactor);    
+    for (size_t i = 0; i < cofactor->num_continuous_vars; i++)
+    {
+        sigma[i + 1] = sum1_scalar_array[i];
+        sigma[(i + 1) * matrix_size] = sum1_scalar_array[i];
+    }
+
+    //sum2 full matrix (from half)
+    const float8 *sum2_scalar_array = sum1_scalar_array + cofactor->num_continuous_vars;
+    for (size_t row = 0; row < cofactor->num_continuous_vars; row++)
+    {
+        for (size_t col = 0; col < cofactor->num_continuous_vars; col++)
+        {
+            if (row > col)
+                sigma[((row + 1) * matrix_size) + (col + 1)] = sum2_scalar_array[(col * cofactor->num_continuous_vars) - (((col) * (col + 1)) / 2) + row];
+            else
+                sigma[((row + 1) * matrix_size) + (col + 1)] = sum2_scalar_array[(row * cofactor->num_continuous_vars) - (((row) * (row + 1)) / 2) + col];
+        }
+    }
+    // (numerical_params) * (numerical_params) allocated
+
+    // start relational data:
+    size_t num_categories = matrix_size - cofactor->num_continuous_vars - 1;
+    uint64_t *cat_array = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories); // array of categories
+    uint32_t *cat_vars_idxs = (uint32_t *)palloc0(sizeof(uint32_t) * cofactor->num_categorical_vars + 1); // track start each cat. variable
+
+    size_t search_start = 0;        // within one category class
+    size_t search_end = search_start;
+
+    cat_vars_idxs[0] = 0;
+
+    // count * categorical (group by A, group by B, ...)
+    const char *relation_data = crelation_array(cofactor);
+    for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
+    {
+        relation_t *r = (relation_t *) relation_data;
+        for (size_t j = 0; j < r->num_tuples; j++) 
+        {
+            // search key index
+            size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
+            if (key_index == search_end)    // not found
+            {
+                cat_array[search_end] = r->tuples[j].key;
+                search_end++;
+            }
+
+            // add to sigma matrix
+            key_index += cofactor->num_continuous_vars + 1;
+            sigma[key_index] = r->tuples[j].value;
+            sigma[key_index * matrix_size] = r->tuples[j].value;
+            sigma[(key_index * matrix_size) + key_index] = r->tuples[j].value;
+        }
+        search_start = search_end;
+        cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
+
+        relation_data += r->sz_struct;
+    }
+
+    // categorical * numerical
+    for (size_t numerical = 1; numerical < cofactor->num_continuous_vars + 1; numerical++)
+    {
+        for (size_t categorical = 0; categorical < cofactor->num_categorical_vars; categorical++)
+        {
+            relation_t *r = (relation_t *) relation_data;
+
+            for (size_t j = 0; j < r->num_tuples; j++)
+            {
+                //search in the right categorical var
+                search_start = cat_vars_idxs[categorical];
+                search_end = cat_vars_idxs[categorical + 1];
+
+                size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
+                assert(key_index < search_end);
+
+                // add to sigma matrix
+                key_index += cofactor->num_continuous_vars + 1;
+                sigma[(key_index * matrix_size) + numerical] = r->tuples[j].value;
+                sigma[(numerical * matrix_size) + key_index] = r->tuples[j].value;
+            }
+            relation_data += r->sz_struct;
+        }
+    }
+
+    // categorical * categorical
+    for (size_t curr_cat_var = 0; curr_cat_var < cofactor->num_categorical_vars; curr_cat_var++) 
+    {
+        for (size_t other_cat_var = curr_cat_var + 1; other_cat_var < cofactor->num_categorical_vars; other_cat_var++)
+        {
+            relation_t *r = (relation_t *) relation_data;
+            for (size_t j = 0; j < r->num_tuples; j++)
+            {
+                search_start = cat_vars_idxs[curr_cat_var];
+                search_end = cat_vars_idxs[curr_cat_var + 1];
+
+                size_t key_index_curr_var = find_in_array(r->tuples[j].slots[0], cat_array, search_start, search_end);
+                assert(key_index_curr_var < search_end);
+
+                search_start = cat_vars_idxs[other_cat_var];
+                search_end = cat_vars_idxs[other_cat_var + 1];
+
+                size_t key_index_other_var = find_in_array(r->tuples[j].slots[1], cat_array, search_start, search_end);
+                assert(key_index_other_var < search_end);
+
+                // add to sigma matrix
+                key_index_curr_var += cofactor->num_continuous_vars + 1;
+                key_index_other_var += cofactor->num_continuous_vars + 1;
+                sigma[(key_index_curr_var * matrix_size) + key_index_other_var] = r->tuples[j].value;
+                sigma[(key_index_other_var * matrix_size) + key_index_curr_var] = r->tuples[j].value;
+            }
+            relation_data += r->sz_struct;
+        }
+    }
+
+    pfree(cat_array);
+    pfree(cat_vars_idxs);
+}
+

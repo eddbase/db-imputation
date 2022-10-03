@@ -1,7 +1,7 @@
 #ifndef COFACTOR_H
 #define COFACTOR_H
 
-#include "postgres.h"
+#include <postgres.h>
 #include <assert.h>
 
 typedef struct
@@ -15,9 +15,7 @@ typedef struct
 } cofactor_t;
 static_assert(sizeof(cofactor_t) == 16, "size of cofactor_t not 16 bytes");
 
-#define SIZE_SCALAR_ARRAY_1 2
-#define SIZE_SCALAR_ARRAY_2 5
-#define SIZE_SCALAR_ARRAY_3 9
+#define SIZE_SCALAR_ARRAY(n) ((n * (n + 3)) >> 1)
 
 inline size_t size_scalar_array(size_t num_cont)
 {
@@ -69,5 +67,12 @@ inline const char *crelation_array(const cofactor_t *c)
 {
     return (const char *)(cscalar_array(c) + size_scalar_array(c->num_continuous_vars));
 }
+
+size_t get_num_categories(const cofactor_t *cofactor);
+
+size_t sizeof_sigma_matrix(const cofactor_t *cofactor);
+
+void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, 
+                        /* out */ float8 *sigma);
 
 #endif // COFACTOR_H

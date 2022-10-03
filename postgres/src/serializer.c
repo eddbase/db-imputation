@@ -1,10 +1,6 @@
 #include "serializer.h"
 #include <stdio.h>
 
-#define printf		printf
-#define snprintf		snprintf
-#define sprintf			sprintf
-
 /*****************************************************************************
  * Input/Output functions
  *****************************************************************************/
@@ -114,7 +110,7 @@ int read_cofactor_data(const char *buf, size_t sz_scalar_array,
     sscanf(buf, ", [%n", &offset);
     buf += offset;
     char *relation_data = (char *)(data + sz_scalar_array * sizeof(float8));
-    for (size_t i = 0; i < sz_relation_array; i++)//each table
+    for (size_t i = 0; i < sz_relation_array; i++)
     {
         relation_t *r = (relation_t *)relation_data;
         if (i == 0)

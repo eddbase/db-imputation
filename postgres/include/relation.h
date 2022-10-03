@@ -1,7 +1,7 @@
 #ifndef RELATION_H
 #define RELATION_H
 
-#include "postgres.h"
+#include <postgres.h>
 #include <assert.h>
 
 typedef struct
@@ -23,9 +23,7 @@ typedef struct
 } relation_t;
 static_assert(sizeof(relation_t) == 8, "size of relation_t not 8 bytes");
 
-#define SIZEOF_RELATION_0 8
-#define SIZEOF_RELATION_1 24
-#define SIZEOF_RELATION_2 40
+#define SIZEOF_RELATION(n) (sizeof(relation_t) + n * sizeof(tuple_t))
 
 inline size_t sizeof_relation_t(size_t num_tuples)
 {

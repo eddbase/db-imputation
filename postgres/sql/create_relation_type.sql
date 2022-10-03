@@ -1,4 +1,4 @@
-SET client_min_messages TO WARNING;
+--SET client_min_messages TO WARNING;
 
 LOAD :FACTML_LIBRARY;
 

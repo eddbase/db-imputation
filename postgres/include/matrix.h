@@ -7,19 +7,19 @@
 #define ELEMENT(M,col,i,j)	*((M)+(col)*(i)+(j))
 
 #ifdef _WIN32
-typedef    unsigned short    Uint16;
-typedef    short            int16;
-typedef    unsigned int    Uint32;
-typedef int                int32;
-typedef double            float32;
-typedef double            float64;
+typedef unsigned short  Uint16;
+typedef short           int16;
+typedef unsigned int    Uint32;
+typedef int             int32;
+typedef double          float32;
+typedef double          float64;
 #else
-typedef    unsigned int    Uint16;
-typedef    short                int16;
-typedef    unsigned long    Uint32;
+typedef unsigned int   Uint16;
+typedef short          int16;
+typedef unsigned long  Uint32;
 typedef int            int32;
-typedef float            float32;
-typedef long double        float64;
+typedef float          float32;
+typedef long double    float64;
 #endif
 
 #ifdef __cplusplus
