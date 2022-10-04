@@ -2,16 +2,17 @@
 // Created by Massimo Perini on 09/02/2022.
 //
 #include "cofactor.h"
-#include "postgres.h"
-#include "fmgr.h"
-#include <catalog/pg_type.h>
 #include "relation.h"
-#include "hashmap.h"
-#include "utils/array.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
 #include "matrix.h"
-#include <math.h>
+
+#include <fmgr.h>
+#include <catalog/pg_type.h>
+#include <utils/array.h>
+#include <utils/lsyscache.h>
+
+// #include <postgres.h>
+// #include <utils/memutils.h>
+// #include <math.h>
 
 void build_cov_matrix(const cofactor_t *cofactor, size_t num_total_params,
         /* out */ double *sigma, size_t total_keys)
@@ -200,6 +201,7 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params,
 }
 
 PG_FUNCTION_INFO_V1(remove_label);
+
 Datum remove_label(PG_FUNCTION_ARGS)
 {
     const cofactor_t *cofactor = (const cofactor_t *)PG_GETARG_VARLENA_P(0);
@@ -216,7 +218,7 @@ Datum remove_label(PG_FUNCTION_ARGS)
     size_t sz_scalar_array = size_scalar_array(num_cont);
     size_t sz_scalar_data = sz_scalar_array * sizeof(float8);
     size_t sz_relation_array = size_relation_array(num_cont, num_cat);
-    size_t sz_relation_data = sz_relation_array * SIZEOF_RELATION_1;
+    size_t sz_relation_data = sz_relation_array * SIZEOF_RELATION(1);
     size_t sz_cofactor = sizeof(cofactor_t) + sz_scalar_data + sz_relation_data;
     cofactor_t *out = (cofactor_t *)palloc0(sz_cofactor);
     SET_VARSIZE(out, sz_cofactor);
@@ -261,7 +263,7 @@ Datum remove_label(PG_FUNCTION_ARGS)
     for (size_t numerical = 1; numerical < cofactor->num_continuous_vars+1; numerical++) {
         for (size_t categorical = 0; categorical < cofactor->num_categorical_vars; categorical++) {
 
-
+        }}
             //copy cat*cat
     //pairs (e.g., GROUP BY A,B, A,C, B,C)
 
@@ -271,6 +273,7 @@ Datum remove_label(PG_FUNCTION_ARGS)
 
 //input: triple. Output: sum vector concat. with covariance matrix
 PG_FUNCTION_INFO_V1(lda_train);
+
 Datum lda_train(PG_FUNCTION_ARGS)
 {
     elog(NOTICE, "TEST1");

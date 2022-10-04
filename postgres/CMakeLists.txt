@@ -13,28 +13,36 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY test/bin)
 
-set(PGSQL_DIRECTORY "/usr/include/postgresql/12/server")
+set(PGSQL_INCLUDE_DIRECTORY "/usr/include/postgresql/12/server")
 execute_process(
     COMMAND "pg_config" "--includedir-server"
-    OUTPUT_VARIABLE 
-    PGSQL_DIRECTORY 
+    OUTPUT_VARIABLE
+    PGSQL_INCLUDE_DIRECTORY
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+set(PGSQL_LIB_DIRECTORY "/usr/lib/postgresql/12/server")
+execute_process(
+    COMMAND "pg_config" "--libdir"
+    OUTPUT_VARIABLE
+    PGSQL_LIB_DIRECTORY
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(factML SHARED
-        src/matrix.c
     src/relation.c
-    src/serializer.c
     src/cofactor.c
+    src/serializer.c
     src/gradient_descent.c
-        src/hashmap.c
-        src/lda.c)
-target_include_directories(factML PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
+)
+target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
 
 add_executable(test_serializer
-        src/matrix.c
     src/serializer.c
     test/src/test_serializer.c
-        )
-target_include_directories(test_serializer PRIVATE ${PGSQL_DIRECTORY} PRIVATE include)
+)
+target_include_directories(test_serializer PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
+target_link_libraries(test_serializer ${PGSQL_LIB_DIRECTORY}/libpgport.a)
+
+#set(CMAKE_VERBOSE_MAKEFILE ON)
