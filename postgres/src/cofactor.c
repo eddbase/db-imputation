@@ -4,6 +4,7 @@
 #include <fmgr.h>
 #include <catalog/pg_type.h>
 #include <utils/array.h>
+#include <math.h>
 
 /*****************************************************************************
  * Input/output functions
@@ -675,7 +676,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
 }
 
 /*****************************************************************************
- * Sigma matrix functions
+ * Statistics functions
  *****************************************************************************/
 
 // number of categories in relations formed for group by A, group by B, ...
@@ -693,6 +694,47 @@ size_t get_num_categories(const cofactor_t *cofactor)
     }
     return num_categories;
 }
+
+PG_FUNCTION_INFO_V1(pg_cofactor_stats);
+
+Datum pg_cofactor_stats(PG_FUNCTION_ARGS)
+{
+    cofactor_t *a = (cofactor_t *)PG_GETARG_VARLENA_P(0);
+
+    const char * a_relation_array = crelation_array(a);
+    size_t sz_relation_array =
+        size_relation_array(a->num_continuous_vars, a->num_categorical_vars);
+
+    size_t total_tuples = 0, total_squared_tuples = 0, max_tuples = 0;
+    size_t min_tuples = ((const relation_t *)a_relation_array)->num_tuples;
+    for (size_t i = 0; i < sz_relation_array; i++) {
+        const relation_t *a_relation = (const relation_t *)a_relation_array;
+        total_tuples += a_relation->num_tuples;
+        total_squared_tuples += a_relation->num_tuples * a_relation->num_tuples;
+        max_tuples = (max_tuples >= a_relation->num_tuples ? max_tuples : a_relation->num_tuples);
+        min_tuples = (min_tuples <= a_relation->num_tuples ? min_tuples : a_relation->num_tuples);
+        a_relation_array += a_relation->sz_struct;
+    }
+    float8 avg_tuples = (float8) total_tuples / sz_relation_array;
+    float8 stdev_tuples = sqrt((float8) total_squared_tuples / sz_relation_array - avg_tuples * avg_tuples);
+
+    elog(INFO, "num_cont_vars = %hu, num_cat_vars = %hu", a->num_continuous_vars, a->num_categorical_vars);
+    elog(INFO, "num_categories = %zu", get_num_categories(a));
+    elog(INFO, "num_relations = %zu", sz_relation_array);
+    elog(INFO, "total_tuples = %zu, \
+                avg = %f, \
+                stdev = %f, \
+                max = %zu, \
+                min = %zu", \
+                total_tuples, avg_tuples, stdev_tuples, max_tuples, min_tuples);
+
+    PG_RETURN_VOID();
+}
+
+
+/*****************************************************************************
+ * Sigma matrix functions
+ *****************************************************************************/
 
 size_t sizeof_sigma_matrix(const cofactor_t *cofactor)
 {

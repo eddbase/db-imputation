@@ -83,3 +83,7 @@ CREATE OR REPLACE FUNCTION to_cofactor(cont_vals float8[], cat_vals int4[])
     RETURNS cofactor
     AS :FACTML_LIBRARY, 'lift_to_cofactor'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OR REPLACE PROCEDURE cofactor_stats(cofactor)
+    AS :FACTML_LIBRARY, 'pg_cofactor_stats'
+    LANGUAGE C;

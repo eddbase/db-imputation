@@ -1,8 +1,8 @@
 #include "relation.h"
 #include "serializer.h"
 
-#include <fmgr.h>
 #include <catalog/pg_type.h>
+#include <fmgr.h>
 
 PG_MODULE_MAGIC;
 
@@ -61,14 +61,55 @@ Datum write_relation(PG_FUNCTION_ARGS)
 //
 // Union relations with compaction
 //
-void add_relations(const relation_t *r, const relation_t *s,
-                   /* out */ relation_t *out)
+inline void add_relations_merge(const relation_t *r, const relation_t *s,
+                                /* out */ relation_t *out)
 {
-    out->num_tuples = r->num_tuples;
-    for (size_t i = 0; i < r->num_tuples; i++)
+    out->num_tuples = 0;
+
+    size_t i = 0, j = 0;
+    while (i < r->num_tuples && j < s->num_tuples)
     {
-        out->tuples[i] = r->tuples[i];
+        if (r->tuples[i].key == s->tuples[j].key)
+        {
+            out->tuples[out->num_tuples].key = r->tuples[i].key;
+            out->tuples[out->num_tuples].value = r->tuples[i].value + s->tuples[j].value;
+            out->num_tuples++;
+            i++;
+            j++;
+        }
+        else if (r->tuples[i].key < s->tuples[j].key)
+        {
+            out->tuples[out->num_tuples] = r->tuples[i];
+            out->num_tuples++;
+            i++;
+        }
+        else
+        {
+            out->tuples[out->num_tuples] = s->tuples[j];
+            out->num_tuples++;
+            j++;
+        }
     }
+    while (i < r->num_tuples)
+    {
+        out->tuples[out->num_tuples] = r->tuples[i];
+        out->num_tuples++;
+        i++;
+    }
+    while (j < s->num_tuples)
+    {
+        out->tuples[out->num_tuples] = s->tuples[j];
+        out->num_tuples++;
+        j++;
+    }
+    out->sz_struct = sizeof_relation_t(out->num_tuples);
+}
+
+inline void add_relations_linear(const relation_t *r, const relation_t *s,
+                                 /* out */ relation_t *out)
+{
+    memcpy((void *) out, (void *) r, r->sz_struct);
+
     for (size_t i = 0; i < s->num_tuples; i++)
     {
         bool found = false;
@@ -87,6 +128,42 @@ void add_relations(const relation_t *r, const relation_t *s,
         }
     }
     out->sz_struct = sizeof_relation_t(out->num_tuples);
+}
+
+inline void add_relations_singleton(const relation_t *r, tuple_t s_tuple,
+                                    /* out */ relation_t *out)
+{
+    out->num_tuples = r->num_tuples;
+
+    bool found = false;
+    for (size_t i = 0; i < r->num_tuples; i++)
+    {
+        out->tuples[i] = r->tuples[i];
+
+        if (!found && out->tuples[i].key == s_tuple.key) {
+            out->tuples[i].value += s_tuple.value;
+            found = true;
+        }
+    }
+    if (!found)
+    {
+        out->tuples[out->num_tuples] = s_tuple;
+        out->num_tuples++;
+    }
+    out->sz_struct = sizeof_relation_t(out->num_tuples);
+}
+
+void add_relations(const relation_t *r, const relation_t *s,
+                   /* out */ relation_t *out)
+{
+    if (r->num_tuples >= s->num_tuples)
+    {
+        add_relations_linear(r, s, out);
+    }
+    else
+    {
+        add_relations_linear(s, r, out);
+    }
 }
 
 //
