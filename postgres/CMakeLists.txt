@@ -8,7 +8,8 @@ if (APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flat_namespace -undefined suppress")
 endif()
 
-set(CMAKE_C_FLAGS "-O3 ${HASHTAB_FLAGS} -pedantic")
+#set(CMAKE_C_FLAGS "-O3 ${HASHTAB_FLAGS} -pedantic")
+set(CMAKE_C_FLAGS "-O3 ${HASHTAB_FLAGS}")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY test/bin)
@@ -22,7 +23,7 @@ execute_process(
 )
 set(PGSQL_LIB_DIRECTORY "/usr/lib/postgresql/12/server")
 execute_process(
-    COMMAND "pg_config" "--libdir"
+    COMMAND "pg_config" "--pkglibdir"
     OUTPUT_VARIABLE
     PGSQL_LIB_DIRECTORY
     OUTPUT_STRIP_TRAILING_WHITESPACE
