@@ -1,0 +1,1 @@
+./bin/systemds Univar-Stats.dml -nvargs X=data/input_data.csv TYPES=data/cat_numerical.csv CONSOLE_OUTPUT=TRUE
