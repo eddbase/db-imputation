@@ -1,0 +1,28 @@
+CREATE DATABASE flight;
+CREATE TABLE flight.distances (airports INTEGER, ORIGIN CHAR(3), DEST CHAR(3), DISTANCE Nullable(FLOAT)) ENGINE = MergeTree() PRIMARY KEY airports;
+
+CREATE TABLE flight.schedule (flight INTEGER, OP_CARRIER CHAR(2), CRS_DEP_HOUR Nullable(FLOAT), CRS_DEP_MIN FLOAT, CRS_ARR_HOUR FLOAT, CRS_ARR_MIN FLOAT, airports INTEGER) ENGINE = MergeTree() PRIMARY KEY flight;
+
+CREATE TABLE flight.flights (id INTEGER, DEP_DELAY Nullable(FLOAT), TAXI_OUT Nullable(FLOAT), TAXI_IN Nullable(FLOAT), ARR_DELAY Nullable(FLOAT), DIVERTED Nullable(INTEGER), ACTUAL_ELAPSED_TIME FLOAT, AIR_TIME FLOAT, DEP_TIME_HOUR FLOAT, DEP_TIME_MIN FLOAT, WHEELS_OFF_HOUR FLOAT, WHEELS_OFF_MIN FLOAT, WHEELS_ON_HOUR FLOAT, WHEELS_ON_MIN FLOAT, ARR_TIME_HOUR FLOAT, ARR_TIME_MIN FLOAT, MONTH_SIN FLOAT, MONTH_COS FLOAT, DAY_SIN FLOAT, DAY_COS FLOAT, WEEKDAY_SIN  FLOAT, WEEKDAY_COS FLOAT, EXTRA_DAY_ARR INTEGER, EXTRA_DAY_DEP INTEGER, flight INTEGER) ENGINE = MergeTree() PRIMARY KEY id;
+
+
+SET format_csv_null_representation = '';
+clickhouse-client --query="INSERT INTO flight.distances FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/flights/distances_dataset_postgres.csv;
+clickhouse-client --query="INSERT INTO flight.schedule FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/flights/schedule_dataset_postgres.csv;
+clickhouse-client --query="INSERT INTO flight.flights FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/flights/airline_dataset_postgres.csv;
+
+
+./clickhouse client --query="INSERT INTO flight.distances FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/distances_dataset_postgres.csv;
+./clickhouse client --query="INSERT INTO flight.schedule FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/schedule_dataset_postgres.csv;
+./clickhouse client --query="INSERT INTO flight.flights FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/airline_dataset_postgres.csv;
+
+
+./clickhouse client --query="INSERT INTO flight.large_table FORMAT CSV" < /afs/inf.ed.ac.uk/group/project/data_imputation/systemds/data/input_data.csv;
+
+
+
+SET input_format_csv_skip_first_lines = 0;
+
+drop table flight.distances;
+drop table flight.schedule;
+drop table flight.flights;
