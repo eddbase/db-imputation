@@ -72,6 +72,8 @@ size_t get_num_categories(const cofactor_t *cofactor);
 
 size_t sizeof_sigma_matrix(const cofactor_t *cofactor);
 
+size_t find_in_array(uint64_t a, const uint64_t *array, size_t start, size_t end);
+
 void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, 
                         /* out */ float8 *sigma);
 

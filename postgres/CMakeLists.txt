@@ -34,6 +34,7 @@ add_library(factML SHARED
     src/relation.c
     src/cofactor.c
     src/serializer.c
+        src/lda.c
     src/gradient_descent.c
 )
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)

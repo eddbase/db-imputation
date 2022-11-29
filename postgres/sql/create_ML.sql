@@ -13,12 +13,13 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression(
     AS :FACTML_LIBRARY, 'ridge_linear_regression'
     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
--- CREATE OR REPLACE FUNCTION lda_train(
---         c cofactor
---     )
---     RETURNS float4[]
---     AS :FACTML_LIBRARY, 'lda_train'
---     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+ CREATE OR REPLACE FUNCTION lda_train(
+         c cofactor,
+         label int
+     )
+     RETURNS float4[]
+     AS :FACTML_LIBRARY, 'lda_train'
+     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 -- CREATE OR REPLACE FUNCTION lda_invert(
 --         cofactor float4[]
