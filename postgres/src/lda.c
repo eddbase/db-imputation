@@ -16,7 +16,7 @@
 
 //generate a vector of sum of attributes group by label
 void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int label,
-        /* out */ double *sum_vector)
+        /* out */ double *sum_vector, uint64_t *idx_classes)
 {
     //allocates values in sum vector, each sum array is sorted in tuple order
     const char *relation_data = crelation_array(cofactor);
@@ -28,7 +28,6 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
 
     size_t search_start = 0;        // within one category class
     size_t search_end = search_start;
-    uint64_t *idx_classes;
 
     //create order of labels of categorical values
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
@@ -48,7 +47,7 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
 
         if (i == label) {
             current_label = r;
-            idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * current_label->num_tuples); // array of categories
+            //idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * current_label->num_tuples); // array of categories
 
             for (size_t j=0;j<current_label->num_tuples;j++) {
                 idx_classes[j] = current_label->tuples[j].key;
@@ -229,7 +228,6 @@ PG_FUNCTION_INFO_V1(lda_train);
 
 Datum lda_train(PG_FUNCTION_ARGS)
 {
-    elog(NOTICE, "TEST1");
     const cofactor_t *cofactor = (const cofactor_t *)PG_GETARG_VARLENA_P(0);
     int label = PG_GETARG_INT64(1);
 
@@ -253,9 +251,10 @@ Datum lda_train(PG_FUNCTION_ARGS)
     }
 
     double *sum_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
+    uint64_t *idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//order of classes
     //build X^T*X
     build_sigma_matrix(cofactor, num_params, sigma_matrix);
-    build_sum_vector(cofactor, num_params, label, sum_vector);
+    build_sum_vector(cofactor, num_params, label, sum_vector, idx_classes);
 
     for(size_t i=0;i<num_categories;i++)
     {
@@ -266,15 +265,15 @@ Datum lda_train(PG_FUNCTION_ARGS)
 
     //compute covariance
     for (size_t i = 0; i < num_categories; i++) {
-        for (size_t j = 0; i < num_params; i++) {
-            for (size_t k = 0; i < num_params; i++) {
+        for (size_t j = 0; j < num_params; j++) {
+            for (size_t k = 0; k < num_params; k++) {
                 sigma_matrix[(j*num_params)+k] -= ((float)(sum_vector[(i*num_params)+j] * sum_vector[(i*num_params)+k]) / (float) sum_vector[i*num_params]);//cofactor->count
             }
         }
     }
 
-    for (size_t j = 0; i < num_params; i++) {
-        for (size_t k = 0; i < num_params; i++) {
+    for (size_t j = 0; j < num_params; j++) {
+        for (size_t k = 0; k < num_params; k++) {
             sigma_matrix[(j*num_params)+k] /= (cofactor->count - num_categories);
         }
     }
@@ -282,21 +281,35 @@ Datum lda_train(PG_FUNCTION_ARGS)
     m_inverse(sigma_matrix, num_params, inverted_matrix);
 
             // export in pgpsql. Return counts, means and covariance
-    Datum *d = (Datum *)palloc(sizeof(Datum) * ((num_params * num_params) + (num_params * num_categories) + num_categories + 2));
-    d[0] = num_params;
-    d[1] = num_categories;
+    Datum *d = (Datum *)palloc(sizeof(Datum) * ((num_params * num_params) + (num_params * num_categories) + num_categories + num_categories + 2));
+    d[0] = Float4GetDatum((float)num_params);
+    d[1] = Float4GetDatum((float)num_categories);
+    //elog(WARNING, " %d , %d , ", num_params, num_categories);
 
-    for (int i = 0; i < num_categories; i++)
-        d[i+2] = Float4GetDatum((float)sum_vector[i*num_params] / (float)cofactor->count);
+    for (int i = 0; i < num_categories; i++) {
+        d[i + 2] = Float4GetDatum((float) idx_classes[i]);
+        //elog(WARNING, " %d ,", idx_classes[i]);
+    }
 
-    for (int i = 0; i < num_categories; i++)
-        for (int j = 0; j < num_params; j++)
-            d[i + num_categories + 2] = Float4GetDatum((float)sum_vector[(i*num_params)+j]/(float)sum_vector[i*num_params]);
+    for (int i = 0; i < num_categories; i++) {
+        d[i + num_categories + 2] = Float4GetDatum((float) sum_vector[i * num_params] / (float) cofactor->count);
+        //elog(WARNING, " %f ,", (float) sum_vector[i * num_params] / (float) cofactor->count);
+    }
 
-    for (int i = 0; i < num_params * num_params; i++)
-        d[i + (num_params * num_categories) + num_categories + 2] = Float4GetDatum(inverted_matrix[i]);
+    for (int i = 0; i < num_categories; i++) {
+        for (int j = 0; j < num_params; j++) {
+            d[i + num_categories + num_categories + 2] = Float4GetDatum(
+                    (float) sum_vector[(i * num_params) + j] / (float) sum_vector[i * num_params]);
+            //elog(WARNING, " %f ,", (float) sum_vector[(i * num_params) + j] / (float) sum_vector[i * num_params]);
+        }
+    }
 
-    ArrayType *a = construct_array(d, ((num_params * num_params) + (num_params * num_categories) + num_categories), FLOAT4OID, sizeof(float4), true, 'd');
+    for (int i = 0; i < num_params * num_params; i++) {
+        d[i + (num_params * num_categories) + num_categories + num_categories + 2] = Float4GetDatum(inverted_matrix[i]);
+        //elog(WARNING, " %f ,", inverted_matrix[i]);
+    }
+
+    ArrayType *a = construct_array(d, ((num_params * num_params) + (num_params * num_categories) + num_categories + num_categories + 2), FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
     PG_RETURN_ARRAYTYPE_P(a);
 }
 
@@ -327,21 +340,31 @@ Datum lda_impute(PG_FUNCTION_ARGS)
     int num_params = (int) DatumGetFloat4(arrayContent1[0]);
     int num_categories = (int) DatumGetFloat4(arrayContent2[1]);
     //counts
+    int *idx_classes = (double *)palloc0(sizeof(double) * num_categories);//count grp by column / total rows
+
     double *counts = (double *)palloc0(sizeof(double) * num_categories);//count grp by column / total rows
     double *means = (double *)palloc0(sizeof(double) * num_categories * num_params);//mean of feature for every class
     double *covariance = (double *)palloc0(sizeof(double) * num_params * num_params);
 
-    double *feats = (double *)palloc0(num_params*sizeof(float32));
+    double *feats_c = (double *)palloc0(num_params*sizeof(float32));
 
     for(int i=0;i<num_categories;i++)
-        counts[i] = DatumGetFloat4(arrayContent1[i+2]);
+        idx_classes[i] = (int) DatumGetFloat4(arrayContent1[i+2]);
+    for(int i=0;i<num_categories;i++)
+        counts[i] = DatumGetFloat4(arrayContent1[i+num_categories+2]);
     for(int i=0;i<num_categories*num_params;i++)
-        means[i] = DatumGetFloat4(arrayContent1[i+num_categories+2]);
+        means[i] = DatumGetFloat4(arrayContent1[i+num_categories+num_categories+2]);
     for(int i=0;i<num_params*num_params;i++)
-        covariance[i] = DatumGetFloat4(arrayContent1[i+num_categories+(num_categories*num_params)+2]);
+        covariance[i] = DatumGetFloat4(arrayContent1[i+num_categories+num_categories+(num_categories*num_params)+2]);
 
-    for(int i=0;i<arrayLength2;i++)
-        feats[i] = DatumGetFloat4(arrayContent2[i]);//todo manual padding of categorical values
+    for(int i=0;i<arrayLength2;i++) {
+        elog(NOTICE, " %f ", DatumGetFloat4(arrayContent2[i]));
+        feats_c[i] = DatumGetFloat4(arrayContent2[i]);//todo manual padding of categorical values
+    }
+    elog(NOTICE, " NOW train params ");
+    for(int i=0;i<arrayLength1;i++) {
+        elog(NOTICE, " %f ", DatumGetFloat4(arrayContent1[i]));
+    }
 
     //end unpacking
 
@@ -350,7 +373,7 @@ Datum lda_impute(PG_FUNCTION_ARGS)
     float32 tmp3;
     float32 maximize = -99;
     int max_class = 0;
-
+    /*
     for(int i=0;i<num_categories;i++)
     {
         //compute prob. features in this class
@@ -363,9 +386,9 @@ Datum lda_impute(PG_FUNCTION_ARGS)
 
         if ((log_part + tmp2 + tmp3) > maximize){
             maximize = log_part + tmp2 + tmp3;
-            max_class = i;//todo clarify class
+            max_class = idx_classes[i];
         }
-    }
+    }*/
 
     PG_RETURN_INT64(max_class);
 }

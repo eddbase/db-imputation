@@ -32,6 +32,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(factML SHARED
     src/relation.c
+        src/matrix.c
     src/cofactor.c
     src/serializer.c
         src/lda.c
