@@ -613,21 +613,23 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
             break;
         case 1:
         {
-            for (size_t i = 0; i < num_cont; i++)
-            {
-                relation_t *r = (relation_t *)out_relation_array;
-                r->sz_struct = SIZEOF_RELATION(1);
-                r->num_tuples = 1;
-                r->tuples[0].key = cat_values[0];
-                r->tuples[0].value = cont_values[i];
-                out_relation_array += r->sz_struct;
-            }
 
             relation_t *r = (relation_t *)out_relation_array;
             r->sz_struct = SIZEOF_RELATION(1);
             r->num_tuples = 1;
             r->tuples[0].key = cat_values[0];
             r->tuples[0].value = 1.0;
+            out_relation_array += r->sz_struct;
+
+            for (size_t i = 0; i < num_cont; i++)
+            {
+                r = (relation_t *)out_relation_array;
+                r->sz_struct = SIZEOF_RELATION(1);
+                r->num_tuples = 1;
+                r->tuples[0].key = cat_values[0];
+                r->tuples[0].value = cont_values[i];
+                out_relation_array += r->sz_struct;
+            }
             break;
         }
         default:
