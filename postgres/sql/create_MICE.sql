@@ -1,27 +1,27 @@
 CREATE OR REPLACE PROCEDURE MICE_baseline(
-		input_table_name text,
+        input_table_name text,
         output_table_name text,
-		continuous_columns text[],
-		categorical_columns text[],
-		continuous_columns_null text[], 
-		categorical_columns_null text[]
-	) LANGUAGE plpgsql AS $$
+        continuous_columns text[],
+        categorical_columns text[],
+        continuous_columns_null text[], 
+        categorical_columns_null text[]
+    ) LANGUAGE plpgsql AS $$
 DECLARE 
     start_ts timestamptz;
     end_ts   timestamptz;
     query text;
     col_averages float8[];
-	tmp_array text[];
+    tmp_array text[];
     tmp_array2 text[];
-	cofactor_global cofactor;
-	col text;
-	params float8[];
-	label_index int4;
+    cofactor_global cofactor;
+    col text;
+    params float8[];
+    label_index int4;
 BEGIN
     -- COMPUTE COLUMN AVERAGES (over a subset)
     SELECT array_agg('AVG(' || x || ')')
     FROM unnest(continuous_columns_null) AS x
-	INTO tmp_array;
+    INTO tmp_array;
 
     query := ' SELECT ARRAY[ ' || array_to_string(tmp_array, ', ') || ' ]::float8[]' || 
              ' FROM ( SELECT ' || array_to_string(continuous_columns_null, ', ') || 
@@ -29,7 +29,7 @@ BEGIN
     RAISE DEBUG '%', query;
 
     start_ts := clock_timestamp();
-	EXECUTE query INTO col_averages;
+    EXECUTE query INTO col_averages;
     end_ts := clock_timestamp();
 
     RAISE DEBUG 'AVERAGES: %', col_averages;
@@ -76,54 +76,54 @@ BEGIN
     RAISE DEBUG '%', query;
 
     start_ts := clock_timestamp();
-	EXECUTE query;
+    EXECUTE query;
     end_ts := clock_timestamp();
     RAISE INFO 'INSERT INTO TABLE WITH MISSING VALUES: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
-	FOR i in 1..5 LOOP
-		RAISE INFO 'Iteration %', i;
+    FOR i in 1..5 LOOP
+        RAISE INFO 'Iteration %', i;
 
-		FOREACH col in ARRAY continuous_columns_null LOOP
-			RAISE INFO '  |- Column %', col;
-			
-			-- COMPUTE COFACTOR WHERE $col IS NOT NULL
-			query := 'SELECT SUM(to_cofactor(' ||
-					'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float8[],' ||
-					'ARRAY[ ' || array_to_string(categorical_columns, ', ') || ' ]::int4[]' ||
-				')) '
-			'FROM ' || output_table_name || ' '
-			'WHERE NOT ' || col || '_ISNULL;';
-			RAISE DEBUG '%', query;
-	        
+        FOREACH col in ARRAY continuous_columns_null LOOP
+            RAISE INFO '  |- Column %', col;
+            
+            -- COMPUTE COFACTOR WHERE $col IS NOT NULL
+            query := 'SELECT SUM(to_cofactor(' ||
+                    'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float8[],' ||
+                    'ARRAY[ ' || array_to_string(categorical_columns, ', ') || ' ]::int4[]' ||
+                ')) '
+            'FROM ' || output_table_name || ' '
+            'WHERE NOT ' || col || '_ISNULL;';
+            RAISE DEBUG '%', query;
+            
             start_ts := clock_timestamp();
-			EXECUTE query INTO STRICT cofactor_global;
+            EXECUTE query INTO STRICT cofactor_global;
             end_ts := clock_timestamp();
             RAISE INFO 'COFACTOR: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
-			
+            
             -- TRAIN
-			label_index := array_position(continuous_columns_null, col);
-			params := ridge_linear_regression(cofactor_global, label_index - 1, 0.001, 0, 10000);
-			RAISE DEBUG '%', params;
+            label_index := array_position(continuous_columns_null, col);
+            params := ridge_linear_regression(cofactor_global, label_index - 1, 0.001, 0, 10000);
+            RAISE DEBUG '%', params;
 
-			-- IMPUTE
-			SELECT array_agg(x || ' * ' || params[array_position(continuous_columns, x) + 1])
-			FROM unnest(continuous_columns) AS x
-			WHERE array_position(continuous_columns, x) != label_index
-			INTO tmp_array;
+            -- IMPUTE
+            SELECT array_agg(x || ' * ' || params[array_position(continuous_columns, x) + 1])
+            FROM unnest(continuous_columns) AS x
+            WHERE array_position(continuous_columns, x) != label_index
+            INTO tmp_array;
 
-			query := 'UPDATE ' || output_table_name || 
-				' SET ' || col || ' = ' || array_to_string(array_prepend(params[1]::text, tmp_array), ' + ') ||
-				' WHERE ' || col || '_ISNULL;';
-			RAISE DEBUG '%', query;
+            query := 'UPDATE ' || output_table_name || 
+                ' SET ' || col || ' = ' || array_to_string(array_prepend(params[1]::text, tmp_array), ' + ') ||
+                ' WHERE ' || col || '_ISNULL;';
+            RAISE DEBUG '%', query;
 
             start_ts := clock_timestamp();
-			EXECUTE query;
+            EXECUTE query;
             end_ts := clock_timestamp();
             RAISE INFO 'IMPUTE DATA: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
-			
-		END LOOP;
-	END LOOP;
-	
+            
+        END LOOP;
+    END LOOP;
+    
 END$$;
 
 -- SET client_min_messages TO INFO;
