@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE MICE_baseline(
+CREATE OR REPLACE PROCEDURE MICE_incremental(
         input_table_name text,
         output_table_name text,
         continuous_columns text[],
@@ -52,7 +52,7 @@ BEGIN
     INTO tmp_array;
 
     query := 'CREATE TEMPORARY TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=70);';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     
@@ -83,17 +83,17 @@ BEGIN
     RAISE INFO 'INSERT INTO TABLE WITH MISSING VALUES: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
     
     
-    ---create indexes
-    start_ts := clock_timestamp();
-    EXECUTE 'CREATE INDEX idx_is_null_distance ON join_table_complete (distance_isnull) WHERE distance_isnull';
-    EXECUTE 'CREATE INDEX idx_is_null_CRS_DEP_HOUR ON join_table_complete (CRS_DEP_HOUR_isnull) WHERE CRS_DEP_HOUR_isnull';
-    EXECUTE 'CREATE INDEX idx_is_null_TAXI_OUT ON join_table_complete (TAXI_OUT_isnull) WHERE TAXI_OUT_isnull';
-    EXECUTE 'CREATE INDEX idx_is_null_TAXI_IN ON join_table_complete (TAXI_IN_isnull) WHERE TAXI_IN_isnull';
-    EXECUTE 'CREATE INDEX idx_is_null_DIVERTED ON join_table_complete (DIVERTED_isnull) WHERE DIVERTED_isnull';
-    EXECUTE 'CREATE INDEX idx_is_null_ARR_DELAY ON join_table_complete (ARR_DELAY_isnull) WHERE ARR_DELAY_isnull';
-    EXECUTE 'CREATE INDEX idx_is_null_DEP_DELAY ON join_table_complete (DEP_DELAY_isnull) WHERE DEP_DELAY_isnull';
-    end_ts := clock_timestamp();
-    RAISE INFO 'CREATE INDEX: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
+    -- ---create indexes
+    -- start_ts := clock_timestamp();
+    -- EXECUTE 'CREATE INDEX idx_is_null_distance ON join_table (is_null_distance) WHERE is_null_distance IS TRUE';
+    -- EXECUTE 'CREATE INDEX idx_is_null_CRS_DEP_HOUR ON join_table (is_null_CRS_DEP_HOUR) WHERE is_null_CRS_DEP_HOUR IS TRUE';
+    -- EXECUTE 'CREATE INDEX idx_is_null_TAXI_OUT ON join_table (is_null_TAXI_OUT) WHERE is_null_TAXI_OUT IS TRUE';
+    -- EXECUTE 'CREATE INDEX idx_is_null_TAXI_IN ON join_table (is_null_TAXI_IN) WHERE is_null_TAXI_IN IS TRUE';
+    -- EXECUTE 'CREATE INDEX idx_is_null_DIVERTED ON join_table (is_null_DIVERTED) WHERE is_null_DIVERTED IS TRUE';
+    -- EXECUTE 'CREATE INDEX idx_is_null_ARR_DELAY ON join_table (is_null_ARR_DELAY) WHERE is_null_ARR_DELAY IS TRUE';
+    -- EXECUTE 'CREATE INDEX idx_is_null_DEP_DELAY ON join_table (is_null_DEP_DELAY) WHERE is_null_DEP_DELAY IS TRUE';
+    -- end_ts := clock_timestamp();
+    -- RAISE INFO 'CREATE INDEX: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
     
     
@@ -109,7 +109,6 @@ BEGIN
     end_ts := clock_timestamp();
     RAISE INFO 'COFACTOR global: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
-    COMMIT;
     
     FOR i in 1..5 LOOP
         RAISE INFO 'Iteration %', i;
@@ -117,7 +116,7 @@ BEGIN
         FOREACH col in ARRAY continuous_columns_null LOOP
             RAISE INFO '  |- Column %', col;
             
-            -- COMPUTE COFACTOR WHERE $col IS NOT NULL
+            -- COMPUTE COFACTOR WHERE $col IS NULL
             query_null := 'SELECT SUM(to_cofactor(' ||
                     'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float8[],' ||
                     'ARRAY[ ' || array_to_string(categorical_columns, ', ') || ' ]::int4[]' ||
@@ -156,12 +155,13 @@ BEGIN
             
             start_ts := clock_timestamp();
             EXECUTE query_null INTO STRICT cofactor_null;
-            cofactor_global := cofactor_global + cofactor_null;
             end_ts := clock_timestamp();
             RAISE INFO 'COFACTOR: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
-            COMMIT;
+            
+            cofactor_global := cofactor_global + cofactor_null;
         END LOOP;
     END LOOP;
+    
 END$$;
 
 -- SET client_min_messages TO INFO;
@@ -170,6 +170,5 @@ END$$;
 
 -- CALL MICE_baseline('flights_prep.Flight', 'flight_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'diverted', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep'], ARRAY[]::text[], ARRAY[ 'dep_delay', 'arr_delay', 'taxi_in', 'taxi_out', 'diverted' ], ARRAY[]::text[]);
 
----CREATE TEMPORARY TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID))
 
-CALL MICE_baseline('join_table', 'join_table_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'diverted', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep', 'distance', 'crs_dep_hour', 'crs_dep_min', 'crs_arr_hour', 'crs_arr_min' ], ARRAY[]::text[], ARRAY[ 'dep_delay', 'arr_delay', 'taxi_in', 'taxi_out', 'diverted', 'distance', 'crs_dep_hour' ], ARRAY[]::text[]);
+CALL MICE_incremental('join_table', 'join_table_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'diverted', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep', 'distance', 'crs_dep_hour', 'crs_dep_min', 'crs_arr_hour', 'crs_arr_min' ], ARRAY[]::text[], ARRAY[ 'dep_delay', 'arr_delay', 'taxi_in', 'taxi_out', 'diverted', 'distance', 'crs_dep_hour' ], ARRAY[]::text[]);
