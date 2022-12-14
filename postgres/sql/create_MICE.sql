@@ -50,7 +50,7 @@ BEGIN
     INTO tmp_array;
 
     query := 'CREATE TEMPORARY TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=70)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
 
@@ -79,6 +79,7 @@ BEGIN
     EXECUTE query;
     end_ts := clock_timestamp();
     RAISE INFO 'INSERT INTO TABLE WITH MISSING VALUES: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
+    COMMIT;
 
     FOR i in 1..5 LOOP
         RAISE INFO 'Iteration %', i;
@@ -120,7 +121,8 @@ BEGIN
             EXECUTE query;
             end_ts := clock_timestamp();
             RAISE INFO 'IMPUTE DATA: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
-            
+            COMMIT;
+
         END LOOP;
     END LOOP;
     
