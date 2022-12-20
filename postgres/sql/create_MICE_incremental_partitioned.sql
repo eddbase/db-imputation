@@ -161,7 +161,7 @@ BEGIN
                     'ARRAY[ ' || array_to_string(categorical_columns, ', ') || ' ]::int4[]' ||
                 ')) '
             'FROM ' || output_table_name || ' '
-            'WHERE NULL_CNT = 2 AND ' || col || '_ISNULL;';
+            'WHERE NULL_CNT >= 2 AND ' || col || '_ISNULL;';
             RAISE DEBUG '%', query_null2;
             
             start_ts := clock_timestamp();
@@ -196,7 +196,7 @@ BEGIN
             
             query := 'UPDATE ' || output_table_name || 
                 ' SET ' || col || ' = ' || array_to_string(array_prepend(params[1]::text, tmp_array), ' + ') ||
-                ' WHERE NULL_CNT = 2 AND ' || col || '_ISNULL;';
+                ' WHERE NULL_CNT >= 2 AND ' || col || '_ISNULL;';
             RAISE DEBUG '%', query;
 
             start_ts := clock_timestamp();
