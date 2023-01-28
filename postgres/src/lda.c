@@ -80,16 +80,16 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
                 //sum_vector[(j*num_total_params)+idx_key] = r->tuples[j].value;
                 sum_vector[(j*num_total_params)] = r->tuples[j].value;//count
 
-                elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params)+idx_key, r->tuples[j].value);
-                elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params), r->tuples[j].value);
+                //elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params)+idx_key, r->tuples[j].value);
+                //elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params), r->tuples[j].value);
             }
         }
 
         search_start = search_end;
         relation_data += r->sz_struct;
     }
-    for(size_t i=0;i<num_categories;i++)
-        elog(WARNING, "index %d value %d", i, cat_array[i]);
+    //for(size_t i=0;i<num_categories;i++)
+    //    elog(WARNING, "index %d value %d", i, cat_array[i]);
 
 
     //index of classes in label column (group by...)
@@ -115,7 +115,7 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
                 //search_end = cat_vars_idxs[categorical + 1];
                 //size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
                 size_t group_by_index = find_in_array(r->tuples[j].key, idx_classes, 0, current_label->num_tuples);
-                elog(WARNING, "Processing numerical..., pos %d (numerical %d) val %f ", (group_by_index*num_total_params)+numerical, numerical, r->tuples[j].value);
+                //elog(WARNING, "Processing numerical..., pos %d (numerical %d) val %f ", (group_by_index*num_total_params)+numerical, numerical, r->tuples[j].value);
                 //assert(group_by_index < search_end);
                 // add to sigma matrix
                 sum_vector[(group_by_index*num_total_params)+numerical] = r->tuples[j].value;
@@ -155,17 +155,17 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
                 search_start = cat_vars_idxs[other_cat];
                 search_end = cat_vars_idxs[other_cat + 1];
                 size_t key_index_other_var = find_in_array((uint64_t) r->tuples[j].slots[idx_other], cat_array, search_start, search_end);
-                elog(WARNING, "Search curr cat: %d other cat %d idx found: %d search: %d start: %d end: %d", curr_cat_var, other_cat_var, key_index_other_var, r->tuples[j].slots[idx_other], search_start, search_end);
+                //elog(WARNING, "Search curr cat: %d other cat %d idx found: %d search: %d start: %d end: %d", curr_cat_var, other_cat_var, key_index_other_var, r->tuples[j].slots[idx_other], search_start, search_end);
 
                 assert(key_index_other_var < search_end);
                 key_index_other_var += cofactor->num_continuous_vars + 1;
-                elog(WARNING, "Processing categorical data...");
+                //elog(WARNING, "Processing categorical data...");
 
                 size_t group_by_index = find_in_array(r->tuples[j].slots[idx_current], idx_classes, 0, current_label->num_tuples);
                 assert(group_by_index < search_end);
 
                 sum_vector[(group_by_index*num_total_params)+key_index_other_var] = r->tuples[j].value;
-                elog(WARNING, "Processing categorical..., pos %d (categorical %d) val %f ", (group_by_index*num_total_params)+key_index_other_var, key_index_other_var, r->tuples[j].value);
+                //elog(WARNING, "Processing categorical..., pos %d (categorical %d) val %f ", (group_by_index*num_total_params)+key_index_other_var, key_index_other_var, r->tuples[j].value);
             }
             relation_data += r->sz_struct;
         }
@@ -330,7 +330,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
     lwork = (int)wkopt;
     work = (double*)malloc( lwork*sizeof(double) );
     dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, work, &lwork, iwork, &err);
-    elog(WARNING, "finished with err: %d", err);
+    //elog(WARNING, "finished with err: %d", err);
 
     //compute intercept
 
@@ -340,7 +340,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
 
     char task = 'N';
     dgemm(&task, &task, &num_categories_int, &num_categories_int, &num_params_int, &alpha, mean_vector, &num_categories_int, coef, &num_params_int, &beta, res, &num_categories_int);
-    elog(WARNING, "end!");
+    //elog(WARNING, "end!");
     double *intercept = (double *)palloc(num_categories*sizeof(double));
     for (size_t j = 0; j < num_categories; j++) {
         intercept[j] = (res[(j*num_categories)+j] * (-0.5)) + log(sum_vector[j * num_params] / cofactor->count);
