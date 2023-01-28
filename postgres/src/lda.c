@@ -250,6 +250,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
 {
     const cofactor_t *cofactor = (const cofactor_t *)PG_GETARG_VARLENA_P(0);
     int label = PG_GETARG_INT64(1);
+    double shrinkage = PG_GETARG_FLOAT8(2);
 
     size_t num_params = sizeof_sigma_matrix(cofactor, label);
     float8 *sigma_matrix = (float8 *)palloc0(sizeof(float8) * num_params * num_params);
@@ -289,7 +290,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
     }
 
     //introduce shrinkage
-    double shrinkage = 0.4;
+    //double shrinkage = 0.4;
     double mu = 0;
     for (size_t j = 0; j < num_params; j++) {
         mu += sigma_matrix[(j*num_params)+j];
@@ -320,12 +321,15 @@ Datum lda_train(PG_FUNCTION_ARGS)
     double* work;
     int *iwork = (int *) palloc(((int)((3 * num_params * log2(num_params/2)) + (11*num_params))) * sizeof(int));
     double *s = (double *) palloc(num_params * sizeof(double));
+    int num_params_int = (int) num_params;
+    int num_categories_int = (int) num_categories;
+
 
     lwork = -1;
-    dgelsd( &num_params, &num_params, &num_categories, sigma_matrix, &num_params, coef, &num_params, s, &rcond, &rank, &wkopt, &lwork, iwork, &err);
+    dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, &wkopt, &lwork, iwork, &err);
     lwork = (int)wkopt;
     work = (double*)malloc( lwork*sizeof(double) );
-    dgelsd( &num_params, &num_params, &num_categories, sigma_matrix, &num_params, coef, &num_params, s, &rcond, &rank, work, &lwork, iwork, &err);
+    dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, work, &lwork, iwork, &err);
     elog(WARNING, "finished with err: %d", err);
 
     //compute intercept
@@ -335,7 +339,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
     double *res = (double *)palloc(num_categories*num_categories*sizeof(double));
 
     char task = 'N';
-    dgemm(&task, &task, &num_categories, &num_categories, &num_params, &alpha, mean_vector, &num_categories, coef, &num_params, &beta, res, &num_categories);
+    dgemm(&task, &task, &num_categories_int, &num_categories_int, &num_params_int, &alpha, mean_vector, &num_categories_int, coef, &num_params_int, &beta, res, &num_categories_int);
     elog(WARNING, "end!");
     double *intercept = (double *)palloc(num_categories*sizeof(double));
     for (size_t j = 0; j < num_categories; j++) {

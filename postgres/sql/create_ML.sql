@@ -15,7 +15,8 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression(
 
  CREATE OR REPLACE FUNCTION lda_train(
          c cofactor,
-         label int
+         label int,
+         shrinkage float8
      )
      RETURNS float4[]
      AS :FACTML_LIBRARY, 'lda_train'
