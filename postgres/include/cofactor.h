@@ -68,13 +68,13 @@ inline const char *crelation_array(const cofactor_t *c)
     return (const char *)(cscalar_array(c) + size_scalar_array(c->num_continuous_vars));
 }
 
-size_t get_num_categories(const cofactor_t *cofactor);
+size_t get_num_categories(const cofactor_t *cofactor, int label_categorical_sigma);
 
-size_t sizeof_sigma_matrix(const cofactor_t *cofactor);
+size_t sizeof_sigma_matrix(const cofactor_t *cofactor, int label_categorical_sigma);
 
 size_t find_in_array(uint64_t a, const uint64_t *array, size_t start, size_t end);
 
-void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, 
+void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int label_categorical_sigma,
                         /* out */ float8 *sigma);
 
 #endif // COFACTOR_H

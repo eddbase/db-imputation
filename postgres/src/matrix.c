@@ -4,6 +4,13 @@
 #include <math.h>
 #include <string.h>
 #include <assert.h>
+#include <stdlib.h>
+
+//
+#include <postgres.h>
+#include <fmgr.h>
+#include <catalog/pg_type.h>
+#include <utils/array.h>
 
 
 int16 m_add(Uint16 row, Uint16 col, float32*left, float32*right, float32*out)
@@ -46,12 +53,12 @@ int16 m_mul(float32*left, Uint16 row_left, Uint16 col_left, float32*right, Uint1
 
 	return 0;
 }
-int16 m_mul_scale(Uint16 row,Uint16 col,float32*M,float32 a)
+int16 m_mul_scale(Uint16 row,Uint16 col,float64*M,float64 a)
 {
 	Uint16 i, j;
 	if (0 == a)
 	{
-        memset(M, 0, row*col*sizeof(float32));
+        memset(M, 0, row*col*sizeof(float64));
 		return 0;
 	}
 	for (i = 0; i < row; i++)
@@ -103,11 +110,11 @@ int16 m_chol(Uint16 row, Uint16 col, float32* M)
 	}
 	return 0;
 }
-float32 m_det(float32* M, Uint16 n)
+float64 m_det(float64* M, Uint16 n)
 {
-    float32 ans = 0;
-    float32 t = 0;
-    float32 temp[MAX_MAT_SIZE];
+    float64 ans = 0;
+    float64 t = 0;
+    float64 temp[MAX_MAT_SIZE];
 	Uint16 i, j, k, w;
 	if (1 == n)
 	{
@@ -167,11 +174,11 @@ int16 m_joint(float32* M,Uint16 n, float32*ans)
 	return 0;
 
 }
-int16 m_inverse(float32 *M, Uint16 n,float32* M_inv)
+int16 m_inverse(float64 *M, Uint16 n,float64* M_inv)
 {
 	Uint16 i, j;
-    float32 M_det;
-    float32 M_joint[MAX_MAT_SIZE];
+    float64 M_det;
+    float64 M_joint[MAX_MAT_SIZE];
 	m_joint(M, n, M_joint);
 	M_det = m_det(M, n);
 	m_mul_scale(n, n, M_joint, (1 / M_det));
@@ -367,4 +374,85 @@ void m_print(const float32* mat, const Uint16 m, const Uint16 n, const char *pro
 	}
 	fprintf(file, "\n");
 	//fflush(file);
+}
+
+
+#ifndef FLT_MAX
+#define FLT_MAX 3.402823466e+38F /* max value */
+#endif
+
+// calculate the cofactor
+static void GetMinor(float *src, float *dst, int row, int col, int n)
+{
+    int nCol=0, nRow=0;
+
+    for(int i = 0; i < n; i++)
+    {
+        if(i != row)
+        {
+            nCol = 0;
+            for(int j = 0; j < n; j++)
+            {
+                if( j != col )
+                {
+                    dst[nRow * (n - 1) + nCol] = src[i * n + j]; //dst[nRow][nCol] = src[i][j]
+                    nCol++;
+                }
+            }
+            nRow++;
+        }
+    }
+}
+
+// Calculate the determinant, n >= 0
+long double determinant(float *x, int n)
+{
+    // stop the recursion
+    if(n == 1) return x[0];
+
+    long double d = 0;
+    float *m = (float *)malloc(sizeof(float) * (n-1) * (n-1));
+
+    for(int i = 0; i < n; i++ )
+    {
+        // get minor of element (0,i)
+        GetMinor(x, m, 0, i , n);
+        //d += pow(-1.0, i) * x[i] * determinant(minor, n-1);
+        d += (long double) (i % 2 == 1 ? -1.0 : 1.0) * (long double) x[i] * (long double) determinant(m, n-1);
+
+    }
+    free(m);
+    elog(WARNING, "DETERMINANT %d ", d);
+    return d;
+}
+
+// Input:  X == two dimensional array matrix
+//         n == order
+// Output: Y
+void inv(float *X, int n, float *Y)
+{
+    // calculate the determinant
+    double d = 1.0 / determinant(X, n);
+
+    float *minor = (float *)malloc(sizeof(float) * (n-1) * (n-1));
+
+    for(int j = 0; j < n; j++)
+    {
+        for(int i = 0; i < n; i++)
+        {
+            // get the co-factor (matrix) of A(j,i)
+            GetMinor(X, minor, j, i, n);
+            double mul = d * determinant(minor, n-1);	// prevent float overflow. 2017.03.30
+            if (mul > FLT_MAX)
+                mul = FLT_MAX;
+            if (mul < -FLT_MAX + 0.001)
+                mul = -FLT_MAX + 0.001;
+            Y[i * n + j] = (float)mul;
+//          Y[i * n + j] = (float)(d * determinant(minor, n-1));
+
+            if((i+j) % 2 == 1)
+                Y[i * n + j] = -Y[i * n + j]; // Y[i][j] = - Y[i][j]
+        }
+    }
+    free(minor);
 }

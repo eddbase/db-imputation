@@ -111,7 +111,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
         PG_RETURN_NULL();
     }
 
-    size_t num_params = sizeof_sigma_matrix(cofactor);
+    size_t num_params = sizeof_sigma_matrix(cofactor, -1);
     
     elog(DEBUG5, "num_params = %zu", num_params);
 
@@ -122,7 +122,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
     double *sigma = (double *)palloc0(sizeof(double) * num_params * num_params);
     double *update = (double *)palloc0(sizeof(double) * num_params);
 
-    build_sigma_matrix(cofactor, num_params, sigma);
+    build_sigma_matrix(cofactor, num_params, -1, sigma);
     print_matrix(num_params, sigma);
 
     for (size_t i = 0; i < num_params; i++)

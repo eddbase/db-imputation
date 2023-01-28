@@ -19,7 +19,7 @@ typedef short          int16;
 typedef unsigned long  Uint32;
 typedef int            int32;
 typedef float          float32;
-typedef long double    float64;
+typedef double    float64;
 #endif
 
 #ifdef __cplusplus
@@ -31,15 +31,15 @@ extern "C"
 
     int16 m_sub(Uint16 row, Uint16 col, float32*left, float32*right, float32*out);
 
-    int16 m_mul_scale(Uint16 row, Uint16 col, float32*M, float32 a);
+    int16 m_mul_scale(Uint16 row, Uint16 col, float64*M, float64 a);
 
     int16 m_mul(float32*left, Uint16 row_left, Uint16 col_left, float32*right, Uint16 row_right, Uint16 col_right, float32*out);
     
-    float32 m_det(float32* M, Uint16 n);
+    float64 m_det(float64* M, Uint16 n);
 
     int16 m_joint(float32* M, Uint16 n, float32*ans);
 
-    int16 m_inverse(float32 *M, Uint16 n, float32* M_inv);
+    int16 m_inverse(float64 *M, Uint16 n, float64* M_inv);
 
     int16 m_trans(float32*M, Uint16 row, Uint16 col, float32 *M_tran);
 
@@ -54,6 +54,9 @@ extern "C"
     int16 m_cholupdate(float32* mat, const float32* vec, const Uint16 row, const Uint16 col, const char sign);
 
     void m_print(const float32* mat, const Uint16 m, const Uint16 n, const char *prompt);
+
+    void inv(float *X, int n, float *Y);
+    long double determinant(float *x, int n);
 
 #ifdef __cplusplus
 }

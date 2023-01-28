@@ -8,6 +8,14 @@ if (APPLE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flat_namespace -undefined suppress")
 endif()
 
+find_package(BLAS)
+find_package(LAPACK)
+if(LAPACK_FOUND AND BLAS_FOUND)
+    set(lapackblas_libraries ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+else()
+    panic()
+endif()
+
 #set(CMAKE_C_FLAGS "-O3 ${HASHTAB_FLAGS} -pedantic")
 set(CMAKE_C_FLAGS "-O3 ${HASHTAB_FLAGS}")
 set(CMAKE_C_STANDARD 11)
@@ -41,11 +49,15 @@ add_library(factML SHARED
 )
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
 
+target_link_libraries(factML ${lapackblas_libraries})
+target_compile_options(factML PRIVATE ${LAPACK_LINKER_FLAGS})
+
+
 add_executable(test_serializer
     src/serializer.c
     test/src/test_serializer.c
 )
 target_include_directories(test_serializer PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
-target_link_libraries(test_serializer ${PGSQL_LIB_DIRECTORY}/libpgport.a)
-
+target_link_libraries(test_serializer ${PGSQL_LIB_DIRECTORY}/libpgport.a ${lapackblas_libraries})
+target_compile_options(test_serializer PRIVATE ${LAPACK_LINKER_FLAGS})
 #set(CMAKE_VERBOSE_MAKEFILE ON)
