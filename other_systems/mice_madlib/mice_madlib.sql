@@ -26,7 +26,7 @@ CREATE OR REPLACE FUNCTION standard_imputation(columns_null_numeric text[], colu
   END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION create_table_missing_values(columns text[], col_nan text) RETURNS void AS $$
+CREATE OR REPLACE PROCEDURE create_table_missing_values(columns text[], col_nan text) LANGUAGE plpgsql AS $$
   DECLARE
     col text;
     columns_no_null text[];
@@ -41,20 +41,18 @@ CREATE OR REPLACE FUNCTION create_table_missing_values(columns text[], col_nan t
     EXECUTE format('DROP TABLE IF EXISTS tmp_min%s', col_nan);
     RAISE NOTICE 'create_table_missing_values:  %', format(insert_query, VARIADIC ARRAY[col_nan] || columns_no_null || col_nan);
     EXECUTE format(insert_query, VARIADIC ARRAY[col_nan] || columns_no_null || col_nan);
-  END;
-$$ LANGUAGE plpgsql;
+END$$;
 
 
-CREATE OR REPLACE FUNCTION create_table_imputed_values(col_nan text, average float8) RETURNS void AS $$
+CREATE OR REPLACE PROCEDURE create_table_imputed_values(col_nan text, average float8) LANGUAGE plpgsql AS $$
   DECLARE
     insert_query text := 'CREATE TEMPORARY TABLE tmp_imputed_%s AS SELECT flight, ';
   BEGIN
     insert_query := insert_query || '%s AS %s FROM tmp_min%s';
     EXECUTE format('DROP TABLE IF EXISTS tmp_imputed_%s', col_nan);
-    RAISE NOTICE 'create_table_imputed_values:  %', format(insert_query, VARIADIC ARRAY[col_nan] || average::text || col_nan, col_nan);
-    EXECUTE format(insert_query, VARIADIC ARRAY[col_nan] || average::text || col_nan, col_nan);
-  END;
-$$ LANGUAGE plpgsql;
+    RAISE NOTICE 'create_table_imputed_values:  %', format(insert_query, VARIADIC ARRAY[col_nan] || average::text || col_nan || col_nan);
+    EXECUTE format(insert_query, VARIADIC ARRAY[col_nan] || average::text || col_nan || col_nan);
+END$$;
 
 create or replace function array_diff(array1 anyarray, array2 anyarray)
 returns anyarray language sql immutable as $$
@@ -65,14 +63,14 @@ $$;
 
 --skip_null: treats a null as %s
 
-CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
+CREATE OR REPLACE PROCEDURE main() LANGUAGE plpgsql AS $$
     DECLARE
         num_columns_null text[] := ARRAY['CRS_DEP_HOUR', 'DISTANCE', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'];
         cat_columns_null text[] := ARRAY['DIVERTED'];
         columns_null text[] := num_columns_null || cat_columns_null;
-        columns text[] := ARRAY['id', 'airports', 'DISTANCE', 'flight', 'CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN'];
+        columns text[] := ARRAY['id', 'ROUTE_ID', 'DISTANCE', 'SCHEDULE_ID', 'CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN'];
         _imputed_data float8[];
-        mice_iter int := 7;
+        mice_iter int := 5;
         _counter int;
         _counter_2 int;
         _query text := 'SELECT ';
@@ -107,7 +105,7 @@ CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
 
         --_query_2 := RTRIM(_query_2, ', ');
 
-        EXECUTE 'CREATE TEMPORARY TABLE tmp_table AS (SELECT * FROM (flight.schedule JOIN flight.distances USING(airports)) AS s JOIN flight.flights USING (flight))';
+        EXECUTE 'CREATE TEMPORARY TABLE tmp_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID))';
         _int_ts  := clock_timestamp();
 
         _imputed_data := standard_imputation(num_columns_null, cat_columns_null);
@@ -133,7 +131,7 @@ CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
 
         RAISE NOTICE '%', ('CREATE TEMPORARY TABLE join_result AS (' || format(RTRIM(_query || _query_2, ', '), VARIADIC params) || ' FROM tmp_table)');
         ---train
-        EXECUTE ('CREATE TEMPORARY TABLE join_result AS (' || format(RTRIM(_query || _query_2, ', '), VARIADIC params) || ' FROM tmp_table)');
+        EXECUTE ('CREATE TEMPORARY TABLE join_result AS (' || format(RTRIM(_query || _query_2, ', '), VARIADIC params) || ' FROM tmp_table) WITH (fillfactor=80);');
         EXECUTE ('DROP TABLE tmp_table');
 
         FOR _counter in 1..mice_iter
@@ -146,7 +144,7 @@ CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
 
                     EXECUTE ('CREATE TEMPORARY TABLE train_table AS (SELECT * FROM join_result WHERE ' || num_columns_null[_counter_2] || '_is_null IS false)');
 
-                    --RAISE NOTICE '%', ('SELECT madlib.linregr_train( ''train_table'', ''res_linregr'' ,''' || num_columns_null[_counter_2] || ''', ''ARRAY[' || array_to_string(_indep_vars, ', ') || ']'')');
+                    RAISE NOTICE '%', ('SELECT madlib.linregr_train( ''train_table'', ''res_linregr'' ,''' || num_columns_null[_counter_2] || ''', ''ARRAY[' || array_to_string(_indep_vars, ', ') || ']'')');
 
                     EXECUTE ('SELECT madlib.linregr_train( ''train_table'', ''res_linregr'' ,''' ||
                              num_columns_null[_counter_2] || ''', ''ARRAY[' || array_to_string(_indep_vars, ', ') || ']'')');
@@ -155,10 +153,10 @@ CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
 
                     --- predict
                     _query := ('SELECT '||array_to_string(_indep_vars,', ') ||', madlib.linregr_predict( m.coef, ' || ' ARRAY[' || array_to_string(_indep_vars, ', ') || ']) as predict FROM join_result, res_linregr m WHERE ' || num_columns_null[_counter_2] || '_is_null IS true');
-                    --RAISE NOTICE '%', _query;
+                    RAISE NOTICE '%', _query;
                     --RAISE NOTICE '--DONE';
 
-                    --RAISE NOTICE '%', ('UPDATE train_table SET train_table.' || num_columns_null[_counter_2] || ' = p.predict FROM (' || _query || ') AS p WHERE p.id = train_table.id');
+                    RAISE NOTICE '%', ('UPDATE join_result SET' || num_columns_null[_counter_2] || ' = p.predict FROM (' || _query || ') AS p WHERE p.id = join_result.id');
                     EXECUTE ('UPDATE join_result SET ' || num_columns_null[_counter_2] || ' = p.predict FROM (' || _query || ') AS p WHERE p.id = join_result.id');
                     --RAISE NOTICE 'DROP TABLE res_linregr';
                     EXECUTE ('DROP TABLE res_linregr');
@@ -190,10 +188,10 @@ CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
                     EXECUTE ('DROP TABLE res_logregr');
                     EXECUTE 'DROP TABLE res_logregr_summary';
                     EXECUTE 'DROP TABLE train_table';
-
                     --RAISE NOTICE '------DONE-----';
                 END LOOP;
         end loop;
+        COMMIT;
         _end_ts  := clock_timestamp();
         RAISE NOTICE 'Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
         RAISE NOTICE 'Execution time (JOIN) in ms = %' , 1000 * (extract(epoch FROM _int_ts - _start_ts));
@@ -204,10 +202,7 @@ CREATE OR REPLACE FUNCTION main() RETURNS int AS $$
         --    perform create_table_missing_values(columns,  columns_null[_counter]);
         --   perform create_table_imputed_values(columns_null[_counter], _imputed_data[_counter]);
         --end loop;
-    return 0;
-    END;
-$$ LANGUAGE plpgsql;
-
+END$$;
 --- CREATE TEMPORARY TABLE join_result AS (SELECT * FROM (flight.schedule JOIN flight.distances USING(airports)) AS s JOIN flight.flights USING (flight))
 
 
@@ -236,7 +231,7 @@ CREATE OR REPLACE FUNCTION mean_imputation() RETURNS int AS $$
         end loop;
 
 
-        EXECUTE 'CREATE TABLE tmp_table AS (SELECT * FROM (flight.schedule JOIN flight.distances USING(airports)) AS s JOIN flight.flights USING (flight))';
+        EXECUTE 'CREATE TEMPORARY TABLE tmp_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID))';
         _imputed_data := standard_imputation(num_columns_null, cat_columns_null);
         columns_no_null := array_diff(columns,  num_columns_null || cat_columns_null);
         FOR _counter in 1..(cardinality(columns_no_null))

@@ -9,6 +9,9 @@ CREATE OR REPLACE PROCEDURE MICE_incremental(
 DECLARE 
     start_ts timestamptz;
     end_ts   timestamptz;
+    start_ts_full timestamptz;
+    end_ts_full   timestamptz;
+
     query text;
     query_null text;
     col_averages float8[];
@@ -52,7 +55,7 @@ BEGIN
     INTO tmp_array;
 
     query := 'CREATE TEMPORARY TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=75)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     
@@ -108,6 +111,9 @@ BEGIN
     EXECUTE query INTO STRICT cofactor_global;
     end_ts := clock_timestamp();
     RAISE INFO 'COFACTOR global: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
+    
+    COMMIT;
+    start_ts_full := clock_timestamp();
 
     
     FOR i in 1..5 LOOP
@@ -159,9 +165,15 @@ BEGIN
             RAISE INFO 'COFACTOR: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
             
             cofactor_global := cofactor_global + cofactor_null;
+            
+            COMMIT;
+            
         END LOOP;
     END LOOP;
     
+	end_ts_full := clock_timestamp();
+    RAISE INFO 'FULL IMP.: ms = %', 1000 * (extract(epoch FROM end_ts_full - start_ts_full));
+
 END$$;
 
 -- SET client_min_messages TO INFO;
