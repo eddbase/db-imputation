@@ -773,21 +773,21 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
 
     // count
     sigma[0] = cofactor->count;
-    
+    elog(WARNING, "COUNT: %d ", sigma[0]);
+
     // sum1
     const float8 *sum1_scalar_array = cscalar_array(cofactor);    
     for (size_t i = 0; i < cofactor->num_continuous_vars; i++)
     {
         sigma[i + 1] = sum1_scalar_array[i];
         sigma[(i + 1) * matrix_size] = sum1_scalar_array[i];
+        elog(WARNING, "SUM1: %d ", sigma[i + 1]);
     }
 
     //sum2 full matrix (from half)
     const float8 *sum2_scalar_array = sum1_scalar_array + cofactor->num_continuous_vars;
-    for (size_t row = 0; row < cofactor->num_continuous_vars; row++)
-    {
-        for (size_t col = 0; col < cofactor->num_continuous_vars; col++)
-        {
+    for (size_t row = 0; row < cofactor->num_continuous_vars; row++){
+        for (size_t col = 0; col < cofactor->num_continuous_vars; col++){
             if (row > col)
                 sigma[((row + 1) * matrix_size) + (col + 1)] = sum2_scalar_array[(col * cofactor->num_continuous_vars) - (((col) * (col + 1)) / 2) + row];
             else
@@ -806,8 +806,37 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
 
     cat_vars_idxs[0] = 0;
 
-    // count * categorical (group by A, group by B, ...)
     const char *relation_data = crelation_array(cofactor);
+    for (size_t i = 0; i < cofactor->num_categorical_vars; i++) {
+        relation_t *r = (relation_t *) relation_data;
+        if (label_categorical_sigma >= 0 && ((size_t)label_categorical_sigma) == i ){
+            relation_data += r->sz_struct;
+            continue;
+        }
+        //create sorted array
+        for (size_t j = 0; j < r->num_tuples; j++) {
+            size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
+            if (key_index == search_end){
+                uint64_t value_to_insert = r->tuples[j].key;
+                uint64_t tmp;
+                for (size_t k = search_start; k < search_end; k++){
+                    if (value_to_insert < cat_array[k]){
+                        tmp = cat_array[k];
+                        cat_array[k] = value_to_insert;
+                        value_to_insert = tmp;
+                    }
+                }
+                cat_array[search_end] = value_to_insert;
+                search_end++;
+            }
+        }
+        search_start = search_end;
+        cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
+        relation_data += r->sz_struct;
+    }
+
+    // count * categorical (group by A, group by B, ...)
+    relation_data = crelation_array(cofactor);
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
     {
         relation_t *r = (relation_t *) relation_data;
@@ -821,12 +850,13 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
         for (size_t j = 0; j < r->num_tuples; j++) 
         {
             // search key index
-            size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
-            if (key_index == search_end)    // not found
+            size_t key_index = find_in_array(r->tuples[j].key, cat_array, cat_vars_idxs[i], cat_vars_idxs[i + 1]);
+            assert(key_index < search_end);
+            /*if (key_index == search_end)    // not found
             {
                 cat_array[search_end] = r->tuples[j].key;
                 search_end++;
-            }
+            }*/
 
             // add to sigma matrix
             key_index += cofactor->num_continuous_vars + 1;
@@ -835,7 +865,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
             sigma[(key_index * matrix_size) + key_index] = r->tuples[j].value;
         }
         search_start = search_end;
-        cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
+        //cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
 
         relation_data += r->sz_struct;
     }
