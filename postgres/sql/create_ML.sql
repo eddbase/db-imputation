@@ -25,8 +25,7 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression(
  CREATE OR REPLACE FUNCTION lda_impute(
          train_data float4[],
          feats_numerical float4[],
-         feats_categorical int[],
-         size_categorical int
+         feats_categorical int[]
      )
      RETURNS int
      AS :FACTML_LIBRARY, 'lda_impute'

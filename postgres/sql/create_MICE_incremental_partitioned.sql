@@ -233,6 +233,8 @@ BEGIN
     
 END$$;
 
+CALL MICE_incremental_partitioned('test2', 'test2_complete', ARRAY['a','b','c' ], ARRAY[]::text[], ARRAY[ 'b', 'c' ], ARRAY[]::text[]);
+
 -- SET client_min_messages TO INFO;
 
 -- CALL MICE_incremental_partitioned('R', 'R_complete', ARRAY['A', 'B', 'C', 'D', 'E'], ARRAY[]::text[], ARRAY[ 'A', 'B', 'C'], ARRAY[]::text[]);

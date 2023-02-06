@@ -80,10 +80,10 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
         cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
         relation_data += r->sz_struct;
     }
-    for(size_t i = 0; i < num_categories; i++){
+    /*for(size_t i = 0; i < num_categories; i++){
         elog(WARNING, "classes array: %d ", cat_array[i]);
     }
-    elog(WARNING, "done ");
+    elog(WARNING, "done ");*/
 
     relation_data = crelation_array(cofactor);
 
@@ -107,13 +107,13 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
                 //search_start = cat_vars_idxs[i];
                 //search_end = cat_vars_idxs[i + 1];
                 size_t idx_key = find_in_array(current_label->tuples[j].key, cat_array, cat_vars_idxs[label], cat_vars_idxs[label+1])-cat_vars_idxs[label];
-                elog(WARNING, "%d", idx_key);
+                //elog(WARNING, "%d", idx_key);
                 assert(idx_key < current_label->num_tuples);
                 //idx_key += cofactor->num_continuous_vars + 1;
 
                 //sum_vector[(j*num_total_params)+idx_key] = r->tuples[j].value;
                 sum_vector[(idx_key*num_total_params)] = r->tuples[j].value;//count
-                elog(WARNING, "COUNT: %lf stored in: %d", r->tuples[j].value, idx_key*num_total_params);
+                //elog(WARNING, "COUNT: %lf stored in: %d", r->tuples[j].value, idx_key*num_total_params);
 
                 //elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params)+idx_key, r->tuples[j].value);
                 //elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params), r->tuples[j].value);
@@ -174,15 +174,20 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
                 search_start = cat_vars_idxs[other_cat];
                 search_end = cat_vars_idxs[other_cat + 1];
                 size_t key_index_other_var = find_in_array((uint64_t) r->tuples[j].slots[idx_other], cat_array, search_start, search_end) - search_start;
-                elog(WARNING, "Search curr cat: %d other cat %d idx found: %d search: %d start: %d end: %d", curr_cat_var, other_cat_var, key_index_other_var, r->tuples[j].slots[idx_other], search_start, search_end);
+                //elog(WARNING, "Search curr cat: %d other cat %d idx found: %d search: %d start: %d end: %d", curr_cat_var, other_cat_var, key_index_other_var, r->tuples[j].slots[idx_other], search_start, search_end);
 
                 assert(key_index_other_var < search_end);
-                key_index_other_var += cofactor->num_continuous_vars + 1;
-                elog(WARNING, "Processing categorical data...");
+                //elog(WARNING, "contin. vars %d search start %d curr label size keys %d", cofactor->num_continuous_vars, search_start, cat_vars_idxs[label + 1] - cat_vars_idxs[label]);
+
+                key_index_other_var += cofactor->num_continuous_vars + 1 + search_start;
+                if (search_start >= cat_vars_idxs[label])
+                    key_index_other_var -= (cat_vars_idxs[label + 1] - cat_vars_idxs[label]);
 
                 size_t group_by_index = find_in_array((uint64_t) r->tuples[j].slots[idx_current], cat_array, cat_vars_idxs[label], cat_vars_idxs[label + 1]) - cat_vars_idxs[label];
-                elog(WARNING, "CURRENT LABEL idx found: %d search: %d start: %d end: %d", group_by_index, r->tuples[j].slots[idx_current], cat_vars_idxs[label], cat_vars_idxs[label + 1]);
+                //elog(WARNING, "CURRENT LABEL idx found: %d search: %d start: %d end: %d", group_by_index, r->tuples[j].slots[idx_current], cat_vars_idxs[label], cat_vars_idxs[label + 1]);
                 assert(group_by_index < search_end);
+
+                //elog(WARNING, "Setting val: %lf in pos: %d (label: %d)", r->tuples[j].value, key_index_other_var, group_by_index);
 
                 sum_vector[(group_by_index*num_total_params)+key_index_other_var] = r->tuples[j].value;
                 //elog(WARNING, "Processing categorical..., pos %d (categorical %d) val %f ", (group_by_index*num_total_params)+key_index_other_var, key_index_other_var, r->tuples[j].value);
@@ -298,10 +303,10 @@ Datum lda_train(PG_FUNCTION_ARGS)
     build_sigma_matrix(cofactor, num_params, label, sigma_matrix);
     build_sum_vector(cofactor, num_params, label, label, sum_vector);
 
-    elog(WARNING, " %d ", num_params);
-    elog(WARNING, " %d ", num_categories);
+    //elog(WARNING, " %d ", num_params);
+    //elog(WARNING, " %d ", num_categories);
 
-    elog(WARNING, "SIGMA MATRIX: ");
+    /*elog(WARNING, "SIGMA MATRIX: ");
     for (size_t j = 0; j < num_params; j++) {
         for (size_t k = 0; k < num_params; k++) {
             elog(WARNING, "%lf ", sigma_matrix[(j*num_params)+k]);
@@ -312,7 +317,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
         for (size_t k = 0; k < num_categories; k++) {
             elog(WARNING, "%lf ", sum_vector[(j*num_categories)+k]);
         }
-    }
+    }*/
 
 
         //build covariance matrix and mean vectors
@@ -398,6 +403,7 @@ Datum lda_train(PG_FUNCTION_ARGS)
     //return coefficients
     for (int i = 0; i < num_params * num_categories; i++) {
         d[i + 2] = Float4GetDatum((float) coef[i]);
+        //elog(WARNING, "coeff %lf", coef[i]);
     }
 
     //return intercept
@@ -416,19 +422,19 @@ Datum lda_impute(PG_FUNCTION_ARGS)
     ArrayType *means_covariance = PG_GETARG_ARRAYTYPE_P(0);
     ArrayType *feats_numerical = PG_GETARG_ARRAYTYPE_P(1);
     ArrayType *feats_categorical = PG_GETARG_ARRAYTYPE_P(2);
-    int size_one_hot = PG_GETARG_INT64(3);
-
+    //ArrayType *max_feats_categorical = PG_GETARG_ARRAYTYPE_P(3);
 
     Oid arrayElementType1 = ARR_ELEMTYPE(means_covariance);
     Oid arrayElementType2 = ARR_ELEMTYPE(feats_numerical);
     Oid arrayElementType3 = ARR_ELEMTYPE(feats_categorical);
+    //Oid arrayElementType4 = ARR_ELEMTYPE(max_feats_categorical);
 
-    int16 arrayElementTypeWidth1, arrayElementTypeWidth2, arrayElementTypeWidth3;
-    bool arrayElementTypeByValue1, arrayElementTypeByValue2, arrayElementTypeByValue3;
-    Datum *arrayContent1, *arrayContent2, *arrayContent3;
-    bool *arrayNullFlags1, *arrayNullFlags2, *arrayNullFlags3;
-    int arrayLength1, arrayLength2, arrayLength3;
-    char arrayElementTypeAlignmentCode1, arrayElementTypeAlignmentCode2, arrayElementTypeAlignmentCode3;
+    int16 arrayElementTypeWidth1, arrayElementTypeWidth2, arrayElementTypeWidth3, arrayElementTypeWidth4;
+    bool arrayElementTypeByValue1, arrayElementTypeByValue2, arrayElementTypeByValue3, arrayElementTypeByValue4;
+    Datum *arrayContent1, *arrayContent2, *arrayContent3, *arrayContent4;
+    bool *arrayNullFlags1, *arrayNullFlags2, *arrayNullFlags3, *arrayNullFlags4;
+    int arrayLength1, arrayLength2, arrayLength3, arrayLength4;
+    char arrayElementTypeAlignmentCode1, arrayElementTypeAlignmentCode2, arrayElementTypeAlignmentCode3, arrayElementTypeAlignmentCode4;
 
     get_typlenbyvalalign(arrayElementType1, &arrayElementTypeWidth1, &arrayElementTypeByValue1, &arrayElementTypeAlignmentCode1);
     deconstruct_array(means_covariance, arrayElementType1, arrayElementTypeWidth1, arrayElementTypeByValue1, arrayElementTypeAlignmentCode1,
@@ -441,10 +447,19 @@ Datum lda_impute(PG_FUNCTION_ARGS)
     get_typlenbyvalalign(arrayElementType3, &arrayElementTypeWidth3, &arrayElementTypeByValue3, &arrayElementTypeAlignmentCode3);
     deconstruct_array(feats_categorical, arrayElementType3, arrayElementTypeWidth3, arrayElementTypeByValue3, arrayElementTypeAlignmentCode3,
                       &arrayContent3, &arrayNullFlags3, &arrayLength3);
-
+    /*
+    get_typlenbyvalalign(arrayElementType4, &arrayElementTypeWidth4, &arrayElementTypeByValue4, &arrayElementTypeAlignmentCode4);
+    deconstruct_array(max_feats_categorical, arrayElementType4, arrayElementTypeWidth4, arrayElementTypeByValue4, arrayElementTypeAlignmentCode4,
+                      &arrayContent4, &arrayNullFlags4, &arrayLength4);
+*/
 
     int num_params = (int) DatumGetFloat4(arrayContent1[0]);
     int num_categories = (int) DatumGetFloat4(arrayContent1[1]);
+    int size_one_hot = num_params - arrayLength2 - 1;//PG_GETARG_INT64(3);
+
+    //elog(WARNING, " size_one_hot : %d ", size_one_hot);
+    //elog(WARNING, " size_numerical : %d ", arrayLength2);
+
 
     //int *idx_classes = (int *)palloc0(sizeof(int) * num_categories);//classes order
     double *coefficients = (double *)palloc0(sizeof(double) * num_params * num_categories);
@@ -462,13 +477,23 @@ Datum lda_impute(PG_FUNCTION_ARGS)
     double *feats_c = (double *)palloc0(sizeof(double) * (size_one_hot + arrayLength2 + 1));
     feats_c[0] = 1;
 
-    for(int i=0;i<arrayLength2;i++)
+    for(int i=0;i<arrayLength2;i++) {
+        //elog(WARNING, " numerical: %lf ", DatumGetFloat4(arrayContent2[i]));
         feats_c[1 + i] = (double) DatumGetFloat4(arrayContent2[i]);
-
-    for(int i=0;i<arrayLength3;i++) {
-        feats_c[1 + arrayLength2 + DatumGetInt64(arrayContent3[i])] = 1;
     }
-    
+
+    int cat_padding = 0;
+    for(int i=0;i<arrayLength3;i++) {
+        feats_c[1 + arrayLength2 + DatumGetInt64(arrayContent3[i])] = 1;//cat_padding
+        //elog(WARNING, " categorical: %d ", DatumGetInt64(arrayContent3[i]));
+        //elog(WARNING, " categorical + padding: %d ", DatumGetInt64(cat_padding + DatumGetInt64(arrayContent3[i])));
+        //cat_padding += DatumGetInt64(arrayContent4[i]);
+    }
+
+    /*for(int i=0;i<size_one_hot + arrayLength2 + 1;i++) {
+        elog(WARNING, " Feats: %lf ", feats_c[i]);
+    }*/
+
         //end unpacking
 
     char task = 'N';
@@ -484,12 +509,12 @@ Datum lda_impute(PG_FUNCTION_ARGS)
 
     for(int i=0;i<num_categories;i++) {
         double val = res[i] + intercept[i];
-        elog(WARNING, "%lf", val);
         if (val > max){
             max = val;
             class = i;
         }
     }
+    //elog(WARNING, "Prediction: %d", class);
 
     PG_RETURN_INT64(class);
 }

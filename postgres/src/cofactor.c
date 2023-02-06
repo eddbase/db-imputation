@@ -136,6 +136,70 @@ cofactor_t *union_cofactors(const cofactor_t *a,
     return out;
 }
 
+cofactor_t *difference_cofactors(const cofactor_t *a,
+                            const cofactor_t *b,
+                            union_relations_fn_t union_relations_fn)
+{
+#ifdef DEBUG_COFACTOR
+    assert(a->num_continuous_vars == b->num_continuous_vars &&
+           a->num_categorical_vars == b->num_categorical_vars);
+#endif
+
+    size_t sz_scalar_array = size_scalar_array(a->num_continuous_vars);
+    size_t sz_relation_array = size_relation_array(a->num_continuous_vars, a->num_categorical_vars);
+
+    size_t sz_scalar_data = sz_scalar_array * sizeof(float8);
+    size_t max_sz_relation_data = a->sz_relation_data + b->sz_relation_data - sz_relation_array * sizeof(relation_t);
+    size_t sz = sizeof(cofactor_t) + sz_scalar_data + max_sz_relation_data;
+
+    // allocate
+    cofactor_t *out = (cofactor_t *)palloc0(sz);
+    SET_VARSIZE(out, sz);
+
+    // set header data
+    out->sz_relation_data = 0;
+    out->num_continuous_vars = a->num_continuous_vars;
+    out->num_categorical_vars = a->num_categorical_vars;
+    out->count = a->count - b->count;
+
+    // add scalar arrays
+    for (size_t i = 0; i < sz_scalar_array; i++)
+    {
+        scalar_array(out)[i] = cscalar_array(a)[i] - cscalar_array(b)[i];
+    }
+
+    // add relation arrays
+    const char *a_relation_array = (const char *)(cscalar_array(a) + sz_scalar_array);
+    const char *b_relation_array = (const char *)(cscalar_array(b) + sz_scalar_array);
+    char *out_relation_array = (char *)(scalar_array(out) + sz_scalar_array);
+    for (size_t i = 0; i < sz_relation_array; i++)
+    {
+        const relation_t *a_relation = (const relation_t *)a_relation_array;
+        const relation_t *b_relation = (const relation_t *)b_relation_array;
+        relation_t *out_relation = (relation_t *)out_relation_array;
+
+        union_relations_fn(a_relation, b_relation, out_relation);
+
+        a_relation_array += a_relation->sz_struct;
+        b_relation_array += b_relation->sz_struct;
+        out_relation_array += out_relation->sz_struct;
+        out->sz_relation_data += out_relation->sz_struct;
+    }
+
+#ifdef DEBUG_COFACTOR
+    size_t actual_sz = sizeof_cofactor_t(out);
+    assert(actual_sz <= sz);
+    if (actual_sz < sz)
+    {
+        // no action -- union can compact tuples
+        // elog(WARNING, "actual < max");
+    }
+#endif
+
+    return out;
+}
+
+
 PG_FUNCTION_INFO_V1(pg_add_cofactors);
 
 Datum pg_add_cofactors(PG_FUNCTION_ARGS)
@@ -152,7 +216,7 @@ Datum pg_subtract_cofactors(PG_FUNCTION_ARGS)
 {
     const cofactor_t *const a = (cofactor_t *)PG_GETARG_VARLENA_P(0);
     const cofactor_t *const b = (cofactor_t *)PG_GETARG_VARLENA_P(1);
-    cofactor_t *out = union_cofactors(a, b, &subtract_relations);
+    cofactor_t *out = difference_cofactors(a, b, &subtract_relations);
     PG_RETURN_POINTER(out);
 }
 
