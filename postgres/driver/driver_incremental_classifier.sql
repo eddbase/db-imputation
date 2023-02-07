@@ -20,8 +20,8 @@ DECLARE
     col text;
     params float4[];
     label_index int4;
-    categorical_uniq_vals_sorted int[] := ARRAY[0,1,3,5,9,1,2,3,4,1,2];
-    upper_bound_categorical  int[] := ARRAY[5,9,11]; 
+    categorical_uniq_vals_sorted int[] := ARRAY[0,1];--0,1,3,5,9,1,2,3,4,1,2
+    upper_bound_categorical  int[] := ARRAY[2];--5,9,11 
     low_bound_categorical  int[]; 
 
 BEGIN
@@ -218,9 +218,13 @@ BEGIN
             
             low_bound_categorical := ARRAY[0] || array_remove(upper_bound_categorical , upper_bound_categorical[array_upper(upper_bound_categorical, 1)]);
             --offset wrong when label skipped
-            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index] ||' END)' ||
-            ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
-            ' WHERE a.nr != ' || label_index ||')';
+            IF array_lower(categorical_columns,1) = 1 AND array_lower(categorical_columns_null,1) = 1 THEN
+	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index] ||' END)' ||
+    	        ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
+       		 	' WHERE a.nr != ' || label_index ||')';
+       		ELSE
+       		 	subquery := 'ARRAY[]';
+       		END IF;
 
             RAISE DEBUG ' %', subquery;
             
@@ -272,8 +276,10 @@ BEGIN
     
 END$$;
 
-CALL MICE_incremental_partitioned_classifier('test2', 'test2_complete', ARRAY['a'], ARRAY['b', 'c', 'd']::text[], ARRAY['b', 'd']);
+--CALL MICE_incremental_partitioned_classifier('test2', 'test2_complete', ARRAY['a'], ARRAY['b', 'c', 'd']::text[], ARRAY['b', 'd']);
 
+CREATE TEMPORARY TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID));
+CALL MICE_incremental_partitioned_classifier('join_table', 'join_table_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep', 'distance', 'crs_dep_hour', 'crs_dep_min', 'crs_arr_hour', 'crs_arr_min' ], ARRAY['diverted']::text[], ARRAY['diverted']);
 
 
 -- SET client_min_messages TO DEBUG;
