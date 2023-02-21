@@ -874,6 +874,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++) {
         relation_t *r = (relation_t *) relation_data;
         if (label_categorical_sigma >= 0 && ((size_t)label_categorical_sigma) == i ){
+            cat_vars_idxs[i + 1] = cat_vars_idxs[i];
             relation_data += r->sz_struct;
             continue;
         }
