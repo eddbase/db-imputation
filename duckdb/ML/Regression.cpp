@@ -330,6 +330,8 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
     for(idx_t i=0;i<quad.size();i++)
         cofactor.quad[i] = quad[i].GetValue<float>();
 
+
+
     if (linear.size() <= label) {
         std::cout<<"label ID >= number of continuous attributes";
         return {};
@@ -345,6 +347,7 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
     std::vector <double> update(num_params, 0);
 
     build_sigma_matrix(cofactor, num_params, -1, sigma);
+
 
     for (size_t i = 0; i < num_params; i++)
     {
@@ -424,8 +427,6 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
         compute_gradient(num_params, label, sigma, learned_coeff, grad);
 
         step_size = compute_step_size(step_size, num_params, learned_coeff, prev_learned_coeff, grad, prev_grad);
-
-        std::cout<<"error = "<< error<<"\n";
         prev_error = error;
         num_iterations++;
     } while (num_iterations < 1000 || num_iterations < max_num_iterations);

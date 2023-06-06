@@ -234,7 +234,7 @@ namespace Triple {
         for(idx_t i=0;i<quad_1.size();i++)
             quad.push_back(Value(quad_1[i].GetValue<float>() - quad_2[i].GetValue<float>()));
 
-        struct_values.emplace_back("quad_agg", duckdb::Value::LIST(lin));
+        struct_values.emplace_back("quad_agg", duckdb::Value::LIST(quad));
 
         auto ret = duckdb::Value::STRUCT(struct_values);
         return ret;

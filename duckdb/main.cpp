@@ -230,7 +230,11 @@ int main(int argc, char* argv[]) {
     query.pop_back();
     query += " FROM "+table_name+"_complete_2)";
 
+
+    begin = std::chrono::high_resolution_clock::now();
     Value full_triple = con.Query(query)->GetValue(0,0);
+    end = std::chrono::high_resolution_clock::now();
+    std::cout<<". Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     for (int mice_iter =0; mice_iter<1;mice_iter++){
         std::vector<string> testtest = {"WHEELS_ON_HOUR"};
@@ -250,37 +254,55 @@ int main(int argc, char* argv[]) {
             query.pop_back();
             query += " FROM "+table_name+"_complete_2)";
 
+            begin = std::chrono::high_resolution_clock::now();
             Value null_triple = con.Query(query)->GetValue(0,0);
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<". Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //subtract triples
 
-            query = "SELECT sub_triple("+full_triple.ToString()+", "+null_triple.ToString()+")";
-            std::cout<<query<<"\n";
-            auto train_cof = con.Query(query)->GetValue(0,0);
-            std::cout<<"RES: "<<train_cof.ToString()<<"\n";
+            //query = "SELECT sub_triple("+full_triple.ToString()+", "+null_triple.ToString()+")";
+            //std::cout<<query<<"\n";
+            //auto train_cof = con.Query(query)->GetValue(0,0);
+            //std::cout<<"RES: "<<train_cof.ToString()<<"\n";
 
             Value train_triple = Triple::subtract_triple(full_triple, null_triple);
+            train_triple.Print();
 
             //train
 
             auto it = std::find(con_columns.begin(), con_columns.end(), col_null);
             int label_index = it - con_columns.begin();
+            std::cout<<"Label index "<<label_index<<"\n";
 
-            std::vector <double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 10000);
-
+            std::vector <double> test = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
+            std::vector <double> params(test.size(), 0);
             //predict query
 
             std::string new_val = "";
             for(size_t i=0; i< con_columns.size(); i++) {
                 if (i==label_index)
                     continue;
-                new_val+="("+ to_string(params[i])+" * "+con_columns[i]+")+";
+                new_val+="("+ to_string((float)params[i])+" * "+con_columns[i]+")+";
             }
             new_val.pop_back();
             //update 1 missing value
+            begin = std::chrono::high_resolution_clock::now();
             con.Query("UPDATE "+table_name+"_complete_"+col_null+" SET "+col_null+" = "+new_val)->Print();
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
             //update 2 missing values
+
+            begin = std::chrono::high_resolution_clock::now();
             con.Query("UPDATE "+table_name+"_complete_2 SET "+col_null+" = "+new_val+" WHERE "+col_null+"_IS_NULL")->Print();
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE "+table_name+"_test AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END FROM "+table_name+"_complete_2")->Print();
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //recompute cofactors
 
