@@ -50,7 +50,7 @@ namespace Triple {
 
         //SUM N
         auto &children = StructVector::GetEntries(input);
-        Vector c1 = *children[0];//this should be the vector of integers....
+        Vector &c1 = *children[0];//this should be the vector of integers....
         auto input_data = (int32_t *) FlatVector::GetData(c1);
         //auto state = states[sdata.sel->get_index(0)];//because of parallelism???
 
@@ -61,7 +61,7 @@ namespace Triple {
         //auto N =  input_data;
 
         //SUM LINEAR AGGREGATES:
-        Vector c2 = *children[1];//this should be the linear aggregate....
+        Vector &c2 = *children[1];//this should be the linear aggregate....
         auto lists_size = ListVector::GetListSize(c2);
         auto list_entries = (float *) ListVector::GetEntry(c2).GetData();//entries are float
         int cols = lists_size / count;//cols = total values / num. rows
@@ -87,7 +87,7 @@ namespace Triple {
         }
 
         //SUM QUADRATIC AGGREGATES:
-        Vector c3 = *children[2];//this should be the linear aggregate....
+        Vector &c3 = *children[2];//this should be the linear aggregate....
         auto lists_size2 = ListVector::GetListSize(c3);
         auto list_entries_2 = (float *) ListVector::GetEntry(c3).GetData();//entries are float
         int cols2 = ((cols * (cols + 1)) / 2);//quadratic aggregates columns
@@ -160,7 +160,7 @@ namespace Triple {
         auto &children = duckdb::StructVector::GetEntries(result);
         //size_t total_len = ListVector::GetListSize(result);
         //Set N
-        Vector c1 = *(children[0]);//N
+        Vector &c1 = *(children[0]);//N
         auto input_data = (int32_t *) FlatVector::GetData(c1);
 
         for (idx_t i=0;i<count; i++) {
@@ -168,7 +168,7 @@ namespace Triple {
             input_data[row_id] = states[sdata.sel->get_index(i)]->count;
         }
         //Set List
-        Vector c2 = *(children[1]);
+        Vector &c2 = *(children[1]);
         D_ASSERT(c2.GetType().id() == LogicalTypeId::LIST);
         c2.SetVectorType(VectorType::FLAT_VECTOR);
         auto result_data = FlatVector::GetData<list_entry_t>(c2);
@@ -188,7 +188,7 @@ namespace Triple {
             result_data[row_id].offset = result_data[i].length*i;//ListVector::GetListSize(c2);
         }
 
-        Vector c3 = *(children[2]);
+        Vector &c3 = *(children[2]);
                 D_ASSERT(c3.GetType().id() == LogicalTypeId::LIST);
         c3.SetVectorType(VectorType::FLAT_VECTOR);
         auto result_data2 = FlatVector::GetData<list_entry_t>(c3);

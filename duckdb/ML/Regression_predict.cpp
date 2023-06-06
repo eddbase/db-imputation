@@ -1,12 +1,16 @@
 //
-// Created by Massimo Perini on 30/05/2023.
+// Created by Massimo Perini on 06/06/2023.
 //
 
-#include "Triple_mul.h"
+#include "Regression_predict.h"
 
+//
+// Created by Massimo Perini on 30/05/2023.
+//
+/*
 #include <iostream>
 #include <algorithm>
-#include "From_duckdb.h"
+#include "../triple/From_duckdb.h"
 
 //DataChunk is a set of vectors
 
@@ -76,6 +80,7 @@ namespace Triple {
     //actual implementation of this function
     void StructPackFunction(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {
         //std::cout << "StructPackFunction start " << std::endl;
+        //col, list of params
         auto &result_children = duckdb::StructVector::GetEntries(result);
 
         idx_t size = args.size();//n. of rows to return
@@ -86,9 +91,9 @@ namespace Triple {
         //set N
 
         RecursiveFlatten(*first_triple_children[0], size);
-                D_ASSERT((*first_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        D_ASSERT((*first_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
         RecursiveFlatten(*sec_triple_children[0], size);
-                D_ASSERT((*sec_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        D_ASSERT((*sec_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
 
 
         auto N_1 = (int32_t *) duckdb::FlatVector::GetData(*first_triple_children[0]);
@@ -102,9 +107,9 @@ namespace Triple {
         //set linear aggregates
 
         RecursiveFlatten(*first_triple_children[1], size);
-                D_ASSERT((*first_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        D_ASSERT((*first_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
         RecursiveFlatten(*sec_triple_children[1], size);
-                D_ASSERT((*sec_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        D_ASSERT((*sec_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
 
         auto attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[1]) / size;
         auto attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[1]) / size;
@@ -137,9 +142,9 @@ namespace Triple {
         //set quadratic aggregates
 
         RecursiveFlatten(*first_triple_children[2], size);
-                D_ASSERT(first_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        D_ASSERT(first_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
         RecursiveFlatten(*sec_triple_children[2], size);
-                D_ASSERT(sec_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        D_ASSERT(sec_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
 
         auto quad_lists_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[2]) / size;
         auto quad_lists_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[2]) / size;
@@ -163,7 +168,7 @@ namespace Triple {
                 //multiply lin. aggregates
                 for (idx_t k = 0; k < attr_size_2; k++)
                     duckdb::ListVector::PushBack(*result_children[2], duckdb::Value(lin_list_entries_1[j + (i * attr_size_1)] *
-                                                                    lin_list_entries_2[k + (i * attr_size_2)]));
+                                                                                    lin_list_entries_2[k + (i * attr_size_2)]));
             }
 
             //scale 2nd quad. aggregate
@@ -190,8 +195,8 @@ namespace Triple {
     MultiplyBind(duckdb::ClientContext &context, duckdb::ScalarFunction &function,
                  duckdb::vector<duckdb::unique_ptr<duckdb::Expression>> &arguments) {
 
-                D_ASSERT(arguments.size() == 2);
-        function.return_type = arguments[0]->return_type;
+        D_ASSERT(arguments.size() == 2);
+        function.return_type = LogicalType::FLOAT;
         return duckdb::make_uniq<duckdb::VariableReturnBindData>(function.return_type);
     }
 
@@ -203,100 +208,6 @@ namespace Triple {
         std::cout << "StructPackStats " << child_stats.size() << child_stats[0].ToString() << std::endl;
         auto &expr = input.expr;
         auto struct_stats = duckdb::StructStats::CreateUnknown(expr.return_type);
-        duckdb::StructStats::Copy(struct_stats, child_stats[0]);
-        duckdb::BaseStatistics &ret_num_stats = duckdb::StructStats::GetChildStats(struct_stats, 0);
-
-        //set statistics for N
-        if (!duckdb::NumericStats::HasMinMax(ret_num_stats) || !duckdb::NumericStats::HasMinMax(duckdb::StructStats::GetChildStats(child_stats[1], 0)))
-                return struct_stats.ToUnique();
-
-
-        int32_t n_1_min = duckdb::NumericStats::Min(ret_num_stats).GetValue<int32_t>();
-        int32_t n_1_max = duckdb::NumericStats::Max(ret_num_stats).GetValue<int32_t>();
-
-        int32_t n_2_min = duckdb::NumericStats::GetMin<int32_t>(duckdb::StructStats::GetChildStats(child_stats[1], 0));
-        int32_t n_2_max = duckdb::NumericStats::GetMax<int32_t>(duckdb::StructStats::GetChildStats(child_stats[1], 0));
-
-        duckdb::NumericStats::SetMax(ret_num_stats, duckdb::Value(n_1_max * n_2_max));
-        duckdb::NumericStats::SetMin(ret_num_stats, duckdb::Value(n_1_min * n_2_min));
-
-        //set statistics for lin. aggregates
-        duckdb::BaseStatistics& list_num_stat = duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(struct_stats, 1));
-
-        if (!duckdb::NumericStats::HasMinMax(list_num_stat) || !duckdb::NumericStats::HasMinMax(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 1))))
-            return struct_stats.ToUnique();
-
-        float lin_1_min = duckdb::NumericStats::GetMin<float>(list_num_stat);
-        float lin_1_max = duckdb::NumericStats::GetMax<float>(list_num_stat);
-
-        float lin_2_min = duckdb::NumericStats::GetMin<float>(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 1)));
-        float lin_2_max = duckdb::NumericStats::GetMax<float>(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 1)));
-
-        int32_t n_1_min_n = n_1_min;
-        int32_t n_1_max_n = n_1_max;
-        int32_t n_2_min_n = n_2_min;
-        int32_t n_2_max_n = n_2_max;
-
-        if (lin_1_max < 0){
-            int tmp = n_2_max_n;
-            n_2_max_n = n_2_min_n;
-            n_2_min_n = tmp;
-        }
-        else if (lin_1_min < 0){//& max > 0
-            n_2_min_n = n_2_max_n;
-        }
-        if (lin_2_max < 0){
-            int tmp = n_1_max_n;
-            n_1_max_n = n_1_min_n;
-            n_1_min_n = tmp;
-        }
-        else if (lin_2_min < 0){//& max > 0
-            n_1_min_n = n_1_max_n;
-        }
-
-        duckdb::NumericStats::SetMax(list_num_stat, duckdb::Value(std::max(n_2_max_n * lin_1_max, n_1_max_n* lin_2_max)));//n max and min are the same
-
-        duckdb::NumericStats::SetMin(list_num_stat, duckdb::Value(std::min(n_2_min_n * lin_1_min, n_1_min_n * lin_2_min)));
-
-        //set statistics for quadratic aggregate
-        duckdb::BaseStatistics& list_quad_stat = duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(struct_stats, 2));
-
-        //max value in quadratic aggreagate is max of linear product, scale first list and scale second list
-        if (!duckdb::NumericStats::HasMinMax(list_quad_stat) || duckdb::NumericStats::HasMinMax(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 2))))
-            return struct_stats.ToUnique();
-
-        n_1_min_n = n_1_min;
-        n_1_max_n = n_1_max;
-        n_2_min_n = n_2_min;
-        n_2_max_n = n_2_max;
-
-        if (duckdb::NumericStats::GetMax<float>(list_quad_stat) < 0){
-            int tmp = n_2_max_n;
-            n_2_max_n = n_2_min_n;
-            n_2_min_n = tmp;
-        }
-        else if (duckdb::NumericStats::GetMin<float>(list_quad_stat) < 0){
-            n_2_min_n = n_2_max_n;
-        }
-        if (duckdb::NumericStats::GetMax<float>(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 2))) < 0){
-            int tmp = n_1_max_n;
-            n_1_max_n = n_1_min_n;
-            n_1_min_n = tmp;
-        }
-        else if (duckdb::NumericStats::GetMin<float>(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 2))) < 0){
-            n_1_min_n = n_1_max_n;
-        }
-
-
-        duckdb::NumericStats::SetMax(list_quad_stat, duckdb::Value(std::max(std::max(std::max(std::max(lin_1_max * lin_2_max, lin_1_min * lin_2_min), lin_1_max*lin_2_min), lin_2_max*lin_1_min),
-                                                                            std::max(n_2_max_n * duckdb::NumericStats::GetMax<float>(list_quad_stat),
-                                                                           n_1_max_n * duckdb::NumericStats::GetMax<float>(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 2)))))));
-
-        duckdb::NumericStats::SetMin(list_quad_stat, duckdb::Value(std::max(std::max(std::max(std::max(lin_1_max * lin_2_max, lin_1_min * lin_2_min), lin_1_max*lin_2_min), lin_2_max*lin_1_min),
-                                                                            std::min(n_2_min_n * duckdb::NumericStats::GetMin<float>(list_quad_stat),
-                                                                                     n_1_min_n * duckdb::NumericStats::GetMin<float>(duckdb::ListStats::GetChildStats(duckdb::StructStats::GetChildStats(child_stats[1], 2)))))));
-
-        std::cout << "statistics StructPackStats" << struct_stats.ToString() << std::endl;
         return struct_stats.ToUnique();
     }
-}
+}*/

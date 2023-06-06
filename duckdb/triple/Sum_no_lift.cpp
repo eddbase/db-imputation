@@ -136,7 +136,7 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
     auto &children = duckdb::StructVector::GetEntries(result);
     //size_t total_len = ListVector::GetListSize(result);
     //Set N
-    Vector c1 = *(children[0]);//N
+    Vector &c1 = *(children[0]);//N
     auto input_data = (int32_t *) FlatVector::GetData(c1);
 
     for (idx_t i=0;i<count; i++) {
@@ -144,7 +144,7 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         input_data[row_id] = states[sdata.sel->get_index(i)]->count;
     }
     //Set List
-    Vector c2 = *(children[1]);
+    Vector &c2 = *(children[1]);
             D_ASSERT(c2.GetType().id() == LogicalTypeId::LIST);
     c2.SetVectorType(VectorType::FLAT_VECTOR);
     auto result_data = FlatVector::GetData<list_entry_t>(c2);
@@ -164,7 +164,7 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         result_data[row_id].offset = result_data[i].length*i;//ListVector::GetListSize(c2);
     }
 
-    Vector c3 = *(children[2]);
+    Vector &c3 = *(children[2]);
             D_ASSERT(c3.GetType().id() == LogicalTypeId::LIST);
     c3.SetVectorType(VectorType::FLAT_VECTOR);
     auto result_data2 = FlatVector::GetData<list_entry_t>(c3);
