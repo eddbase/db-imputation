@@ -1,0 +1,3 @@
+[submodule "duckdb/lib/duckdb"]
+	path = duckdb/lib/duckdb
+	url = https://MassimoPerini@github.com/MassimoPerini/duckdb_swap
