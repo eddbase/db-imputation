@@ -3,8 +3,6 @@
 //
 
 #include "Custom_lift.h"
-#include <iostream>
-#include <algorithm>
 #include "From_duckdb.h"
 #include <duckdb/function/scalar/nested_functions.hpp>
 
@@ -101,7 +99,10 @@ namespace Triple {
             quad_vec[i].length = columns*(columns+1)/2;
             quad_vec[i].offset = i * quad_vec[i].length;
         }
-        //std::cout<<"end"<<std::endl;
+
+        //set categorical
+
+
     }
 
     //Returns the datatype used by this function
@@ -113,8 +114,23 @@ namespace Triple {
 
         child_list_t<LogicalType> struct_children;
         struct_children.emplace_back("N", LogicalType::INTEGER);
-        struct_children.emplace_back("lin_agg", LogicalType::LIST(LogicalType::FLOAT));
-        struct_children.emplace_back("quad_agg", LogicalType::LIST(LogicalType::FLOAT));
+        struct_children.emplace_back("lin_num", LogicalType::LIST(LogicalType::FLOAT));
+        struct_children.emplace_back("quad_num", LogicalType::LIST(LogicalType::FLOAT));
+
+        //categorical structures
+        child_list_t<LogicalType> lin_cat;
+        lin_cat.emplace_back("key", LogicalType::INTEGER);
+        lin_cat.emplace_back("value", LogicalType::INTEGER);
+
+        struct_children.emplace_back("lin_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(lin_cat))));
+
+        child_list_t<LogicalType> quad_cat;
+        quad_cat.emplace_back("key1", LogicalType::INTEGER);
+        quad_cat.emplace_back("key2", LogicalType::INTEGER);
+        quad_cat.emplace_back("value", LogicalType::INTEGER);
+        struct_children.emplace_back("quad_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(quad_cat))));
+        //lin_cat -> LIST(LIST(STRUCT(key1, key2, val))). E.g. [[{k1,k2,2},{k3,k4,5}],[]]...
+        //quad_cat
 
         auto struct_type = LogicalType::STRUCT(struct_children);
         function.return_type = struct_type;

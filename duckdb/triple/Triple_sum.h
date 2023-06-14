@@ -56,6 +56,8 @@ namespace Triple {
                       idx_t count,
                       idx_t offset);
 
+    duckdb::Value sum_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2);
+
 }
 
 #endif //DUCKDB_TRIPLE_SUM_H

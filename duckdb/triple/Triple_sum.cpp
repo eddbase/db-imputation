@@ -205,4 +205,37 @@ namespace Triple {
         }
         //std::cout<<"\nFINALIZE END\n";
     }
+
+
+    duckdb::Value sum_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2){
+
+        auto first_triple_children = duckdb::StructValue::GetChildren(triple_1);//vector of pointers to childrens
+        auto sec_triple_children = duckdb::StructValue::GetChildren(triple_2);
+
+        auto N_1 = (int) first_triple_children[0].GetValue<int>();;
+        auto N_2 = (int) sec_triple_children[0].GetValue<int>();
+
+        child_list_t<Value> struct_values;
+        struct_values.emplace_back("N", Value(N_1 + N_2));
+
+        const vector<Value> &linear_1 = duckdb::ListValue::GetChildren(first_triple_children[1]);
+        const vector<Value> &linear_2 = duckdb::ListValue::GetChildren(sec_triple_children[1]);
+        vector<Value> lin = {};
+        for(idx_t i=0;i<linear_1.size();i++)
+            lin.push_back(Value(linear_1[i].GetValue<float>() + linear_2[i].GetValue<float>()));
+
+        struct_values.emplace_back("lin_agg", duckdb::Value::LIST(lin));
+
+        const vector<Value> &quad_1 = duckdb::ListValue::GetChildren(first_triple_children[2]);
+        const vector<Value> &quad_2 = duckdb::ListValue::GetChildren(sec_triple_children[2]);
+        vector<Value> quad = {};
+        for(idx_t i=0;i<quad_1.size();i++)
+            quad.push_back(Value(quad_1[i].GetValue<float>() + quad_2[i].GetValue<float>()));
+
+        struct_values.emplace_back("quad_agg", duckdb::Value::LIST(quad));
+
+        auto ret = duckdb::Value::STRUCT(struct_values);
+        return ret;
+    }
+
 }

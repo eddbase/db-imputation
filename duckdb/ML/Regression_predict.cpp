@@ -3,7 +3,7 @@
 //
 
 #include "Regression_predict.h"
-#include "../cmake-build-debug/lib/duckdb/install/include/duckdb/function/scalar/nested_functions.hpp"
+#include <duckdb/function/scalar/nested_functions.hpp>
 
 //
 // Created by Massimo Perini on 30/05/2023.
