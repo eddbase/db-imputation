@@ -3,6 +3,7 @@
 //
 
 #include "Triple_sub.h"
+#include <duckdb/function/scalar/nested_functions.hpp>
 
 //
 // Created by Massimo Perini on 30/05/2023.
@@ -35,12 +36,13 @@ public:
     bool is_operator;
 
 public:
+
     bool HasSideEffects() const override;
     bool IsFoldable() const override;
     string ToString() const override;
     bool PropagatesNullValues() const override;
     hash_t Hash() const override;
-    bool Equals(const BaseExpression *other) const override;
+    bool Equals(const BaseExpression *other) const;
 
     unique_ptr<Expression> Copy() override;
     void Verify() const override;

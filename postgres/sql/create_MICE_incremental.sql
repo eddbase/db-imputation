@@ -48,14 +48,19 @@ BEGIN
     SELECT (
         SELECT array_agg(x || ' float8')
         FROM unnest(continuous_columns) AS x
-    ) || (
+    ) || 
+    (
+        SELECT array_agg(x || ' int')
+        FROM unnest(categorical_columns) AS x
+    )
+    || (
         SELECT array_agg(x || '_ISNULL bool')
         FROM unnest(continuous_columns_null) AS x
     )
     INTO tmp_array;
 
     query := 'CREATE TEMPORARY TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=75)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=80)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     
@@ -70,7 +75,11 @@ BEGIN
             END
         )
         FROM unnest(continuous_columns) AS x
-    ) || (
+    )|| (
+        SELECT array_agg(x)
+        FROM unnest(categorical_columns) AS x
+    ) 
+     || (
         SELECT array_agg(x || ' IS NULL')
         FROM unnest(continuous_columns_null) AS x
     )
@@ -150,7 +159,7 @@ BEGIN
             INTO tmp_array;
 
             query := 'UPDATE ' || output_table_name || 
-                ' SET ' || col || ' = ' || array_to_string(array_prepend(params[1]::text, tmp_array), ' + ') ||
+                ' SET ' || col || ' = ' || array_to_string(array_prepend(params[1]::text, tmp_array || tmp_array2), ' + ') || 
                 ' WHERE ' || col || '_ISNULL;';
             RAISE DEBUG '%', query;
 
@@ -176,8 +185,13 @@ BEGIN
 
 END$$;
 
--- SET client_min_messages TO INFO;
+CREATE TEMPORARY TABLE join_table AS (SELECT * FROM retailer.Weather JOIN retailer.Location USING (locn) JOIN retailer.Inventory USING (locn, dateid) JOIN retailer.Item USING (ksn) JOIN retailer.Census USING (zip));
 
+CALL MICE_incremental('join_table', 'join_table_complete', ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'rain', 'snow', 'maxtemp', 'mintemp', 'meanwind', 'thunder', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster']::text[], ARRAY['inventoryunits', 'maxtemp', 'mintemp', 'supertargetdistance', 'walmartdistance'], ARRAY[]::text[]);
+
+
+-- SET client_min_messages TO INFO;
+--- CREATE TEMPORARY TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID))
 -- CALL MICE_baseline('R', 'R_complete', ARRAY['A', 'B', 'C', 'D', 'E'], ARRAY[]::text[], ARRAY[ 'A', 'B', 'C'], ARRAY[]::text[]);
 
 -- CALL MICE_baseline('flights_prep.Flight', 'flight_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'diverted', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep'], ARRAY[]::text[], ARRAY[ 'dep_delay', 'arr_delay', 'taxi_in', 'taxi_out', 'diverted' ], ARRAY[]::text[]);

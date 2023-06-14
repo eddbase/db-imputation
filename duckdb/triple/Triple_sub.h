@@ -6,7 +6,7 @@
 #ifndef DUCKDB_TRIPLE_SUB_H
 #define DUCKDB_TRIPLE_SUB_H
 
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 
 
 namespace Triple{

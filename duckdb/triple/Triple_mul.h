@@ -2,7 +2,7 @@
 // Created by Massimo Perini on 30/05/2023.
 //
 
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 
 #ifndef DUCKDB_TRIPLE_MUL_H
 #define DUCKDB_TRIPLE_MUL_H

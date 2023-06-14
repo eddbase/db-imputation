@@ -1,7 +1,7 @@
 //
 // Created by Massimo Perini on 06/06/2023.
 //
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 
 #ifndef DUCKDB_REGRESSION_H
 #define DUCKDB_REGRESSION_H

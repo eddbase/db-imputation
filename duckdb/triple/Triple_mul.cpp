@@ -3,6 +3,7 @@
 //
 
 #include "Triple_mul.h"
+#include <duckdb/function/scalar/nested_functions.hpp>
 
 #include <iostream>
 #include <algorithm>
@@ -34,7 +35,7 @@ public:
     string ToString() const override;
     bool PropagatesNullValues() const override;
     hash_t Hash() const override;
-    bool Equals(const BaseExpression *other) const override;
+    bool Equals(const BaseExpression *other) const;
 
     unique_ptr<Expression> Copy() override;
     void Verify() const override;

@@ -3,11 +3,12 @@
 //
 
 #include "Regression_predict.h"
+#include "../cmake-build-debug/lib/duckdb/install/include/duckdb/function/scalar/nested_functions.hpp"
 
 //
 // Created by Massimo Perini on 30/05/2023.
 //
-/*
+
 #include <iostream>
 #include <algorithm>
 #include "../triple/From_duckdb.h"
@@ -38,7 +39,7 @@ public:
     string ToString() const override;
     bool PropagatesNullValues() const override;
     hash_t Hash() const override;
-    bool Equals(const BaseExpression *other) const override;
+    bool Equals(const BaseExpression *other) const;
 
     unique_ptr<Expression> Copy() override;
     void Verify() const override;
@@ -78,136 +79,60 @@ namespace duckdb {
 
 namespace Triple {
     //actual implementation of this function
-    void StructPackFunction(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {
+    //make sure first argument is boolean mask and second one value to update
+
+    void ImputeHackFunction(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {
         //std::cout << "StructPackFunction start " << std::endl;
         //col, list of params
-        auto &result_children = duckdb::StructVector::GetEntries(result);
 
-        idx_t size = args.size();//n. of rows to return
+        idx_t rows = args.size();//n. of rows to return
+        vector<Vector> &in_data = args.data;
+        idx_t columns = in_data.size();
+        //std::cout<<"Intermediate chunk \n";
 
-        auto &first_triple_children = duckdb::StructVector::GetEntries(args.data[0]);//vector of pointers to childrens
-        auto &sec_triple_children = duckdb::StructVector::GetEntries(args.data[1]);
-
-        //set N
-
-        RecursiveFlatten(*first_triple_children[0], size);
-        D_ASSERT((*first_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-        RecursiveFlatten(*sec_triple_children[0], size);
-        D_ASSERT((*sec_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-
-
-        auto N_1 = (int32_t *) duckdb::FlatVector::GetData(*first_triple_children[0]);
-        auto N_2 = (int32_t *) duckdb::FlatVector::GetData(*sec_triple_children[0]);
-        auto input_data = (int32_t *) duckdb::FlatVector::GetData(*result_children[0]);
-
-        for (idx_t i = 0; i < size; i++) {
-            input_data[i] = N_1[i] * N_2[i];
+        for(size_t i=0; i<columns;i++){
+            RecursiveFlatten(args.data[i], rows);
+            D_ASSERT((args.data[i]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
         }
 
-        //set linear aggregates
+        auto mask = (bool *) duckdb::FlatVector::GetData(args.data[0]);//first child (N)
+        auto update_col = (float *) duckdb::FlatVector::GetData(args.data[1]);//first child (N)
+        auto result_ptr = (float *) result.GetData();//useless
 
-        RecursiveFlatten(*first_triple_children[1], size);
-        D_ASSERT((*first_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-        RecursiveFlatten(*sec_triple_children[1], size);
-        D_ASSERT((*sec_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-
-        auto attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[1]) / size;
-        auto attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[1]) / size;
-        auto lin_list_entries_1 = (float *) duckdb::ListVector::GetEntry(
-                *first_triple_children[1]).GetData();//entries are float
-        auto lin_list_entries_2 = (float *) duckdb::ListVector::GetEntry(
-                *sec_triple_children[1]).GetData();//entries are float
-
-
-        (*result_children[1]).SetVectorType(duckdb::VectorType::FLAT_VECTOR);
-        auto result_data = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[1]);
-
-        //creates a single vector
-        for (idx_t i = 0; i < size; i++) {
-            //add first list for the tuple
-            for (idx_t j = 0; j < attr_size_1; j++)
-                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_1[j + (i * attr_size_1)] * (*N_2)));
-
-            for (idx_t j = 0; j < attr_size_2; j++)
-                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_2[j + (i * attr_size_2)] * (*N_1)));
-        }
-
-        //set for each row to return the metadata (view of the full vector)
-        for (idx_t child_idx = 0; child_idx < size; child_idx++) {
-            result_data[child_idx].length = attr_size_1 + attr_size_2;
-            result_data[child_idx].offset =
-                    child_idx * result_data[child_idx].length;//ListVector::GetListSize(*result_children[1]);
-        }
-
-        //set quadratic aggregates
-
-        RecursiveFlatten(*first_triple_children[2], size);
-        D_ASSERT(first_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-        RecursiveFlatten(*sec_triple_children[2], size);
-        D_ASSERT(sec_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-
-        auto quad_lists_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[2]) / size;
-        auto quad_lists_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[2]) / size;
-        auto quad_list_entries_1 = (float *) duckdb::ListVector::GetEntry(
-                *first_triple_children[2]).GetData();//entries are float
-        auto quad_list_entries_2 = (float *) duckdb::ListVector::GetEntry(
-                *sec_triple_children[2]).GetData();//entries are float
-
-        (*result_children[2]).SetVectorType(duckdb::VectorType::FLAT_VECTOR);
-        result_data = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[2]);
-
-        //for each row
-        for (idx_t i = 0; i < size; i++) {
-            //scale 1st quad. aggregate
-            for (idx_t j = 0; j < attr_size_1; j++) {
-                for (idx_t k = j;
-                     k < attr_size_1; k++)//a list * b (AA, BB, <prod. A and cols other table computed down>, AB)
-                    duckdb::ListVector::PushBack(*result_children[2],
-                                                 duckdb::Value(quad_list_entries_1[j + k + (i * attr_size_1)] * (*N_2)));
-
-                //multiply lin. aggregates
-                for (idx_t k = 0; k < attr_size_2; k++)
-                    duckdb::ListVector::PushBack(*result_children[2], duckdb::Value(lin_list_entries_1[j + (i * attr_size_1)] *
-                                                                                    lin_list_entries_2[k + (i * attr_size_2)]));
+        for(size_t i=0; i<rows; i++){
+            //float res = 0;
+            //state.intermediate_chunk.data[1].GetData()[i] = 666;
+            if(mask[i]){
+                float new_val = 12345;
+                state.intermediate_chunk.SetValue(1, i, Value(12345));
+                //for(size_t j=2; j<columns;j++){
+                //    new_val += duckdb::FlatVector::GetData(args.data[j])[i];
+                //}
+                std::cout<<"CUrrent value: "<<update_col[i]<<"\n";
+                update_col[i] = new_val;
+                result_ptr[i] = new_val;
+                std::cout<<"New value: "<<update_col[i];
+                //state.intermediate_chunk.SetValue(1, i, Value((float)666.4));
             }
-
-            //scale 2nd quad. aggregate
-            for (idx_t j = 0; j < quad_lists_size_2; j++) {
-                duckdb::ListVector::PushBack(*result_children[2],
-                                             duckdb::Value(quad_list_entries_2[j + (i * quad_lists_size_2)] * (*N_1)));
-                //std::cout << "value to quadratic: " << quad_list_entries_2[j + (i * quad_lists_size_2)] * (*N_1)
-                //          << std::endl;
-            }
-
+            else
+                result_ptr[i] = update_col[i];
         }
-
-        //set for each row to return the metadata (view of the full vector)
-        for (idx_t child_idx = 0; child_idx < size; child_idx++) {
-            result_data[child_idx].length = (quad_lists_size_1 + quad_lists_size_2 + (attr_size_1 * attr_size_2));
-            result_data[child_idx].offset = child_idx * result_data[child_idx].length;
-        }
-
-        //std::cout << "StructPackFunction end " << std::endl;
     }
 
     //Returns the datatype used by this function
     duckdb::unique_ptr<duckdb::FunctionData>
-    MultiplyBind(duckdb::ClientContext &context, duckdb::ScalarFunction &function,
+    ImputeHackBind(duckdb::ClientContext &context, duckdb::ScalarFunction &function,
                  duckdb::vector<duckdb::unique_ptr<duckdb::Expression>> &arguments) {
-
-        D_ASSERT(arguments.size() == 2);
         function.return_type = LogicalType::FLOAT;
         return duckdb::make_uniq<duckdb::VariableReturnBindData>(function.return_type);
     }
 
     //Generate statistics for this function. Given input type ststistics (mainly min and max for every attribute), returns the output statistics
     duckdb::unique_ptr<duckdb::BaseStatistics>
-    StructPackStats(duckdb::ClientContext &context, duckdb::FunctionStatisticsInput &input) {
-        std::cout << "StructPackStats " << std::endl;
+    ImputeHackStats(duckdb::ClientContext &context, duckdb::FunctionStatisticsInput &input) {
         auto &child_stats = input.child_stats;
-        std::cout << "StructPackStats " << child_stats.size() << child_stats[0].ToString() << std::endl;
         auto &expr = input.expr;
-        auto struct_stats = duckdb::StructStats::CreateUnknown(expr.return_type);
-        return struct_stats.ToUnique();
+        auto stats = duckdb::BaseStatistics::CreateUnknown(expr.return_type);
+        return stats.ToUnique();
     }
-}*/
+}

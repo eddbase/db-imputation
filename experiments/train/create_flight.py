@@ -87,7 +87,7 @@ def load_flights(path = "flights/", max_rows = None):#'snow':0.1
 
     print("COLS: ", list(airlines_data.columns))
 
-    airlines_data = airlines_data[["index","DEP_DELAY","TAXI_OUT","TAXI_IN","ARR_DELAY","DIVERTED","ACTUAL_ELAPSED_TIME","AIR_TIME","DEP_TIME_HOUR","DEP_TIME_MIN","WHEELS_OFF_HOUR","WHEELS_OFF_MIN","WHEELS_ON_HOUR","WHEELS_ON_M>
+    airlines_data = airlines_data[["index","DEP_DELAY","TAXI_OUT","TAXI_IN","ARR_DELAY","DIVERTED","ACTUAL_ELAPSED_TIME","AIR_TIME","DEP_TIME_HOUR","DEP_TIME_MIN","WHEELS_OFF_HOUR","WHEELS_OFF_MIN","WHEELS_ON_HOUR","WHEELS_ON_MIN","ARR_TIME_HOUR","ARR_TIME_MIN","MONTH_SIN","MONTH_COS","DAY_SIN","DAY_COS","WEEKDAY_SIN","WEEKDAY_COS","EXTRA_DAY_ARR","EXTRA_DAY_DEP","flight"]]
     airlines_data = airlines_data.drop_duplicates(subset=["index"],keep='first', inplace=False)
     print(airlines_data.head())
     label_encoder = LabelEncoder()

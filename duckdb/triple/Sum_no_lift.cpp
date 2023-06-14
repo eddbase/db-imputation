@@ -3,6 +3,7 @@
 //
 
 #include "Sum_no_lift.h"
+#include <duckdb/function/scalar/nested_functions.hpp>
 
 #include "Triple_sum.h"
 #include "From_duckdb.h"

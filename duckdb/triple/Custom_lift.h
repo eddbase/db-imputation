@@ -5,7 +5,7 @@
 #ifndef DUCKDB_CUSTOM_LIFT_H
 #define DUCKDB_CUSTOM_LIFT_H
 
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 
 
 namespace Triple{

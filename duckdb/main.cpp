@@ -1,4 +1,13 @@
-#include "lib/libduckdb/src/duckdb.hpp"
+//
+// Created by Massimo Perini on 09/06/2023.
+//
+#include <iostream>
+#include <duckdb.hpp>
+
+#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include <duckdb/function/scalar/nested_functions.hpp>
+#include <duckdb/function/aggregate_function.hpp>
+
 #include "triple/Triple_sum.h"
 #include "triple/Triple_mul.h"
 #include "triple/Lift.h"
@@ -8,10 +17,17 @@
 #include "ML/Regression.h"
 
 #include "triple/From_duckdb.h"
+#include "ML/Regression_predict.h"
 #include <chrono>
 
-#include <iostream>
 
+
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
+/*
 struct duckdb::CreateScalarFunctionInfo : public duckdb::CreateFunctionInfo {
     DUCKDB_API explicit CreateScalarFunctionInfo(duckdb::ScalarFunction function);
     DUCKDB_API explicit CreateScalarFunctionInfo(duckdb::ScalarFunctionSet set);
@@ -21,9 +37,12 @@ struct duckdb::CreateScalarFunctionInfo : public duckdb::CreateFunctionInfo {
 public:
     DUCKDB_API duckdb::unique_ptr<duckdb::CreateInfo> Copy() const override;
     DUCKDB_API duckdb::unique_ptr<duckdb::AlterInfo> GetAlterInfo() const override;
-};
+};*/
 
-int main(int argc, char* argv[]) {
+
+int main(int argc, char* argv[]){
+    std::cout<<"Hello world";
+
     duckdb::DuckDB db(":memory:");
     duckdb::Connection con(db);
 
@@ -33,9 +52,9 @@ int main(int argc, char* argv[]) {
     std::string table_name = "join_table";
 
     auto function = duckdb::AggregateFunction("triple_sum", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, duckdb::AggregateFunction::StateSize<Triple::AggState>,
-                             duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>, Triple::ListUpdateFunction,
-                             Triple::ListCombineFunction, Triple::ListFinalize, nullptr, Triple::ListBindFunction,
-                             duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>, nullptr, nullptr);
+                                              duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>, Triple::ListUpdateFunction,
+                                              Triple::ListCombineFunction, Triple::ListFinalize, nullptr, Triple::ListBindFunction,
+                                              duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>, nullptr, nullptr);
 
     duckdb::UDFWrapper::RegisterAggrFunction(function, *con.context);
     duckdb::vector<duckdb::LogicalType> args_sum_no_lift = {};
@@ -53,7 +72,7 @@ int main(int argc, char* argv[]) {
     //define multiply func.
 
     duckdb::ScalarFunction fun("multiply_triple", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, Triple::StructPackFunction, Triple::MultiplyBind, nullptr,
-                       Triple::StructPackStats);
+                               Triple::StructPackStats);
     fun.varargs = duckdb::LogicalType::ANY;
     fun.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
     fun.serialize = duckdb::VariableReturnBindData::Serialize;
@@ -72,7 +91,7 @@ int main(int argc, char* argv[]) {
     auto struct_type = LogicalType::STRUCT(struct_children);
 
     duckdb::ScalarFunction fun_sub("sub_triple", {struct_type, struct_type}, duckdb::LogicalTypeId::STRUCT, Triple::TripleSubFunction, Triple::TripleSubBind, nullptr,
-                               Triple::TripleSubStats);
+                                   Triple::TripleSubStats);
     fun_sub.varargs = struct_type;
     fun_sub.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
     fun_sub.serialize = duckdb::VariableReturnBindData::Serialize;
@@ -85,7 +104,7 @@ int main(int argc, char* argv[]) {
     //custom lift
 
     duckdb::ScalarFunction custom_lift("lift", {}, duckdb::LogicalTypeId::STRUCT, Triple::CustomLift, Triple::CustomLiftBind, nullptr,
-                               Triple::CustomLiftStats);
+                                       Triple::CustomLiftStats);
     custom_lift.varargs = duckdb::LogicalType::FLOAT;
     custom_lift.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
     custom_lift.serialize = duckdb::VariableReturnBindData::Serialize;
@@ -93,6 +112,21 @@ int main(int argc, char* argv[]) {
     duckdb::CreateScalarFunctionInfo custom_lift_info(custom_lift);
     info.schema = DEFAULT_SCHEMA;
     con.context->RegisterFunction(custom_lift_info);
+    //
+    //Define update hack function
+    duckdb::vector<duckdb::LogicalType> args_update = {};
+    args_update.push_back(duckdb::LogicalType::BOOLEAN);
+    for(int i=0; i < con_columns.size(); i++)
+        args_update.push_back(duckdb::LogicalType::FLOAT);
+
+    duckdb::ScalarFunction update("update", args_update, duckdb::LogicalType::FLOAT, Triple::ImputeHackFunction, Triple::ImputeHackBind, nullptr,
+                                  Triple::ImputeHackStats);
+    update.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
+    update.serialize = duckdb::VariableReturnBindData::Serialize;
+    update.deserialize = duckdb::VariableReturnBindData::Deserialize;
+    duckdb::CreateScalarFunctionInfo update_info(update);
+    info.schema = DEFAULT_SCHEMA;
+    con.context->RegisterFunction(update_info);
 
     //
     auto begin = std::chrono::high_resolution_clock::now();
@@ -117,7 +151,7 @@ int main(int argc, char* argv[]) {
     con.Query(query);
 
     //START HERE
-    //query averages
+    //query averages (SELECT AVG(col) FROM table LIMIT 10000)
     query = "SELECT ";
     for (auto &col: con_columns){
         query += "AVG("+col+"), ";
@@ -277,6 +311,7 @@ int main(int argc, char* argv[]) {
 
             std::vector <double> test = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
             std::vector <double> params(test.size(), 0);
+            params[0] = 1;
             //predict query
 
             std::string new_val = "";
@@ -287,71 +322,52 @@ int main(int argc, char* argv[]) {
             }
             new_val.pop_back();
             //update 1 missing value
+            std::cout<<"CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null<<std::endl;
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("UPDATE "+table_name+"_complete_"+col_null+" SET "+col_null+" = "+new_val)->Print();
+            con.Query("CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null)->Print();
+            con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //update 2 missing values
 
+            //begin = std::chrono::high_resolution_clock::now();
+            //new_val = "10";
+            //std::cout<<"UPDATE "+table_name+"_complete_2 SET "+col_null+" = "+new_val+" WHERE "+col_null+"_IS_NULL\n";
+            //con.Query("UPDATE "+table_name+"_complete_2 SET "+col_null+" = "+new_val+" WHERE "+col_null+"_IS_NULL")->Print();
+            //end = std::chrono::high_resolution_clock::now();
+            //std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2"<<std::endl;
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("UPDATE "+table_name+"_complete_2 SET "+col_null+" = "+new_val+" WHERE "+col_null+"_IS_NULL")->Print();
+            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2")->Print();
+            con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+            //swapping
+            con.Query("SELECT * from "+table_name+"_complete_"+col_null+" LIMIT 100")->Print();
+            con.Query("SELECT * from "+table_name+"_complete_2 LIMIT 100")->Print();
+            //hack update
+            //sleep(10);
 
-            begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE "+table_name+"_test AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END FROM "+table_name+"_complete_2")->Print();
-            end = std::chrono::high_resolution_clock::now();
-            std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+            //con.Query("SELECT hack(columns, LIST[])");
 
             //recompute cofactors
 
         }
     }
 
-
-
+    ////////
     /*
-    //SUM NO LIFT
-    std::string lift_query = Triple::lift(con_columns);
+    con.Query("CREATE OR REPLACE TABLE rep AS SELECT 3 AS s;");
+    con.Query("CREATE OR REPLACE TABLE R AS SELECT 1 AS A, 2 AS s;");
+    con.Query("ALTER TABLE R ALTER COLUMN s SET DEFAULT 10;")->Print();//not adding b, replace s with rep
 
-    for (int i=0;i<con_columns.size();i++){
-        int nulls = con.Query("SELECT COUNT(*) FROM join_table WHERE "+con_columns[i]+" IS NULL")->GetValue<int>(0,0);
-        if (nulls > 0) {
-            std::cout<<"Removing nulls from "<<con_columns[i]<<". Nulls: "<<nulls;
-            auto query = "UPDATE join_table SET " + con_columns[i] + " = 0 WHERE " + con_columns[i] + " IS NULL";
-            begin = std::chrono::high_resolution_clock::now();
-            con.Query(query);
-            end = std::chrono::high_resolution_clock::now();
-            std::cout<<". Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+    std::cout<<"First query"<<std::endl;
+    con.Query("SELECT * FROM R")->Print();
 
-            nulls = con.Query("SELECT COUNT(*) FROM join_table WHERE "+con_columns[i]+" IS NULL")->GetValue<int>(0,0);
-            std::cout<<"nulls after: "<<nulls<<"\n";
-        }
-    }
-
-    begin = std::chrono::high_resolution_clock::now();
-    //duckdb::Value v = con.Query("SELECT triple_sum("+lift_query+") from join_table;")->GetValue(0, 0);
-    auto test = con.Query("SELECT "+lift_query+" from join_table;")->Fetch();
-    end = std::chrono::high_resolution_clock::now();
-    std::cout<<"Time lift triples with query (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
-
-    begin = std::chrono::high_resolution_clock::now();
-    test = con.Query("SELECT lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, DISTANCE, DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS) from join_table;")->Fetch();
-    end = std::chrono::high_resolution_clock::now();
-    std::cout<<"Time lift triples with C function (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
-
-    begin = std::chrono::high_resolution_clock::now();
-    test = con.Query("SELECT triple_sum(lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, DISTANCE, DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS)) from join_table;")->Fetch();
-    end = std::chrono::high_resolution_clock::now();
-    std::cout<<"Time SUM after C lift function (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
-
-    begin = std::chrono::high_resolution_clock::now();
-    test = con.Query("SELECT triple_sum_no_lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, DISTANCE, DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS) from join_table;")->Fetch();
-    end = std::chrono::high_resolution_clock::now();
-    std::cout<<"Time SUM without lift (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
-
-    //con.Query("SELECT triple_sum_no_lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, DISTANCE, DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS) from join_table;")->Print();
+    std::cout<<"Second query"<<std::endl;
+    con.Query("SELECT * FROM rep")->Print();
+    std::cout<<"Done"<<std::endl;
      */
+
 }
-//duckdb::UDFWrapper::RegisterFunction("multiply_triple", {duckdb::LogicalType::STRUCT, duckdb::LogicalTypeId::STRUCT}, duckdb::LogicalTypeId::STRUCT, )

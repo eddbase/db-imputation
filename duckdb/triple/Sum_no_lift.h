@@ -7,7 +7,7 @@
 
 
 #include <vector>
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 
 namespace Triple {
 

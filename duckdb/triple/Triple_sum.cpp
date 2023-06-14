@@ -4,6 +4,7 @@
 
 #include "Triple_sum.h"
 #include "From_duckdb.h"
+#include <duckdb/function/scalar/nested_functions.hpp>
 
 #include <iostream>
 #include <memory>

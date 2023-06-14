@@ -206,10 +206,14 @@ BEGIN
             RAISE DEBUG 'COFACTOR GLOBAL = %', cofactor_global;
 
             -- TRAIN
+            
             label_index := array_position(categorical_columns, col);
             RAISE DEBUG 'LABEL INDEX %', query_null1;
+            start_ts := clock_timestamp();
             params := lda_train(cofactor_global, label_index - 1, 0.4);
+            end_ts := clock_timestamp();
             RAISE DEBUG '%', params;
+            RAISE INFO 'TRAIN ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
             
             -- IMPUTE
             
@@ -218,12 +222,12 @@ BEGIN
             
             low_bound_categorical := ARRAY[0] || array_remove(upper_bound_categorical , upper_bound_categorical[array_upper(upper_bound_categorical, 1)]);
             --offset wrong when label skipped
-            IF array_lower(categorical_columns,1) = 1 AND array_lower(categorical_columns_null,1) = 1 THEN
+            IF array_lower(categorical_columns,1) = 1 AND array_lower(categorical_columns_null,1) = 1 THEN --only 1 cat. var. null, so no cat. features
+            	subquery := 'ARRAY[]';
+            ELSE
 	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index] ||' END)' ||
     	        ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
        		 	' WHERE a.nr != ' || label_index ||')';
-       		ELSE
-       		 	subquery := 'ARRAY[]';
        		END IF;
 
             RAISE DEBUG ' %', subquery;
@@ -278,7 +282,7 @@ END$$;
 
 --CALL MICE_incremental_partitioned_classifier('test2', 'test2_complete', ARRAY['a'], ARRAY['b', 'c', 'd']::text[], ARRAY['b', 'd']);
 
-CREATE TEMPORARY TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID));
+CREATE UNLOGGED TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID));
 CALL MICE_incremental_partitioned_classifier('join_table', 'join_table_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep', 'distance', 'crs_dep_hour', 'crs_dep_min', 'crs_arr_hour', 'crs_arr_min' ], ARRAY['diverted']::text[], ARRAY['diverted']);
 
 

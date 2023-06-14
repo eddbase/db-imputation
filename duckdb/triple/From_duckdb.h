@@ -5,7 +5,7 @@
 #ifndef DUCKDB_FROM_DUCKDB_H
 #define DUCKDB_FROM_DUCKDB_H
 
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 using namespace duckdb;
 namespace duckdb {
 
@@ -31,7 +31,7 @@ namespace duckdb {
         DUCKDB_API static void Verify(const BaseStatistics &stats, Vector &vector, const SelectionVector &sel, idx_t count);
     };
 
-
+/*
     struct VariableReturnBindData : public FunctionData {
         LogicalType stype;
 
@@ -59,7 +59,7 @@ namespace duckdb {
             return make_uniq<VariableReturnBindData>(std::move(stype));
         }
     };
-
+*/
 
     void RecursiveFlatten(Vector &vector, idx_t &count);
 

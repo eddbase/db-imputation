@@ -6,7 +6,7 @@
 #define DUCKDB_TRIPLE_SUM_H
 
 #include <vector>
-#include "../lib/libduckdb/src/duckdb.hpp"
+#include <duckdb.hpp>
 
 namespace Triple {
     struct AggState {
@@ -19,19 +19,19 @@ namespace Triple {
 
     struct StateFunction {
         template<class STATE>
-        static void Initialize(STATE *state) {
-            state->count = 0;
-            state->attributes = 0;
-            state->lin_agg = nullptr;
-            state->quadratic_agg = nullptr;
+        static void Initialize(STATE &state) {
+            state.count = 0;
+            state.attributes = 0;
+            state.lin_agg = nullptr;
+            state.quadratic_agg = nullptr;
             //state->lin_agg = {};
             //state->quadratic_agg = {};
         }
 
         template<class STATE>
-        static void Destroy(duckdb::AggregateInputData &aggr_input_data, STATE *state) {
-            delete[] state->lin_agg;
-            delete[] state->quadratic_agg;
+        static void Destroy(STATE &state, duckdb::AggregateInputData &aggr_input_data) {
+            delete[] state.lin_agg;
+            delete[] state.quadratic_agg;
             //state->lin_agg.clear();
             //state->quadratic_agg.clear();
         }

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include "From_duckdb.h"
+#include <duckdb/function/scalar/nested_functions.hpp>
 
 
 class duckdb::BoundFunctionExpression : public duckdb::Expression {
@@ -32,7 +33,7 @@ public:
     string ToString() const override;
     bool PropagatesNullValues() const override;
     hash_t Hash() const override;
-    bool Equals(const BaseExpression *other) const override;
+    bool Equals(const BaseExpression *other) const;
 
     unique_ptr<Expression> Copy() override;
     void Verify() const override;
