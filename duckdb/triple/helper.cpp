@@ -73,7 +73,7 @@ namespace Triple {
 
         duckdb::ScalarFunction custom_lift("lift", {}, duckdb::LogicalTypeId::STRUCT, Triple::CustomLift, Triple::CustomLiftBind, nullptr,
                                            Triple::CustomLiftStats);
-        custom_lift.varargs = duckdb::LogicalType::FLOAT;
+        custom_lift.varargs = duckdb::LogicalType::ANY;
         custom_lift.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
         custom_lift.serialize = duckdb::VariableReturnBindData::Serialize;
         custom_lift.deserialize = duckdb::VariableReturnBindData::Deserialize;
