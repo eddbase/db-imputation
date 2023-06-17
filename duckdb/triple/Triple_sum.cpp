@@ -70,8 +70,8 @@ namespace Triple {
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
 
-            if (state->attributes == 0){//initialize
-                state->attributes = cols;
+            if (state->num_attributes == 0 && state->cat_attributes == 0){//initialize
+                //state->attributes = cols;todo fix this
                 state->lin_agg = new float[cols];
                 for(idx_t k=0; k<cols; k++)
                     state->lin_agg[k] = 0;
@@ -122,14 +122,14 @@ namespace Triple {
         for (idx_t i = 0; i < count; i++) {
             auto state = states_ptr[sdata.sel->get_index(i)];
             combined_ptr[i]->count += state->count;
-            if (combined_ptr[i]->attributes == 0) {
+            if (combined_ptr[i]->num_attributes == 0 && combined_ptr[i]->cat_attributes == 0) {
 
-                combined_ptr[i]->attributes = state->attributes;
-                combined_ptr[i]->lin_agg = new float[state->attributes];
-                for(idx_t k=0; k<state->attributes; k++)
+                combined_ptr[i]->num_attributes = state->num_attributes;
+                combined_ptr[i]->lin_agg = new float[state->num_attributes];
+                for(idx_t k=0; k<state->num_attributes; k++)
                     combined_ptr[i]->lin_agg[k] = 0;
-                combined_ptr[i]->quadratic_agg = new float[(state->attributes*(state->attributes+1))/2];
-                for(idx_t k=0; k<(state->attributes*(state->attributes+1))/2; k++)
+                combined_ptr[i]->quadratic_agg = new float[(state->num_attributes*(state->num_attributes+1))/2];
+                for(idx_t k=0; k<(state->num_attributes*(state->num_attributes+1))/2; k++)
                     combined_ptr[i]->quadratic_agg[k] = 0;
 
                 //combined_ptr[i]->lin_agg.resize(state->lin_agg.size());
@@ -140,10 +140,10 @@ namespace Triple {
                 std::fill(combined_ptr[i]->quadratic_agg.begin(), combined_ptr[i]->quadratic_agg.end(), 0);
             }*/
 
-            for (int j = 0; j < state->attributes; j++) {
+            for (int j = 0; j < state->num_attributes; j++) {
                 combined_ptr[i]->lin_agg[j] += state->lin_agg[j];
             }
-            for (int j = 0; j < state->attributes*(state->attributes+1)/2; j++) {
+            for (int j = 0; j < state->num_attributes*(state->num_attributes+1)/2; j++) {
                 combined_ptr[i]->quadratic_agg[j] += state->quadratic_agg[j];
             }
         }
@@ -176,16 +176,16 @@ namespace Triple {
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
-            for (int j = 0; j < state->attributes; j++) {
+            for (int j = 0; j < state->num_attributes; j++) {
                 ListVector::PushBack(c2,
-                                     Value(state->lin_agg[j + (i*state->attributes)]));//Value::STRUCT({std::make_pair("key", bucket_value), std::make_pair("value", count_value)});
+                                     Value(state->lin_agg[j + (i*state->num_attributes)]));//Value::STRUCT({std::make_pair("key", bucket_value), std::make_pair("value", count_value)});
                 //ListVector::Reserve(c2, offset);
                 //ListVector::SetListSize(result, offset);
                 //*c2.auxiliary->SetValue
                 //	child->SetValue(size++, insert);
             }//Value::Numeric
             //Set metadata for current row
-            result_data[row_id].length = state->attributes;
+            result_data[row_id].length = state->num_attributes;
             result_data[row_id].offset = result_data[i].length*i;//ListVector::GetListSize(c2);
         }
 
@@ -196,11 +196,11 @@ namespace Triple {
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
-            for (int j = 0; j < state->attributes*(state->attributes+1)/2; j++) {
+            for (int j = 0; j < state->num_attributes*(state->num_attributes+1)/2; j++) {
                 ListVector::PushBack(c3,
                                      Value(state->quadratic_agg[j]));//Value::STRUCT({std::make_pair("key", bucket_value), std::make_pair("value", count_value)});
             }//Value::Numeric
-            result_data2[row_id].length = state->attributes*(state->attributes+1)/2;
+            result_data2[row_id].length = state->num_attributes*(state->num_attributes+1)/2;
             result_data2[row_id].offset = i * result_data2[i].length;
         }
         //std::cout<<"\nFINALIZE END\n";

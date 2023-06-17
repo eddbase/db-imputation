@@ -161,7 +161,7 @@ namespace Triple {
                         for (idx_t i = 0; i < size; i++) {
                             vector<Value> cat_vals = {};
                             child_list_t<Value> struct_values;
-                            struct_values.emplace_back("key1", Value(cat_column_data[i]));
+                            struct_values.emplace_back("key", Value(cat_column_data[i]));
                             struct_values.emplace_back("value", Value(num_column_data[i]));
                             cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                             cat_relations_vector_num_quad.SetValue(col_idx + (i * (cat_cols * num_cols)), duckdb::Value::LIST(cat_vals));
@@ -249,7 +249,7 @@ namespace Triple {
         struct_children.emplace_back("lin_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(lin_cat))));
 
         child_list_t<LogicalType> quad_num_cat;
-        quad_num_cat.emplace_back("key1", LogicalType::INTEGER);
+        quad_num_cat.emplace_back("key", LogicalType::INTEGER);
         quad_num_cat.emplace_back("value", LogicalType::INTEGER);
         struct_children.emplace_back("quad_num_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(quad_num_cat))));
 

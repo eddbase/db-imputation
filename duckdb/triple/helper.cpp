@@ -28,6 +28,8 @@ namespace Triple {
         duckdb::vector<duckdb::LogicalType> args_sum_no_lift = {};
         for(int i=0; i < n_con_columns; i++)
             args_sum_no_lift.push_back(duckdb::LogicalType::FLOAT);
+        for(int i=0; i < n_cat_columns; i++)
+            args_sum_no_lift.push_back(duckdb::LogicalType::INTEGER);
 
         auto sum_no_lift = duckdb::AggregateFunction("triple_sum_no_lift", args_sum_no_lift, duckdb::LogicalTypeId::STRUCT, duckdb::AggregateFunction::StateSize<Triple::AggState>,
                                                      duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>, Triple::SumNoLift,

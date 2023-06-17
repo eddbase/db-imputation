@@ -7,13 +7,21 @@
 
 #include <vector>
 #include <duckdb.hpp>
+#include <map>
+
 
 namespace Triple {
+
     struct AggState {
         int count;
-        int attributes;
+        int num_attributes;
+        int cat_attributes;
         float *lin_agg;
         float *quadratic_agg;
+
+        std::map<int, float> *lin_cat;
+        std::map<int, float> *quad_num_cat;
+        std::map<std::pair<int, int>, float> *quad_cat_cat;
     };
 
 
@@ -21,9 +29,13 @@ namespace Triple {
         template<class STATE>
         static void Initialize(STATE &state) {
             state.count = 0;
-            state.attributes = 0;
+            state.num_attributes = 0;
+            state.cat_attributes = 0;
             state.lin_agg = nullptr;
             state.quadratic_agg = nullptr;
+            state.lin_cat = nullptr;
+            state.quad_num_cat = nullptr;
+            state.quad_cat_cat = nullptr;
             //state->lin_agg = {};
             //state->quadratic_agg = {};
         }
@@ -32,6 +44,9 @@ namespace Triple {
         static void Destroy(STATE &state, duckdb::AggregateInputData &aggr_input_data) {
             delete[] state.lin_agg;
             delete[] state.quadratic_agg;
+            delete[] state.lin_cat;
+            delete[] state.quad_num_cat;
+            delete[] state.quad_cat_cat;
             //state->lin_agg.clear();
             //state->quadratic_agg.clear();
         }
