@@ -26,19 +26,19 @@ Triple::SumNoLiftBind(duckdb::ClientContext &context, duckdb::AggregateFunction 
     //categorical structures
     child_list_t<LogicalType> lin_cat;
     lin_cat.emplace_back("key", LogicalType::INTEGER);
-    lin_cat.emplace_back("value", LogicalType::INTEGER);
+    lin_cat.emplace_back("value", LogicalType::FLOAT);
 
     struct_children.emplace_back("lin_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(lin_cat))));
 
     child_list_t<LogicalType> quad_num_cat;
     quad_num_cat.emplace_back("key", LogicalType::INTEGER);
-    quad_num_cat.emplace_back("value", LogicalType::INTEGER);
+    quad_num_cat.emplace_back("value", LogicalType::FLOAT);
     struct_children.emplace_back("quad_num_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(quad_num_cat))));
 
     child_list_t<LogicalType> quad_cat_cat;
     quad_cat_cat.emplace_back("key1", LogicalType::INTEGER);
     quad_cat_cat.emplace_back("key2", LogicalType::INTEGER);
-    quad_cat_cat.emplace_back("value", LogicalType::INTEGER);
+    quad_cat_cat.emplace_back("value", LogicalType::FLOAT);
     struct_children.emplace_back("quad_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(quad_cat_cat))));
 
     auto struct_type = LogicalType::STRUCT(struct_children);
@@ -62,8 +62,10 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
 
     size_t num_cols = 0;
     size_t cat_cols = 0;
+    UnifiedVectorFormat input_data[cols];
     for (idx_t j=0;j<cols;j++){
         auto col_type = inputs[j].GetType();
+        inputs[j].ToUnifiedFormat(count, input_data[j]);
         if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE)
             num_cols++;
         else
@@ -105,14 +107,18 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             state->quad_cat_cat = new std::map<std::pair<int, int>, float>[cat_cols * (cat_cols + 1)/2];
         }
 
+        //todo implement this for everything
+        //todo add overload operator in helper
+        //todo implement sum over triples
+
         for(idx_t k=0; k<cols; k++) {
             auto col_type = inputs[k].GetType();
             if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {//sum numerical
-                state->lin_agg[curr_numerical] += ((float *) inputs[k].GetData())[j];
+                state->lin_agg[curr_numerical] += UnifiedVectorFormat::GetData<float>(input_data[k])[input_data[k].sel->get_index(j)];
                 curr_numerical++;
             }
             else{//sum categorical
-                int in_col_val = ((int *) inputs[k].GetData())[j];
+                int in_col_val = UnifiedVectorFormat::GetData<int>(input_data[k])[input_data[k].sel->get_index(j)];
                 std::map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
                 auto pos = col_vals.find(in_col_val);
                 if (pos == col_vals.end())
@@ -124,21 +130,20 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
         }
     }
 
-
     //SUM QUADRATIC NUMERICAL AGGREGATES:
     int col_idx = 0;
 
     for(idx_t j=0; j<cols; j++) {
         auto col_type = inputs[j].GetType();
         if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {//numericals
-            float *first_column_data = (float *) inputs[j].GetData();
+            const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[j]);
             for (idx_t k = j; k < cols; k++) {
                 auto col_type = inputs[k].GetType();
                 if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {//numerical
-                    float *sec_column_data = (float *) inputs[k].GetData();
+                    const float *sec_column_data = UnifiedVectorFormat::GetData<float>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
-                        state->quadratic_agg[col_idx] += first_column_data[i] * sec_column_data[i];
+                        state->quadratic_agg[col_idx] += first_column_data[input_data[j].sel->get_index(i)] * sec_column_data[input_data[k].sel->get_index(i)];
                     }
                     col_idx++;
                 }
@@ -152,19 +157,20 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
     for(idx_t j=0; j<cols; j++) {
         auto col_type = inputs[j].GetType();
         if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {//numericals
-            float *first_column_data = (float *) inputs[j].GetData();
+            const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[j]);
             for (idx_t k = 0; k < cols; k++) {
                 auto col_type = inputs[k].GetType();
                 if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
-                    int *sec_column_data = (int *) inputs[k].GetData();
+                    const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
                         std::map<int, float> &vals = state->quad_num_cat[col_idx];
-                        auto pos = vals.find(sec_column_data[i]);
+                        int key = sec_column_data[input_data[k].sel->get_index(i)];
+                        auto pos = vals.find(key);
                         if (pos == vals.end())
-                            vals[sec_column_data[i]] = first_column_data[i];
+                            vals[key] = first_column_data[input_data[j].sel->get_index(i)];
                         else
-                            pos->second += first_column_data[i];
+                            pos->second += first_column_data[input_data[j].sel->get_index(i)];
                     }
                     col_idx++;
                 }
@@ -177,15 +183,15 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
     for(idx_t j=0; j<cols; j++) {
         auto col_type = inputs[j].GetType();
         if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
-            int *first_column_data = (int *) inputs[j].GetData();
+            const int *first_column_data = UnifiedVectorFormat::GetData<int>(input_data[j]);
             for (idx_t k = j; k < cols; k++) {
                 auto col_type = inputs[k].GetType();
                 if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
-                    int *sec_column_data = (int *) inputs[k].GetData();
+                    const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
                         std::map<std::pair<int, int>, float> &vals = state->quad_cat_cat[col_idx];
-                        auto entry = std::pair<int, int>(first_column_data[i], sec_column_data[i]);
+                        auto entry = std::pair<int, int>(first_column_data[input_data[j].sel->get_index(i)], sec_column_data[input_data[k].sel->get_index(i)]);
                         auto pos = vals.find(entry);
                         if (pos == vals.end())
                             vals[entry] = 1;
@@ -271,8 +277,6 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
                     pos->second += state_vals.second;
             }
         }
-
-
     }
     //std::cout<<"\nCOMBINE END\n";
 }

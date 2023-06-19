@@ -9,40 +9,6 @@
 #include <iostream>
 
 
-class duckdb::BoundFunctionExpression : public duckdb::Expression {
-public:
-    static constexpr const ExpressionClass TYPE = ExpressionClass::BOUND_FUNCTION;
-
-public:
-    BoundFunctionExpression(LogicalType return_type, ScalarFunction bound_function,
-                            vector<unique_ptr<Expression>> arguments, unique_ptr<FunctionData> bind_info,
-                            bool is_operator = false);
-
-    //! The bound function expression
-    ScalarFunction function;
-    //! List of child-expressions of the function
-    vector<unique_ptr<Expression>> children;
-    //! The bound function data (if any)
-    unique_ptr<FunctionData> bind_info;
-    //! Whether or not the function is an operator, only used for rendering
-    bool is_operator;
-
-public:
-    bool HasSideEffects() const override;
-    bool IsFoldable() const override;
-    string ToString() const override;
-    bool PropagatesNullValues() const override;
-    hash_t Hash() const override;
-    bool Equals(const BaseExpression *other) const;
-
-    unique_ptr<Expression> Copy() override;
-    void Verify() const override;
-
-    void Serialize(FieldWriter &writer) const override;
-    static unique_ptr<Expression> Deserialize(ExpressionDeserializationState &state, FieldReader &reader);
-};
-
-
 namespace Triple {
     //actual implementation of this function
     void CustomLift(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {
@@ -56,8 +22,11 @@ namespace Triple {
         size_t num_cols = 0;
         size_t cat_cols = 0;
 
+        UnifiedVectorFormat input_data[columns];
+
         for (idx_t j=0;j<columns;j++){
             auto col_type = in_data[j].GetType();
+            in_data[j].ToUnifiedFormat(size, input_data[j]);
             if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE)
                 num_cols++;
             else
@@ -65,8 +34,8 @@ namespace Triple {
         }
 
         //set N
-
-        auto N_vec = (int32_t *) duckdb::FlatVector::GetData(*result_children[0]);//first child (N)
+        result_children[0]->SetVectorType(VectorType::FLAT_VECTOR);
+        auto N_vec = duckdb::FlatVector::GetData<int32_t>(*result_children[0]);//first child (N)
 
         for (idx_t i = 0; i < size; i++) {
             N_vec[i] = 1;
@@ -78,7 +47,7 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[1], num_cols*size);
         duckdb::ListVector::SetListSize(*result_children[1], num_cols*size);
         auto lin_vec_num = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[1]);//sec child (lin. aggregates)
-        auto lin_vec_num_data = (float *) duckdb::ListVector::GetEntry(*result_children[1]).GetData();
+        auto lin_vec_num_data = (float *)  duckdb::ListVector::GetEntry(*result_children[1]).GetData();
 
         //get result struct for categorical
         duckdb::ListVector::Reserve(*result_children[3], cat_cols*size);
@@ -215,7 +184,7 @@ namespace Triple {
             lin_vec_cat[i].length = cat_cols;
             lin_vec_cat[i].offset = i * lin_vec_cat[i].length;
 
-            quad_vec[i].length = num_cols*(num_cols+1)/2;
+            quad_vec[i].length = (num_cols*(num_cols+1))/2;
             quad_vec[i].offset = i * quad_vec[i].length;
 
             cat_relations_vector_num_quad_list[i].length = num_cols*cat_cols;
@@ -244,19 +213,19 @@ namespace Triple {
         //categorical structures
         child_list_t<LogicalType> lin_cat;
         lin_cat.emplace_back("key", LogicalType::INTEGER);
-        lin_cat.emplace_back("value", LogicalType::INTEGER);
+        lin_cat.emplace_back("value", LogicalType::FLOAT);
 
         struct_children.emplace_back("lin_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(lin_cat))));
 
         child_list_t<LogicalType> quad_num_cat;
         quad_num_cat.emplace_back("key", LogicalType::INTEGER);
-        quad_num_cat.emplace_back("value", LogicalType::INTEGER);
+        quad_num_cat.emplace_back("value", LogicalType::FLOAT);
         struct_children.emplace_back("quad_num_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(quad_num_cat))));
 
         child_list_t<LogicalType> quad_cat_cat;
         quad_cat_cat.emplace_back("key1", LogicalType::INTEGER);
         quad_cat_cat.emplace_back("key2", LogicalType::INTEGER);
-        quad_cat_cat.emplace_back("value", LogicalType::INTEGER);
+        quad_cat_cat.emplace_back("value", LogicalType::FLOAT);
         struct_children.emplace_back("quad_cat", LogicalType::LIST(LogicalType::LIST(LogicalType::STRUCT(quad_cat_cat))));
         //lin_cat -> LIST(LIST(STRUCT(key1, key2, val))). E.g. [[{k1,k2,2},{k3,k4,5}],[]]...
         //quad_cat
