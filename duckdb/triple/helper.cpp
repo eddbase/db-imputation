@@ -17,7 +17,7 @@
 
 namespace Triple {
 
-    void register_functions(duckdb::ClientContext &context, size_t n_con_columns, size_t n_cat_columns){
+    void register_functions(duckdb::ClientContext &context, const std::vector<size_t> &n_con_columns, const std::vector<size_t> &n_cat_columns){
 
         auto function = duckdb::AggregateFunction("triple_sum", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, duckdb::AggregateFunction::StateSize<Triple::AggState>,
                                                   duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>, Triple::ListUpdateFunction,
@@ -25,24 +25,40 @@ namespace Triple {
                                                   duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>, nullptr, nullptr);
 
         duckdb::UDFWrapper::RegisterAggrFunction(function, context);
-        duckdb::vector<duckdb::LogicalType> args_sum_no_lift = {};
-        for(int i=0; i < n_con_columns; i++)
-            args_sum_no_lift.push_back(duckdb::LogicalType::FLOAT);
-        for(int i=0; i < n_cat_columns; i++)
-            args_sum_no_lift.push_back(duckdb::LogicalType::INTEGER);
-
-        auto sum_no_lift = duckdb::AggregateFunction("triple_sum_no_lift", args_sum_no_lift, duckdb::LogicalTypeId::STRUCT, duckdb::AggregateFunction::StateSize<Triple::AggState>,
-                                                     duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>, Triple::SumNoLift,
-                                                     Triple::SumNoLiftCombine, Triple::SumNoLiftFinalize, nullptr, Triple::SumNoLiftBind,
-                                                     duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>, nullptr, nullptr);
-        sum_no_lift.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
-        sum_no_lift.varargs = duckdb::LogicalType::FLOAT;
-        duckdb::UDFWrapper::RegisterAggrFunction(sum_no_lift, context, duckdb::LogicalType::FLOAT);
+        std::set<std::pair<int, int>> fun_type_sizes;//remove duplicates
+        for(size_t k=0; k<n_con_columns.size(); k++) {//for each table
+            fun_type_sizes.insert(std::pair<int, int>(n_con_columns[k], n_cat_columns[k]));
+        }
+        int s = 1;
+        for (auto const &x : fun_type_sizes){
+            duckdb::vector<duckdb::LogicalType> args_sum_no_lift = {};
+            for (int i = 0; i < x.first; i++)
+                args_sum_no_lift.push_back(duckdb::LogicalType::FLOAT);
+            for (int i = 0; i < x.second; i++)
+                args_sum_no_lift.push_back(duckdb::LogicalType::INTEGER);
+            std::string xx = "";
+            if (fun_type_sizes.size() > 0){
+                xx = std::to_string(s);
+                s++;
+            }
+            auto sum_no_lift = duckdb::AggregateFunction("triple_sum_no_lift"+xx, args_sum_no_lift,
+                                                         duckdb::LogicalTypeId::STRUCT,
+                                                         duckdb::AggregateFunction::StateSize<Triple::AggState>,
+                                                         duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>,
+                                                         Triple::SumNoLift,
+                                                         Triple::SumNoLiftCombine, Triple::SumNoLiftFinalize, nullptr,
+                                                         Triple::SumNoLiftBind,
+                                                         duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>,
+                                                         nullptr, nullptr);
+            sum_no_lift.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
+            sum_no_lift.varargs = duckdb::LogicalType::FLOAT;
+            duckdb::UDFWrapper::RegisterAggrFunction(sum_no_lift, context, duckdb::LogicalType::FLOAT);
+        }
 
         //define multiply func.
 
-        duckdb::ScalarFunction fun("multiply_triple", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, Triple::StructPackFunction, Triple::MultiplyBind, nullptr,
-                                   Triple::StructPackStats);
+        duckdb::ScalarFunction fun("multiply_triple", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, Triple::MultiplyFunction, Triple::MultiplyBind, nullptr,
+                                   Triple::MultiplyStats);
         fun.varargs = duckdb::LogicalType::ANY;
         fun.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
         fun.serialize = duckdb::VariableReturnBindData::Serialize;

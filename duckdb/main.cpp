@@ -14,6 +14,13 @@
 #include "ML/Regression_predict.h"
 #include <chrono>
 
+#ifdef ENABLE_DOCTEST_IN_LIBRARY
+#define DOCTEST_CONFIG_IMPLEMENT
+#include "doctest/doctest.h"
+#else
+#define DOCTEST_CONFIG_DISABLE
+#endif
+
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -22,20 +29,51 @@
 #endif
 
 int main(int argc, char* argv[]){
-    std::cout<<"Hello world";
 
+    #ifdef ENABLE_DOCTEST_IN_LIBRARY
+    doctest::Context ctx;
+    ctx.setOption("abort-after", 5);  // default - stop after 5 failed asserts
+    ctx.applyCommandLine(argc, argv); // apply command line - argc / argv
+    ctx.setOption("no-breaks", true); // override - don't break in the debugger
+    int res = ctx.run();              // run test cases unless with --no-run
+    if(ctx.shouldExit())              // query flags (and --exit) rely on this
+        return res;                   // propagate the result of the tests
+    // your code goes here
+    #endif
+    return 0;
     duckdb::DuckDB db(":memory:");
     duckdb::Connection con(db);
 
     std::vector<string> con_columns = {"CRS_DEP_HOUR", "CRS_DEP_MIN", "CRS_ARR_HOUR", "CRS_ARR_MIN", "DISTANCE", "DEP_DELAY", "TAXI_OUT", "TAXI_IN", "ARR_DELAY", "ACTUAL_ELAPSED_TIME", "AIR_TIME", "DEP_TIME_HOUR", "DEP_TIME_MIN", "WHEELS_OFF_HOUR", "WHEELS_OFF_MIN", "WHEELS_ON_HOUR", "WHEELS_ON_MIN", "ARR_TIME_HOUR", "ARR_TIME_MIN", "MONTH_SIN", "MONTH_COS", "DAY_SIN", "DAY_COS", "WEEKDAY_SIN", "WEEKDAY_COS"};
     std::vector<string> con_columns_nulls = {"WHEELS_ON_HOUR", "WHEELS_OFF_HOUR", "TAXI_OUT", "TAXI_IN", "ARR_DELAY", "DEP_DELAY"};
 
-    std::vector<string> cat_columns = {"CRS_DEP_HOUR", "CRS_DEP_MIN", "CRS_ARR_HOUR", "CRS_ARR_MIN", "DISTANCE", "DEP_DELAY", "TAXI_OUT", "TAXI_IN", "ARR_DELAY", "ACTUAL_ELAPSED_TIME", "AIR_TIME", "DEP_TIME_HOUR", "DEP_TIME_MIN", "WHEELS_OFF_HOUR", "WHEELS_OFF_MIN", "WHEELS_ON_HOUR", "WHEELS_ON_MIN", "ARR_TIME_HOUR", "ARR_TIME_MIN", "MONTH_SIN", "MONTH_COS", "DAY_SIN", "DAY_COS", "WEEKDAY_SIN", "WEEKDAY_COS"};
-    std::vector<string> cat_columns_nulls = {"WHEELS_ON_HOUR", "WHEELS_OFF_HOUR", "TAXI_OUT", "TAXI_IN", "ARR_DELAY", "DEP_DELAY"};
+    std::vector<string> cat_columns = {};
+    std::vector<string> cat_columns_nulls = {};
     std::string table_name = "join_table";
     size_t mice_iters = 1;
 
-    Triple::register_functions(*con.context, con_columns.size(), cat_columns.size());
+    con_columns = {"b", "c"};
+    cat_columns = {"d", "e"};
+    Triple::register_functions(*con.context, {con_columns.size()}, {cat_columns.size()});
+
+    std::string ttt = "CREATE TABLE test(gb INTEGER, a FLOAT, b FLOAT, C FLOAT, D INTEGER, E INTEGER, F INTEGER);";
+    con.Query(ttt);
+    ttt = "INSERT INTO test VALUES (1,1,2,3,4,5,6), (1,5,6,7,8,9,10), (2,2,1,3,4,6,8), (2,5,7,6,8,10,12), (2,2,1,3,4,6,8)";
+    con.Query(ttt);
+    con.Query("SELECT * FROM test")->Print();
+    //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
+    auto s1 = con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->GetValue(0,0).ToString();
+    con.Query("SELECT lift(a) FROM test where gb = 2")->Print();
+    auto s2 = con.Query("SELECT triple_sum_no_lift(a,c,d,f) FROM test where gb = 2")->GetValue(0,0).ToString();
+    std::cout<<"SELECT multiply_triple("+s1+", "+s2+")\n";
+    con.Query("SELECT triple_sum_no_lift(a,c,d,f) AS B FROM test where gb = 2")->Print();
+    std::cout<<"A!\n";
+    con.Query("SELECT multiply_triple(A, B) FROM ((SELECT triple_sum_no_lift(b,c,d,e) AS A FROM test where gb = 1) INNER JOIN "
+              "(SELECT triple_sum_no_lift(a,c,d,f) AS B FROM test where gb = 2) ON TRUE)")->Print();
+    std::cout<<"DONE!\n";
+
+
+    return 0;
 
     //import data
     auto begin = std::chrono::high_resolution_clock::now();
@@ -49,7 +87,7 @@ int main(int argc, char* argv[]){
     std::cout<<"Time import data (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     //compute n. missing values
-    con.Query("ALTER TABLE "+table_name+" ADD COLUMN n_nulls INTEGER DEFAULT 0;");
+    con.Query("ALTER TABLE "+table_name+" ADD COLUMN n_nulls INTEGER DEFAULT 0;")->Print();
     std::string query = "CREATE TABLE rep AS SELECT ";
 
     for (auto &col : con_columns_nulls)
@@ -58,13 +96,17 @@ int main(int argc, char* argv[]){
         query += "CASE WHEN "+col+" IS NULL THEN 1 ELSE 0 END + ";
     query.pop_back();
     query.pop_back();
-    con.Query(query);
+    con.Query(query+" FROM "+table_name)->Print();
     //swap
     con.Query("ALTER TABLE "+table_name+" ALTER COLUMN n_nulls SET DEFAULT 10;")->Print();//not adding b, replace s with rep
 
     //partition according to n. missing values
     partition(table_name, con_columns, con_columns_nulls, cat_columns, cat_columns_nulls, con);
 
+    //test
+
+
+    //--end test
 
 
 
@@ -95,9 +137,12 @@ int main(int argc, char* argv[]){
     query += " FROM "+table_name+"_complete_2)";
 
     begin = std::chrono::high_resolution_clock::now();
+    con.Query(query)->Print();
     Value full_triple = con.Query(query)->GetValue(0,0);
     end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+    //con.Query("SELECT lift(WHEELS_ON_HOUR) FROM join_table")->Print();
 
     //start MICE
 
@@ -182,5 +227,4 @@ int main(int argc, char* argv[]){
 
         }
     }
-
 }

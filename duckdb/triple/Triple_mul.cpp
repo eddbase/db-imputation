@@ -16,7 +16,7 @@
 
 namespace Triple {
     //actual implementation of this function
-    void StructPackFunction(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {
+    void MultiplyFunction(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb::Vector &result) {
         //std::cout << "StructPackFunction start " << std::endl;
         auto &result_children = duckdb::StructVector::GetEntries(result);
 
@@ -32,17 +32,18 @@ namespace Triple {
         RecursiveFlatten(*sec_triple_children[0], size);
                 D_ASSERT((*sec_triple_children[0]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
 
+        UnifiedVectorFormat N_data[2];
+        first_triple_children[0]->ToUnifiedFormat(size, N_data[0]);
+        sec_triple_children[0]->ToUnifiedFormat(size, N_data[1]);
 
-        auto N_1 = (int32_t *) duckdb::FlatVector::GetData(*first_triple_children[0]);
-        auto N_2 = (int32_t *) duckdb::FlatVector::GetData(*sec_triple_children[0]);
-        auto input_data = (int32_t *) duckdb::FlatVector::GetData(*result_children[0]);
+        auto input_data = duckdb::FlatVector::GetData<int32_t>(*result_children[0]);
 
         for (idx_t i = 0; i < size; i++) {
-            input_data[i] = N_1[i] * N_2[i];
+            input_data[i] = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)] *
+                    UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
         }
 
         //set linear aggregates
-        std::cout<<"set linear aggregates\n";
         RecursiveFlatten(*first_triple_children[1], size);
                 D_ASSERT((*first_triple_children[1]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
         RecursiveFlatten(*sec_triple_children[1], size);
@@ -54,10 +55,14 @@ namespace Triple {
         auto cat_attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[3]) / size;
         auto cat_attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[3]) / size;
 
-        auto lin_list_entries_1 = (float *) duckdb::ListVector::GetEntry(
-                *first_triple_children[1]).GetData();//entries are float
-        auto lin_list_entries_2 = (float *) duckdb::ListVector::GetEntry(
-                *sec_triple_children[1]).GetData();//entries are float
+        UnifiedVectorFormat lin_data[2];
+        duckdb::ListVector::GetEntry(
+                *first_triple_children[1]).ToUnifiedFormat(size, lin_data[0]);
+        duckdb::ListVector::GetEntry(
+                *sec_triple_children[1]).ToUnifiedFormat(size, lin_data[1]);
+
+        auto lin_list_entries_1 = UnifiedVectorFormat::GetData<float>(lin_data[0]);//entries are float
+        auto lin_list_entries_2 = UnifiedVectorFormat::GetData<float>(lin_data[1]);//entries are float
 
 
         (*result_children[1]).SetVectorType(duckdb::VectorType::FLAT_VECTOR);
@@ -67,11 +72,14 @@ namespace Triple {
         //creates a single vector
         for (idx_t i = 0; i < size; i++) {
             //add first list for the tuple
+            auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
+            auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
+
             for (idx_t j = 0; j < num_attr_size_1; j++)
-                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_1[j + (i * num_attr_size_1)] * (*N_2)));
+                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_1[lin_data[0].sel->get_index(j + (i * num_attr_size_1))] * N_2));
 
             for (idx_t j = 0; j < num_attr_size_2; j++)
-                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_2[j + (i * num_attr_size_2)] * (*N_1)));
+                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_2[lin_data[1].sel->get_index(j + (i * num_attr_size_2))] * N_1));
         }
 
         //auto xx = *first_triple_children[3]
@@ -79,22 +87,23 @@ namespace Triple {
         Vector v_cat_lin_2 = duckdb::ListVector::GetEntry(*sec_triple_children[3]);
         duckdb::ListVector::Reserve(*result_children[3], (cat_attr_size_1 + cat_attr_size_2) * size);
         duckdb::ListVector::SetListSize(*result_children[3], (cat_attr_size_1 + cat_attr_size_2) * size);
-        result_children[3]->SetVectorType(VectorType::FLAT_VECTOR);
+        //result_children[3]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_cat_lin_res = duckdb::ListVector::GetEntry(*result_children[3]);
-
-        //set linear categorical
-        std::cout<<"set linear categorical\n";
 
         for (idx_t i = 0; i < size; i++) {
             //add first linears
+            auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
+            auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
+
             for (idx_t column = 0; column < cat_attr_size_1; column++) {
                 vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_cat_lin_1.GetValue(column + (i*cat_attr_size_1)));
                 vector<Value> cat_vals = {};
+
                 for (idx_t item = 0; item < children.size(); item++) {
                     child_list_t<Value> struct_values;
                     const vector<Value> &struct_children = duckdb::StructValue::GetChildren(children[item]);
                     struct_values.emplace_back("key", Value(struct_children[0]));
-                    struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * (*N_2)));
+                    struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_2));
                     cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                 }
                 v_cat_lin_res.SetValue(column + (i * (cat_attr_size_1 + cat_attr_size_2)), duckdb::Value::LIST(cat_vals));
@@ -107,7 +116,7 @@ namespace Triple {
                     child_list_t<Value> struct_values;
                     const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[item]);
                     struct_values.emplace_back("key", Value(struct_children[0]));
-                    struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * (*N_1)));
+                    struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_1));
                     cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                 }
                 v_cat_lin_res.SetValue(column + cat_attr_size_1 + (i * (cat_attr_size_1 + cat_attr_size_2)), duckdb::Value::LIST(cat_vals));
@@ -134,10 +143,15 @@ namespace Triple {
 
         auto quad_lists_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[2]) / size;
         auto quad_lists_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[2]) / size;
-        auto quad_list_entries_1 = (float *) duckdb::ListVector::GetEntry(
-                *first_triple_children[2]).GetData();//entries are float
-        auto quad_list_entries_2 = (float *) duckdb::ListVector::GetEntry(
-                *sec_triple_children[2]).GetData();//entries are float
+
+        UnifiedVectorFormat quad_data[2];
+        duckdb::ListVector::GetEntry(
+                *first_triple_children[2]).ToUnifiedFormat(size, quad_data[0]);
+        duckdb::ListVector::GetEntry(
+                *sec_triple_children[2]).ToUnifiedFormat(size, quad_data[1]);
+
+        auto quad_list_entries_1 = UnifiedVectorFormat::GetData<float>(quad_data[0]);//entries are float
+        auto quad_list_entries_2 = UnifiedVectorFormat::GetData<float>(quad_data[1]);//entries are float
 
         (*result_children[2]).SetVectorType(duckdb::VectorType::FLAT_VECTOR);
         auto meta_quad_num = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[2]);
@@ -149,6 +163,8 @@ namespace Triple {
 
         //for each row
         for (idx_t i = 0; i < size; i++) {
+            auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
+            auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
             //scale 1st quad. aggregate
             auto idx_lin_quad = 0;
             for (idx_t j = 0; j < num_attr_size_1; j++) {
@@ -156,24 +172,24 @@ namespace Triple {
                      k < num_attr_size_1; k++) {//a list * b (AA, BB, <prod. A and cols other table computed down>, AB)
                     duckdb::ListVector::PushBack(*result_children[2],
                                                  duckdb::Value(
-                                                         quad_list_entries_1[idx_lin_quad + (i * quad_lists_size_1)] * (*N_2)));
+                                                         quad_list_entries_1[quad_data[0].sel->get_index(idx_lin_quad + (i * quad_lists_size_1))] * (N_2)));
                     idx_lin_quad++;
                 }
 
                 //multiply lin. aggregates
                 for (idx_t k = 0; k < num_attr_size_2; k++) {
                     duckdb::ListVector::PushBack(*result_children[2],
-                                                 duckdb::Value(lin_list_entries_1[j + (i * num_attr_size_1)] *
-                                                               lin_list_entries_2[k + (i * num_attr_size_2)]));
-                    std::cout<<"Quad NUM: "<<lin_list_entries_1[j + (i * num_attr_size_1)] *
-                                             lin_list_entries_2[k + (i * num_attr_size_2)]<<"\n";
+                                                 duckdb::Value(lin_list_entries_1[lin_data[0].sel->get_index(j + (i * num_attr_size_1))] *
+                                                               lin_list_entries_2[lin_data[1].sel->get_index(k + (i * num_attr_size_2))]));
+                    //std::cout<<"Quad NUM: "<<lin_list_entries_1[j + (i * num_attr_size_1)] *
+                    //                         lin_list_entries_2[k + (i * num_attr_size_2)]<<"\n";
                 }
             }
 
             //scale 2nd quad. aggregate
             for (idx_t j = 0; j < quad_lists_size_2; j++) {
                 duckdb::ListVector::PushBack(*result_children[2],
-                                             duckdb::Value(quad_list_entries_2[j + (i * quad_lists_size_2)] * (*N_1)));
+                                             duckdb::Value(quad_list_entries_2[quad_data[1].sel->get_index(j + (i * quad_lists_size_2))] * (N_1)));
             }
         }
 
@@ -189,7 +205,7 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[4], size_num_cat_cols * size);
         duckdb::ListVector::SetListSize(*result_children[4], size_num_cat_cols * size);
 
-        result_children[4]->SetVectorType(VectorType::FLAT_VECTOR);
+        //result_children[4]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_num_cat_quad_res = duckdb::ListVector::GetEntry(*result_children[4]);
 
         //new size is (cont_A * cat_A) (curr. size) + (cont_A * cat_B) + (cont_B * cat_A) + (cont_B * cat_B)
@@ -197,7 +213,11 @@ namespace Triple {
 
         //compute quad num_cat
 
+
         for (idx_t i = 0; i < size; i++) {
+            auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
+            auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
+
             //scale entries cont_A * cat_A
             auto row_offset = i*(num_attr_size_1 * cat_attr_size_1);
             for (size_t col1 = 0; col1 < num_attr_size_1; col1++){
@@ -209,7 +229,7 @@ namespace Triple {
                         child_list_t<Value> struct_values;
                         const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[cat_val]);
                         struct_values.emplace_back("key", struct_children[0]);
-                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * (*N_2)));
+                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_2));
                         cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                     }
                     v_num_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
@@ -258,7 +278,7 @@ namespace Triple {
                         child_list_t<Value> struct_values;
                         const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[cat_val]);
                         struct_values.emplace_back("key", struct_children[0]);
-                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * (*N_1)));
+                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_1));
                         cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                     }
                     v_num_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
@@ -278,7 +298,7 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[5], size_cat_cat_cols * size);
         duckdb::ListVector::SetListSize(*result_children[5], size_cat_cat_cols * size);
 
-        result_children[5]->SetVectorType(VectorType::FLAT_VECTOR);
+        //result_children[5]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_cat_cat_quad_res = duckdb::ListVector::GetEntry(*result_children[5]);
 
         set_index = 0;
@@ -286,6 +306,9 @@ namespace Triple {
 
         auto size_row = (cat_attr_size_1 * (cat_attr_size_1+1)) /2;
         for (idx_t i = 0; i < size; i++) {
+            auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
+            auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
+
             // (cat_A * cat_A) * count_B (scale cat_A)
             size_t idx_cat_in = 0;
             for (size_t col1 = 0; col1 < cat_attr_size_1; col1++) {
@@ -298,7 +321,7 @@ namespace Triple {
                         const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[el]);
                         struct_values.emplace_back("key1", struct_children[0]);
                         struct_values.emplace_back("key2", struct_children[1]);
-                        struct_values.emplace_back("value", Value(struct_children[2].GetValue<float>() * (*N_2)));
+                        struct_values.emplace_back("value", Value(struct_children[2].GetValue<float>() * (N_2)));
                         cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                     }
                     v_cat_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
@@ -337,7 +360,7 @@ namespace Triple {
                     const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[el]);
                     struct_values.emplace_back("key1", struct_children[0]);
                     struct_values.emplace_back("key2", struct_children[1]);
-                    struct_values.emplace_back("value", Value(struct_children[2].GetValue<float>() * (*N_1)));
+                    struct_values.emplace_back("value", Value(struct_children[2].GetValue<float>() * (N_1)));
                     cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                 }
                 v_cat_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
@@ -393,14 +416,13 @@ namespace Triple {
 
         auto struct_type = LogicalType::STRUCT(struct_children);
         function.return_type = struct_type;
-
-
+        //function.varargs = LogicalType::ANY;
         return duckdb::make_uniq<duckdb::VariableReturnBindData>(function.return_type);
     }
 
     //Generate statistics for this function. Given input type ststistics (mainly min and max for every attribute), returns the output statistics
     duckdb::unique_ptr<duckdb::BaseStatistics>
-    StructPackStats(duckdb::ClientContext &context, duckdb::FunctionStatisticsInput &input) {
+    MultiplyStats(duckdb::ClientContext &context, duckdb::FunctionStatisticsInput &input) {
         std::cout << "StructPackStats " << std::endl;
         auto &child_stats = input.child_stats;
         std::cout << "StructPackStats " << child_stats.size() << child_stats[0].ToString() << std::endl;

@@ -7,6 +7,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(ExternalProject)
 
+set(ENABLE_DOCTESTS ON)
+
+if(ENABLE_DOCTESTS)
+    add_definitions(-DENABLE_DOCTEST_IN_LIBRARY)
+    include(FetchContent)
+    FetchContent_Declare(
+            DocTest
+            GIT_REPOSITORY "https://github.com/onqtam/doctest"
+    )
+
+    FetchContent_MakeAvailable(DocTest)
+    include_directories(${DOCTEST_INCLUDE_DIR})
+endif()
+
 ExternalProject_Add(
         duckdb_ep
         PREFIX "${CMAKE_BINARY_DIR}/lib/duckdb"
@@ -26,7 +40,7 @@ ExternalProject_Add(
         -DLEAN=ON
         DOWNLOAD_COMMAND ""
         UPDATE_COMMAND ""
-        BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${CMAKE_BUILD_PARALLEL_LEVEL} duckdb_static
+        BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${CMAKE_BUILD_PARALLEL_LEVEL} duckdb_static duckdb
         BUILD_BYPRODUCTS
         <INSTALL_DIR>/lib/libduckdb_static.a
 )
@@ -44,9 +58,10 @@ set_property(TARGET duckdb APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${DUCKD
 #        INTERFACE "${INSTALL_DIR}/lib/libduckdb_static.a"
 #        )
 #set_target_properties(duckdb PROPERTIES IMPORTED_LOCATION ${DUCKDB_LIB_PATH})
-set_target_properties(duckdb PROPERTIES IMPORTED_LOCATION /Users/massimo/Downloads/new_proj/cmake-build-debug/lib/duckdb/install/lib/libduckdb.dylib)
+set_target_properties(duckdb PROPERTIES IMPORTED_LOCATION ${INSTALL_DIR}/lib/libduckdb.dylib)
 
 add_dependencies(duckdb duckdb_ep)
 
-add_executable(Test main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h)
+add_executable(Test main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp)
 target_link_libraries(Test duckdb)
+target_link_libraries(Test doctest)

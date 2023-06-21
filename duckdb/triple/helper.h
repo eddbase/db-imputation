@@ -9,7 +9,7 @@
 
 namespace Triple {
 
-    void register_functions(duckdb::ClientContext &context, size_t n_con_columns, size_t n_cat_columns);
+    void register_functions(duckdb::ClientContext &context, const std::vector<size_t> &n_con_columns, const std::vector<size_t> &n_cat_columns);
 
 } // Triple
 

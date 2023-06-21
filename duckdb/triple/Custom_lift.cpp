@@ -5,6 +5,7 @@
 #include "Custom_lift.h"
 #include "From_duckdb.h"
 #include <duckdb/function/scalar/nested_functions.hpp>
+#include <duckdb/planner/expression/bound_function_expression.hpp>
 
 #include <iostream>
 
@@ -47,13 +48,13 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[1], num_cols*size);
         duckdb::ListVector::SetListSize(*result_children[1], num_cols*size);
         auto lin_vec_num = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[1]);//sec child (lin. aggregates)
-        auto lin_vec_num_data = (float *)  duckdb::ListVector::GetEntry(*result_children[1]).GetData();
+        auto lin_vec_num_data = duckdb::FlatVector::GetData<float>(duckdb::ListVector::GetEntry(*result_children[1]));
 
         //get result struct for categorical
         duckdb::ListVector::Reserve(*result_children[3], cat_cols*size);
         duckdb::ListVector::SetListSize(*result_children[3], cat_cols*size);
         auto lin_vec_cat = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[3]);
-        Vector &cat_relations_vector = duckdb::ListVector::GetEntry(*result_children[3]);
+        Vector cat_relations_vector = duckdb::ListVector::GetEntry(*result_children[3]);
 
         size_t curr_numerical = 0;
         size_t curr_categorical = 0;
@@ -61,18 +62,19 @@ namespace Triple {
         for (idx_t j=0;j<columns;j++){
             auto col_type = in_data[j].GetType();
             if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {
-                float *column_data = (float *)in_data[j].GetData();//input column
+
+                const float *column_data = UnifiedVectorFormat::GetData<float>(input_data[j]);// input_data[j].GetData();//input column
                 for (idx_t i = 0; i < size; i++) {
-                    lin_vec_num_data[curr_numerical + (i * num_cols)] = column_data[i];
+                    lin_vec_num_data[curr_numerical + (i * num_cols)] = column_data[input_data[j].sel->get_index(i)];
                 }
                 curr_numerical++;
             }
             else{//empty relations
-                int *column_data = (int *)in_data[j].GetData();//input column
+                const int *column_data = UnifiedVectorFormat::GetData<int>(input_data[j]);// (int *)in_data[j].GetData();//input column
                 for (idx_t i = 0; i < size; i++) {
                     vector<Value> cat_vals = {};
                     child_list_t<Value> struct_values;
-                    struct_values.emplace_back("key", Value(column_data[i]));
+                    struct_values.emplace_back("key", Value(column_data[input_data[j].sel->get_index(i)]));
                     struct_values.emplace_back("value", Value(1));
                     cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                     cat_relations_vector.SetValue(curr_categorical + (i * cat_cols), duckdb::Value::LIST(cat_vals));
@@ -88,21 +90,21 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[2], ((num_cols*(num_cols+1))/2) * size);
         duckdb::ListVector::SetListSize(*result_children[2], ((num_cols*(num_cols+1))/2) * size);
         auto quad_vec = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[2]);//sec child (lin. aggregates)
-        auto quad_vec_data = (float *) duckdb::ListVector::GetEntry(*result_children[2]).GetData();
+        auto quad_vec_data = duckdb::FlatVector::GetData<float>(duckdb::ListVector::GetEntry(*result_children[2]));
 
         //numerical * numerical
         int col_idx = 0;
         for (idx_t j=0;j<columns;j++){
             auto col_type = in_data[j].GetType();
             if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {
-                float *column_data = (float *) in_data[j].GetData();//input column //todo potential problems
+                const float *column_data = UnifiedVectorFormat::GetData<float>(input_data[j]);//.GetData();//input column //todo potential problems
                 for (idx_t k = j; k < columns; k++) {
                     auto col_type = in_data[k].GetType();
                     if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {
-                        float *sec_column_data = (float *) in_data[k].GetData();//numerical * numerical
+                        const float *sec_column_data = UnifiedVectorFormat::GetData<float>(input_data[k]);//numerical * numerical
                         for (idx_t i = 0; i < size; i++) {
                             quad_vec_data[col_idx + (i * num_cols * (num_cols + 1) / 2)] =
-                                    column_data[i] * sec_column_data[i];
+                                    column_data[input_data[j].sel->get_index(i)] * sec_column_data[input_data[k].sel->get_index(i)];
                         }
                         col_idx++;
                     }
@@ -122,16 +124,16 @@ namespace Triple {
             auto col_type = in_data[j].GetType();
             if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {
                 //numerical column
-                float *num_column_data = (float *) in_data[j].GetData();//col1
+                const float *num_column_data = UnifiedVectorFormat::GetData<float>(input_data[j]);//.GetData();//col1
                 for (idx_t k = 0; k < columns; k++) {
                     auto col_type = in_data[k].GetType();
                     if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//numerical * categorical
-                        int *cat_column_data = (int *) in_data[k].GetData();//categorical
+                        const int *cat_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);//.GetData();//categorical
                         for (idx_t i = 0; i < size; i++) {
                             vector<Value> cat_vals = {};
                             child_list_t<Value> struct_values;
-                            struct_values.emplace_back("key", Value(cat_column_data[i]));
-                            struct_values.emplace_back("value", Value(num_column_data[i]));
+                            struct_values.emplace_back("key", Value(cat_column_data[input_data[k].sel->get_index(i)]));
+                            struct_values.emplace_back("value", Value(num_column_data[input_data[j].sel->get_index(i)]));
                             cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                             cat_relations_vector_num_quad.SetValue(col_idx + (i * (cat_cols * num_cols)), duckdb::Value::LIST(cat_vals));
                         }
@@ -153,16 +155,16 @@ namespace Triple {
         for (idx_t j=0;j<columns;j++){
             auto col_type = in_data[j].GetType();
             if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {
-                int *cat_1 = (int *) in_data[j].GetData();//col1
+                const int *cat_1 = UnifiedVectorFormat::GetData<int>(input_data[j]);//.GetData();//col1
                 for (idx_t k = j; k < columns; k++) {
                     auto col_type = in_data[k].GetType();
                     if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical * categorical
-                        int *cat_2 = (int *) in_data[k].GetData();//categorical
+                        const int *cat_2 = UnifiedVectorFormat::GetData<int> (input_data[k]); //.GetData();//categorical
                         for (idx_t i = 0; i < size; i++) {
                             vector<Value> cat_vals = {};
                             child_list_t<Value> struct_values;
-                            struct_values.emplace_back("key1", Value(cat_1[i]));
-                            struct_values.emplace_back("key2", Value(cat_2[i]));
+                            struct_values.emplace_back("key1", Value(cat_1[input_data[j].sel->get_index(i)]));
+                            struct_values.emplace_back("key2", Value(cat_2[input_data[k].sel->get_index(i)]));
                             struct_values.emplace_back("value", Value(1));
                             cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
                             cat_relations_vector_cat_quad.SetValue(col_idx + (i * ((cat_cols * (cat_cols + 1)) / 2)), duckdb::Value::LIST(cat_vals));
