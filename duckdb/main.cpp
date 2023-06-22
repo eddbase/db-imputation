@@ -14,6 +14,8 @@
 #include "ML/Regression_predict.h"
 #include <chrono>
 
+#include "ML/lda.h"
+
 #ifdef ENABLE_DOCTEST_IN_LIBRARY
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "doctest/doctest.h"
@@ -40,7 +42,6 @@ int main(int argc, char* argv[]){
         return res;                   // propagate the result of the tests
     // your code goes here
     #endif
-    return 0;
     duckdb::DuckDB db(":memory:");
     duckdb::Connection con(db);
 
@@ -52,15 +53,20 @@ int main(int argc, char* argv[]){
     std::string table_name = "join_table";
     size_t mice_iters = 1;
 
-    con_columns = {"b", "c"};
-    cat_columns = {"d", "e"};
+    con_columns = {"a","b", "c"};
+    cat_columns = {"d","e", "f"};
     Triple::register_functions(*con.context, {con_columns.size()}, {cat_columns.size()});
 
     std::string ttt = "CREATE TABLE test(gb INTEGER, a FLOAT, b FLOAT, C FLOAT, D INTEGER, E INTEGER, F INTEGER);";
     con.Query(ttt);
     ttt = "INSERT INTO test VALUES (1,1,2,3,4,5,6), (1,5,6,7,8,9,10), (2,2,1,3,4,6,8), (2,5,7,6,8,10,12), (2,2,1,3,4,6,8)";
     con.Query(ttt);
-    con.Query("SELECT * FROM test")->Print();
+    auto triple = con.Query("SELECT triple_sum_no_lift(a,b,c,d,e,f) FROM test")->GetValue(0,0);
+    auto train_params =  lda_train(triple, 0, 0.4);
+    train_params.Print();
+    std::cout<<"SELECT predict_lda("+train_params.ToString()+"::FLOAT[], a, b,c,e,f) FROM test"<<std::endl;
+    con.Query("SELECT predict_lda("+train_params.ToString()+"::FLOAT[], a, b,c,e,f) FROM test")->Print();
+    return 0;
     //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
     auto s1 = con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->GetValue(0,0).ToString();
     con.Query("SELECT lift(a) FROM test where gb = 2")->Print();

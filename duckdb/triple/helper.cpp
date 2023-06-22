@@ -10,6 +10,7 @@
 #include "Custom_lift.h"
 #include "Sum_no_lift.h"
 #include "Triple_sub.h"
+#include "../ML/lda_impute.h"
 
 #include <duckdb/function/scalar/nested_functions.hpp>
 #include <duckdb/function/aggregate_function.hpp>
@@ -37,7 +38,7 @@ namespace Triple {
             for (int i = 0; i < x.second; i++)
                 args_sum_no_lift.push_back(duckdb::LogicalType::INTEGER);
             std::string xx = "";
-            if (fun_type_sizes.size() > 0){
+            if (fun_type_sizes.size() > 1){
                 xx = std::to_string(s);
                 s++;
             }
@@ -66,6 +67,18 @@ namespace Triple {
         duckdb::CreateScalarFunctionInfo info(fun);
         info.schema = DEFAULT_SCHEMA;
         context.RegisterFunction(info);
+
+        //impute LDA
+
+        duckdb::ScalarFunction lda_predict("predict_lda", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::INTEGER, LDA_impute, LDA_impute_bind, nullptr,
+                                   LDA_impute_stats);
+        lda_predict.varargs = duckdb::LogicalType::ANY;
+        lda_predict.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
+        lda_predict.serialize = duckdb::VariableReturnBindData::Serialize;
+        lda_predict.deserialize = duckdb::VariableReturnBindData::Deserialize;
+        duckdb::CreateScalarFunctionInfo lda_p(lda_predict);
+        lda_p.schema = DEFAULT_SCHEMA;
+        context.RegisterFunction(lda_p);
 
         //sub triples
 
