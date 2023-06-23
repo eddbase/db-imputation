@@ -71,7 +71,7 @@ set_target_properties(duckdb PROPERTIES IMPORTED_LOCATION ${INSTALL_DIR}/lib/lib
 
 add_dependencies(duckdb duckdb_ep)
 
-add_executable(Test main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp ML/lda.cpp ML/lda.h ML/utils.cpp ML/utils.h ML/lda_impute.cpp ML/lda_impute.h)
+add_executable(Test main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp ML/lda.cpp ML/lda.h ML/utils.cpp ML/utils.h ML/lda_impute.cpp ML/lda_impute.h tests/test_lda.cpp)
 target_link_libraries(Test duckdb)
 target_link_libraries(Test doctest)
 target_link_libraries(Test ${lapackblas_libraries})

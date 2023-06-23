@@ -96,7 +96,8 @@ void build_sum_vector(const cofactor &cofactor, size_t num_total_params, int lab
     size_t idx_in = 0;
     for (size_t curr_cat_var = 0; curr_cat_var < cofactor.num_categorical_vars; curr_cat_var++)
     {
-        for (size_t other_cat_var = curr_cat_var + 1; other_cat_var < cofactor.num_categorical_vars; other_cat_var++)
+        idx_in++;
+        for (size_t other_cat_var = curr_cat_var+1; other_cat_var < cofactor.num_categorical_vars; other_cat_var++)//ignore self multiplication
         {
             size_t other_cat;
             int idx_other;
@@ -153,12 +154,13 @@ duckdb::Value lda_train(const duckdb::Value &triple, size_t label, double shrink
     //count distinct classes in var
     size_t num_categories = cofactor.lin_cat[label].size();;
 
-    double *sum_vector = new double [num_params * num_categories];
-    double *mean_vector = new double [num_params * num_categories];
-    double *coef = new double [num_params * num_categories];//from mean to coeff
+    double *sum_vector = new double [num_params * num_categories]();
+    double *mean_vector = new double [num_params * num_categories]();
+    double *coef = new double [num_params * num_categories]();//from mean to coeff
 
     build_sigma_matrix(cofactor, num_params, label, sigma_matrix);
     build_sum_vector(cofactor, num_params, label, label, sum_vector);
+
 
     //build covariance matrix and mean vectors
     for (size_t i = 0; i < num_categories; i++) {
@@ -189,12 +191,6 @@ duckdb::Value lda_train(const duckdb::Value &triple, size_t label, double shrink
         sigma_matrix[(j*num_params)+j] += shrinkage * mu;
     }
 
-    //normalize with / count
-    for (size_t j = 0; j < num_params; j++) {
-        for (size_t k = 0; k < num_params; k++) {
-            sigma_matrix[(j*num_params)+k] /= (double)(cofactor.N);//or / cofactor->count - num_categories
-        }
-    }
 
     //Solve with LAPACK
     int err, lwork, rank;
@@ -206,12 +202,12 @@ duckdb::Value lda_train(const duckdb::Value &triple, size_t label, double shrink
     int num_params_int = (int) num_params;
     int num_categories_int = (int) num_categories;
 
-
     lwork = -1;
     dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, &wkopt, &lwork, iwork, &err);
     lwork = (int)wkopt;
-    work = new double [lwork];
+    work = new double [lwork]();
     dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, work, &lwork, iwork, &err);
+
     //elog(WARNING, "finished with err: %d", err);
 
     //compute intercept
@@ -227,8 +223,6 @@ duckdb::Value lda_train(const duckdb::Value &triple, size_t label, double shrink
         intercept[j] = (res[(j*num_categories)+j] * (-0.5)) + log(sum_vector[j * num_params] / cofactor.N);
     }
 
-    // export in pgpsql. Return values
-    //float *d = new float [num_categories + 2 + (num_params * num_categories)];
     duckdb::vector<duckdb::Value> d = {};
 
     d.push_back(duckdb::Value((float)num_params));

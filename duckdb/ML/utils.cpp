@@ -154,9 +154,6 @@ void build_sigma_matrix(const cofactor &cofactor, size_t matrix_size, int label_
         cat_vars_idxs[i + 1] = cat_vars_idxs[i] + relation_data.size();
     }
 
-    for(int i=0; i<num_categories; i++)
-        std::cout<<cat_array[i]<<" - ";
-
 
     // count * categorical (group by A, group by B, ...)
     for (size_t i = 0; i < cofactor.num_categorical_vars; i++)
@@ -230,7 +227,6 @@ void build_sigma_matrix(const cofactor &cofactor, size_t matrix_size, int label_
             if (label_categorical_sigma >= 0 && (((size_t)label_categorical_sigma) == curr_cat_var || ((size_t)label_categorical_sigma) == other_cat_var))
             {
                 //skip this variable
-                //todo problems with var. skipping
                 continue;
             }
 

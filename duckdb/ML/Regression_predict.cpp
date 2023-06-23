@@ -108,10 +108,10 @@ namespace Triple {
                 //for(size_t j=2; j<columns;j++){
                 //    new_val += duckdb::FlatVector::GetData(args.data[j])[i];
                 //}
-                std::cout<<"CUrrent value: "<<update_col[i]<<"\n";
+                //std::cout<<"CUrrent value: "<<update_col[i]<<"\n";
                 update_col[i] = new_val;
                 result_ptr[i] = new_val;
-                std::cout<<"New value: "<<update_col[i];
+                //std::cout<<"New value: "<<update_col[i];
                 //state.intermediate_chunk.SetValue(1, i, Value((float)666.4));
             }
             else
