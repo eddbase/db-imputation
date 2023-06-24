@@ -29,7 +29,8 @@ TEST_CASE("lift") {
         std::string cat_columns_query;
         std::string predict_column_query;
         size_t label = 0;//label inside categoricals
-        query_categorical(cat_columns, con, label, cat_columns_query, predict_column_query);
+        build_list_of_uniq_categoricals(cat_columns, con, "test");
+        query_categorical(cat_columns, label, cat_columns_query, predict_column_query);
         auto triple = con.Query("SELECT triple_sum_no_lift(a,b,c,d,e,f) FROM test")->GetValue(0,0);
         auto train_params =  lda_train(triple, label, 0.4);
         auto res = con.Query("SELECT list_extract("+predict_column_query+", predict_lda("+train_params.ToString()+"::FLOAT[], a, b,c,"+cat_columns_query+")+1) FROM test");

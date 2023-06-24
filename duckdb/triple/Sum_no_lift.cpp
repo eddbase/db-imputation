@@ -107,9 +107,6 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             state->quad_cat_cat = new std::map<std::pair<int, int>, float>[cat_cols * (cat_cols + 1)/2];
         }
 
-        //todo implement this for everything
-        //todo add overload operator in helper
-        //todo implement sum over triples
 
         for(idx_t k=0; k<cols; k++) {
             auto col_type = inputs[k].GetType();

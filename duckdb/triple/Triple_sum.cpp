@@ -494,7 +494,7 @@ namespace Triple {
         const vector<Value> &cat_linear_1 = duckdb::ListValue::GetChildren(first_triple_children[3]);
         const vector<Value> &cat_linear_2 = duckdb::ListValue::GetChildren(sec_triple_children[3]);
         vector<Value> cat_lin = {};
-        for(idx_t i=0;i<linear_1.size();i++) {//for each cat. column copy into map
+        for(idx_t i=0;i<cat_linear_1.size();i++) {//for each cat. column copy into map
             const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(cat_linear_1[i]);
             const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(cat_linear_2[i]);
             cat_lin.push_back(duckdb::Value::LIST(sum_list_of_structs(pairs_cat_col_1, pairs_cat_col_2)));
@@ -506,7 +506,7 @@ namespace Triple {
         const vector<Value> &num_cat_1 = duckdb::ListValue::GetChildren(first_triple_children[4]);
         const vector<Value> &num_cat_2 = duckdb::ListValue::GetChildren(sec_triple_children[4]);
         vector<Value> num_cat_res = {};
-        for(idx_t i=0;i<linear_1.size();i++) {//for each cat. column copy into map
+        for(idx_t i=0;i<num_cat_1.size();i++) {//for each cat. column copy into map
             const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(num_cat_1[i]);
             const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(num_cat_2[i]);
             num_cat_res.push_back(duckdb::Value::LIST(sum_list_of_structs(pairs_cat_col_1, pairs_cat_col_2)));
@@ -518,7 +518,7 @@ namespace Triple {
         const vector<Value> &cat_cat_1 = duckdb::ListValue::GetChildren(first_triple_children[5]);
         const vector<Value> &cat_cat_2 = duckdb::ListValue::GetChildren(sec_triple_children[5]);
         vector<Value> cat_cat_res = {};
-        for(idx_t i=0;i<linear_1.size();i++) {//for each cat. column copy into map
+        for(idx_t i=0;i<cat_cat_1.size();i++) {//for each cat. column copy into map
             const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(cat_cat_1[i]);
             const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(cat_cat_2[i]);
             cat_cat_res.push_back(duckdb::Value::LIST(sum_list_of_structs_key2(pairs_cat_col_1, pairs_cat_col_2)));
