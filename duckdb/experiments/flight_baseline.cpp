@@ -11,7 +11,10 @@
 void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters){
 
     build_list_of_uniq_categoricals(cat_columns, con, table_name);
+    auto begin = std::chrono::high_resolution_clock::now();
     init_baseline(table_name, con_columns_nulls, cat_columns_nulls, con);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout<<"Time prepare dataset (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
     //start MICE
 
     for (int mice_iter =0; mice_iter<mice_iters;mice_iter++){
@@ -27,11 +30,11 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
 
             delta_query.pop_back();
             delta_query.pop_back();
-            delta_query += " ) FROM " + table_name + " WHERE "+col_null+"_IS_NULL IS FALSE";
+            delta_query += " ) FROM " + table_name + "_complete WHERE "+col_null+"_IS_NULL IS FALSE";
 
-            auto begin = std::chrono::high_resolution_clock::now();
+            begin = std::chrono::high_resolution_clock::now();
             duckdb::Value train_triple = con.Query(delta_query)->GetValue(0,0);
-            auto end = std::chrono::high_resolution_clock::now();
+            end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time delta cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //train
@@ -52,19 +55,11 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
                 new_val+="("+ std::to_string((float)params[i+con_columns.size()])+" * "+cat_columns[i]+")+";
             }
             new_val.pop_back();
-            //update 1 missing value
-            std::cout<<"CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
+            //update
+            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null);
-            con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
-            end = std::chrono::high_resolution_clock::now();
-            std::cout<<"Time updating ==1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
-
-            //update 2 missing values
-            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
-            begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
-            con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");
+            con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
         }
@@ -78,7 +73,7 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
 
             delta_query.pop_back();
             delta_query.pop_back();
-            delta_query += " ) FROM "+table_name+" WHERE "+col_null+"_IS_NULL IS FALSE";
+            delta_query += " ) FROM "+table_name+"_complete WHERE "+col_null+"_IS_NULL IS FALSE";
 
             //execute delta
             auto begin = std::chrono::high_resolution_clock::now();
@@ -107,20 +102,11 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
             num_cols_query.pop_back();
             std::string select_stmt = (" list_extract("+predict_column_query+", predict_lda("+train_params.ToString()+"::FLOAT[], "+num_cols_query+", "+cat_columns_query+")+1)");
 
-            //predict query
-            //update 1 missing value
-            std::cout<<"CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
-            begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null);
-            con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;");//not adding b, replace s with rep
-            end = std::chrono::high_resolution_clock::now();
-            std::cout<<"Time updating =1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
-
             //update 2 missing values
-            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
+            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
-            con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");
+            con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<". Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 

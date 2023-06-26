@@ -147,6 +147,7 @@ void init_baseline(const std::string &table_name, const std::vector<std::string>
     query.pop_back();
     query += " FROM "+table_name+" LIMIT 10000";
     auto collection = con.Query(query);
+    con.Query("CREATE TABLE "+table_name+"_complete AS SELECT * FROM "+table_name);
     std::vector<float> avg = {};
     for (idx_t col_index = 0; col_index<con_columns_nulls.size()+cat_columns_nulls.size(); col_index++){
         duckdb::Value v = collection->GetValue(col_index, 0);
@@ -162,24 +163,24 @@ void init_baseline(const std::string &table_name, const std::vector<std::string>
         float rep = avg[col_index];
         std::string query = "CREATE TABLE rep AS SELECT "+con_columns_nulls[col_index]+" IS NULL FROM "+table_name;
         con.Query(query);
-        con.Query("ALTER TABLE "+table_name+" ADD COLUMN "+con_columns_nulls[col_index]+"_IS_NULL BOOLEAN DEFAULT false;")->Print();
-        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+con_columns_nulls[col_index]+"_IS_NULL SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+        con.Query("ALTER TABLE "+table_name+"_complete ADD COLUMN "+con_columns_nulls[col_index]+"_IS_NULL BOOLEAN DEFAULT false;")->Print();
+        con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+con_columns_nulls[col_index]+"_IS_NULL SET DEFAULT 10;")->Print();//not adding b, replace s with rep
 
         query = "CREATE TABLE rep AS SELECT COALESCE("+con_columns_nulls[col_index]+" , "+ std::to_string(rep) +") FROM "+table_name;
         con.Query(query);
-        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+con_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+        con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+con_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
     }
 
     for (idx_t col_index = 0; col_index<cat_columns_nulls.size(); col_index++){
         int rep = (int) avg[col_index+con_columns_nulls.size()];
         std::string query = "CREATE TABLE rep AS SELECT "+cat_columns_nulls[col_index]+" IS NULL FROM "+table_name;
         con.Query(query);
-        con.Query("ALTER TABLE "+table_name+" ADD COLUMN "+cat_columns_nulls[col_index]+"_IS_NULL BOOLEAN DEFAULT false;")->Print();
-        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+cat_columns_nulls[col_index]+"_IS_NULL SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+        con.Query("ALTER TABLE "+table_name+"_complete ADD COLUMN "+cat_columns_nulls[col_index]+"_IS_NULL BOOLEAN DEFAULT false;")->Print();
+        con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+cat_columns_nulls[col_index]+"_IS_NULL SET DEFAULT 10;")->Print();//not adding b, replace s with rep
 
         query = "CREATE TABLE rep AS SELECT COALESCE("+cat_columns_nulls[col_index]+" , "+ std::to_string(rep) +") FROM "+table_name;
         con.Query(query);
-        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+cat_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+        con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+cat_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
     }
 
 }

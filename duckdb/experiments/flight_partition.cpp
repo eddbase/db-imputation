@@ -29,7 +29,10 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
 
     build_list_of_uniq_categoricals(cat_columns, con, table_name);
     //partition according to n. missing values
+    auto begin = std::chrono::high_resolution_clock::now();
     partition(table_name, con_columns, con_columns_nulls, cat_columns, cat_columns_nulls, con);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout<<"Time partitioning (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     //run MICE
     //compute main cofactor
@@ -60,9 +63,9 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
     query.pop_back();
     query += " FROM "+table_name+"_complete_2)";
 
-    auto begin = std::chrono::high_resolution_clock::now();
+    begin = std::chrono::high_resolution_clock::now();
     duckdb::Value full_triple = con.Query(query)->GetValue(0,0);
-    auto end = std::chrono::high_resolution_clock::now();
+    end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     //con.Query("SELECT lift(WHEELS_ON_HOUR) FROM join_table")->Print();
