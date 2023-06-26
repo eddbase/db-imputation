@@ -10,6 +10,8 @@
 
 #include <iostream>
 #include <map>
+#include <unordered_map>
+#include <boost/functional/hash.hpp>
 
 duckdb::unique_ptr<duckdb::FunctionData>
 Triple::SumNoLiftBind(duckdb::ClientContext &context, duckdb::AggregateFunction &function,
@@ -102,9 +104,10 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             for(idx_t k=0; k<(num_cols*(num_cols+1))/2; k++)
                 state->quadratic_agg[k] = 0;
 
-            state->lin_cat = new std::map<int, float>[cat_cols];
-            state->quad_num_cat = new std::map<int, float>[num_cols * cat_cols];
-            state->quad_cat_cat = new std::map<std::pair<int, int>, float>[cat_cols * (cat_cols + 1)/2];
+            state->lin_cat = new std::unordered_map<int, float>[cat_cols];
+            state->quad_num_cat = new std::unordered_map<int, float>[num_cols * cat_cols];
+
+            state->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<pair<int, int>>>[cat_cols * (cat_cols + 1)/2];
         }
 
 
@@ -116,7 +119,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             }
             else{//sum categorical
                 int in_col_val = UnifiedVectorFormat::GetData<int>(input_data[k])[input_data[k].sel->get_index(j)];
-                std::map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
+                std::unordered_map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
                 auto pos = col_vals.find(in_col_val);
                 if (pos == col_vals.end())
                     col_vals[in_col_val] = 1;
@@ -161,7 +164,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
                     const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
-                        std::map<int, float> &vals = state->quad_num_cat[col_idx];
+                        std::unordered_map<int, float> &vals = state->quad_num_cat[col_idx];
                         int key = sec_column_data[input_data[k].sel->get_index(i)];
                         auto pos = vals.find(key);
                         if (pos == vals.end())
@@ -187,7 +190,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
                     const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
-                        std::map<std::pair<int, int>, float> &vals = state->quad_cat_cat[col_idx];
+                        auto &vals = state->quad_cat_cat[col_idx];
                         auto entry = std::pair<int, int>(first_column_data[input_data[j].sel->get_index(i)], sec_column_data[input_data[k].sel->get_index(i)]);
                         auto pos = vals.find(entry);
                         if (pos == vals.end())
@@ -226,9 +229,9 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
             for(idx_t k=0; k<(state->num_attributes*(state->num_attributes+1))/2; k++)
                 combined_ptr[i]->quadratic_agg[k] = 0;
 
-            combined_ptr[i]->lin_cat = new std::map<int, float>[state->cat_attributes];
-            combined_ptr[i]->quad_num_cat = new std::map<int, float>[state->num_attributes * state->cat_attributes];
-            combined_ptr[i]->quad_cat_cat = new std::map<std::pair<int, int>, float>[state->cat_attributes * (state->cat_attributes + 1)/2];
+            combined_ptr[i]->lin_cat = new std::unordered_map<int, float>[state->cat_attributes];
+            combined_ptr[i]->quad_num_cat = new std::unordered_map<int, float>[state->num_attributes * state->cat_attributes];
+            combined_ptr[i]->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[state->cat_attributes * (state->cat_attributes + 1)/2];
         }
 
         //SUM NUMERICAL STATES
@@ -339,7 +342,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         const auto row_id = i + offset;
         for (int j = 0; j < state->cat_attributes; j++) {
             vector<Value> cat_vals = {};
-            for (auto const& state_val : state->lin_cat[j]){
+            std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
+            for (auto const& state_val : ordered){
                 child_list_t<Value> struct_values;
                 struct_values.emplace_back("key", Value(state_val.first));
                 struct_values.emplace_back("value", Value(state_val.second));
@@ -362,8 +366,9 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         auto state = states[sdata.sel->get_index(i)];
         const auto row_id = i + offset;
         for (int j = 0; j < state->cat_attributes * state->num_attributes; j++) {
+            std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
             vector<Value> cat_vals = {};
-            for (auto const& state_val : state->quad_num_cat[j]){
+            for (auto const& state_val : ordered){
                 child_list_t<Value> struct_values;
                 struct_values.emplace_back("key", Value(state_val.first));
                 struct_values.emplace_back("value", Value(state_val.second));
@@ -386,7 +391,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         const auto row_id = i + offset;
         for (int j = 0; j < state->cat_attributes * (state->cat_attributes+1)/2; j++) {
             vector<Value> cat_vals = {};
-            for (auto const& state_val : state->quad_cat_cat[j]){
+            std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
+            for (auto const& state_val : ordered){
                 child_list_t<Value> struct_values;
                 struct_values.emplace_back("key1", Value(state_val.first.first));
                 struct_values.emplace_back("key2", Value(state_val.first.second));

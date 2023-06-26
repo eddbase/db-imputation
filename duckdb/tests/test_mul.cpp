@@ -1,7 +1,7 @@
 //
 // Created by Massimo Perini on 20/06/2023.
 //
-#include "doctest.h"
+#include <doctest/doctest.h>
 #include <duckdb.hpp>
 #include "../triple/helper.h"
 

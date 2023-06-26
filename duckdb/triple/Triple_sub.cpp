@@ -281,8 +281,8 @@ namespace Triple {
 
         const vector<Value> &linear_1 = duckdb::ListValue::GetChildren(first_triple_children[1]);
         const vector<Value> &linear_2 = duckdb::ListValue::GetChildren(sec_triple_children[1]);
-        first_triple_children[1].Print();
-        sec_triple_children[1].Print();
+        //first_triple_children[1].Print();
+        //sec_triple_children[1].Print();
         vector<Value> lin = {};
         for(idx_t i=0;i<linear_1.size();i++)
             lin.push_back(Value(linear_1[i].GetValue<float>() - linear_2[i].GetValue<float>()));

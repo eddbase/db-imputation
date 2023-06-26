@@ -1,0 +1,130 @@
+//
+// Created by Massimo Perini on 26/06/2023.
+//
+
+#include "flight_baseline.h"
+#include <iostream>
+#include "../partition.h"
+#include "../ML/lda.h"
+#include "../ML/Regression.h"
+#include <iterator>
+void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters){
+
+    build_list_of_uniq_categoricals(cat_columns, con, table_name);
+    init_baseline(table_name, con_columns_nulls, cat_columns_nulls, con);
+    //start MICE
+
+    for (int mice_iter =0; mice_iter<mice_iters;mice_iter++){
+        //continuous cols
+        std::vector<std::string> testtest = {"WHEELS_ON_HOUR"};
+        for(auto &col_null : testtest) {
+            //select
+            std::string delta_query = "SELECT triple_sum_no_lift(";
+            for (auto &col: con_columns)
+                delta_query += col + ", ";
+            for (auto &col: cat_columns)
+                delta_query += col + ", ";
+
+            delta_query.pop_back();
+            delta_query.pop_back();
+            delta_query += " ) FROM " + table_name + " WHERE "+col_null+"_IS_NULL IS FALSE";
+
+            auto begin = std::chrono::high_resolution_clock::now();
+            duckdb::Value train_triple = con.Query(delta_query)->GetValue(0,0);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time delta cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            //train
+            auto it = std::find(con_columns.begin(), con_columns.end(), col_null);
+            size_t label_index = it - con_columns.begin();
+            std::cout<<"Label index "<<label_index<<"\n";
+
+            std::vector <double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
+
+            //predict query
+            std::string new_val = "";
+            for(size_t i=0; i< con_columns.size(); i++) {
+                if (i==label_index)
+                    continue;
+                new_val+="("+ std::to_string((float)params[i])+" * "+con_columns[i]+")+";
+            }
+            for(size_t i=0; i< cat_columns.size(); i++) {
+                new_val+="("+ std::to_string((float)params[i+con_columns.size()])+" * "+cat_columns[i]+")+";
+            }
+            new_val.pop_back();
+            //update 1 missing value
+            std::cout<<"CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null);
+            con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time updating ==1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            //update 2 missing values
+            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
+            con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+        }
+        std::cout<<"Starting categorical variables..."<<std::endl;
+        for(auto &col_null : cat_columns_nulls) {
+            std::string delta_query = "SELECT triple_sum_no_lift(";
+            for (auto &col: con_columns)
+                delta_query += col + ", ";
+            for (auto &col: cat_columns)
+                delta_query += col + ", ";
+
+            delta_query.pop_back();
+            delta_query.pop_back();
+            delta_query += " ) FROM "+table_name+" WHERE "+col_null+"_IS_NULL IS FALSE";
+
+            //execute delta
+            auto begin = std::chrono::high_resolution_clock::now();
+            duckdb::Value train_triple = con.Query(delta_query)->GetValue(0,0);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time delta cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            //train
+            auto it = std::find(cat_columns.begin(), cat_columns.end(), col_null);
+            size_t label_index = it - cat_columns.begin();
+            std::cout<<"Categorical label index "<<label_index<<"\n";
+            begin = std::chrono::high_resolution_clock::now();
+            auto train_params =  lda_train(train_triple, label_index, 0.4);
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Train Time (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            std::string cat_columns_query;
+            std::string predict_column_query;
+            query_categorical(cat_columns, label_index, cat_columns_query, predict_column_query);
+            //impute
+            std::string delimiter = ", ";
+            std::stringstream  s;
+            copy(con_columns.begin(),con_columns.end(), std::ostream_iterator<std::string>(s,delimiter.c_str()));
+            std::string num_cols_query = s.str();
+            num_cols_query.pop_back();
+            num_cols_query.pop_back();
+            std::string select_stmt = (" list_extract("+predict_column_query+", predict_lda("+train_params.ToString()+"::FLOAT[], "+num_cols_query+", "+cat_columns_query+")+1)");
+
+            //predict query
+            //update 1 missing value
+            std::cout<<"CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null);
+            con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;");//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time updating =1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            //update 2 missing values
+            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
+            con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<". Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+        }
+    }
+
+}

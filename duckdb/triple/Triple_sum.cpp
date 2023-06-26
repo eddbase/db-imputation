@@ -114,9 +114,9 @@ namespace Triple {
                 state->quadratic_agg = new float[(num_attr*(num_attr+1))/2];
                 for(idx_t k=0; k<(num_attr*(num_attr+1))/2; k++)
                     state->quadratic_agg[k] = 0;
-                state->lin_cat = new std::map<int, float>[cat_attr];
-                state->quad_num_cat = new std::map<int, float>[cat_attr * cat_attr];
-                state->quad_cat_cat = new std::map<std::pair<int, int>, float>[cat_attr * (cat_attr + 1)/2];
+                state->lin_cat = new std::unordered_map<int, float>[cat_attr];
+                state->quad_num_cat = new std::unordered_map<int, float>[cat_attr * cat_attr];
+                state->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[cat_attr * (cat_attr + 1)/2];
             }
 
             for(idx_t k=0; k<num_attr; k++) {
@@ -154,7 +154,7 @@ namespace Triple {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<cat_attr; k++){
                 const vector<duckdb::Value> list_of_struct = duckdb::ListValue::GetChildren(c4.GetValue(k + (j*cat_attr)));//[[{a,1},{b,1}]]
-                std::map<int, float> &col_vals_state = state->lin_cat[k];
+                std::unordered_map<int, float> &col_vals_state = state->lin_cat[k];
                 for (size_t item = 0; item < list_of_struct.size(); item++){//for each column values
                     const vector<Value> &v_struct= duckdb::StructValue::GetChildren(list_of_struct[item]);
                     int key = v_struct[0].GetValue<int>();
@@ -174,7 +174,7 @@ namespace Triple {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<cat_attr * num_attr; k++){
                 const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(c5.GetValue(k + (j*(cat_attr * num_attr))));
-                std::map<int, float> &col_vals = state->quad_num_cat[k];
+                std::unordered_map<int, float> &col_vals = state->quad_num_cat[k];
                 for (size_t item = 0; item < children.size(); item++){
                     const vector<Value> &struct_children = duckdb::StructValue::GetChildren(children[item]);
                     int key = struct_children[0].GetValue<int>();
@@ -193,7 +193,7 @@ namespace Triple {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<(cat_attr * (cat_attr+1))/2; k++){
                 const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(c6.GetValue(k + (j*(cat_attr * (cat_attr+1))/2)));
-                std::map<std::pair<int, int>, float> &col_vals = state->quad_cat_cat[k];
+                auto &col_vals = state->quad_cat_cat[k];
                 for (size_t item = 0; item < children.size(); item++){
                     const vector<Value> &struct_children = duckdb::StructValue::GetChildren(children[item]);
                     std::pair<int, int> key = std::pair<int, int>(struct_children[0].GetValue<int>(), struct_children[1].GetValue<int>());
@@ -231,9 +231,9 @@ namespace Triple {
                 for(idx_t k=0; k<(state->num_attributes*(state->num_attributes+1))/2; k++)
                     combined_ptr[i]->quadratic_agg[k] = 0;
 
-                combined_ptr[i]->lin_cat = new std::map<int, float>[state->cat_attributes];
-                combined_ptr[i]->quad_num_cat = new std::map<int, float>[state->num_attributes * state->cat_attributes];
-                combined_ptr[i]->quad_cat_cat = new std::map<std::pair<int, int>, float>[state->cat_attributes * (state->cat_attributes + 1)/2];
+                combined_ptr[i]->lin_cat = new std::unordered_map<int, float>[state->cat_attributes];
+                combined_ptr[i]->quad_num_cat = new std::unordered_map<int, float>[state->num_attributes * state->cat_attributes];
+                combined_ptr[i]->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[state->cat_attributes * (state->cat_attributes + 1)/2];
             }
 
             //SUM NUMERICAL STATES
@@ -344,8 +344,9 @@ namespace Triple {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
             for (int j = 0; j < state->cat_attributes; j++) {
+                std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
                 vector<Value> cat_vals = {};
-                for (auto const& state_val : state->lin_cat[j]){
+                for (auto const& state_val : ordered){
                     child_list_t<Value> struct_values;
                     struct_values.emplace_back("key", Value(state_val.first));
                     struct_values.emplace_back("value", Value(state_val.second));
@@ -369,7 +370,8 @@ namespace Triple {
             const auto row_id = i + offset;
             for (int j = 0; j < state->cat_attributes * state->num_attributes; j++) {
                 vector<Value> cat_vals = {};
-                for (auto const& state_val : state->quad_num_cat[j]){
+                std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
+                for (auto const& state_val : ordered){
                     child_list_t<Value> struct_values;
                     struct_values.emplace_back("key", Value(state_val.first));
                     struct_values.emplace_back("value", Value(state_val.second));
@@ -392,7 +394,8 @@ namespace Triple {
             const auto row_id = i + offset;
             for (int j = 0; j < state->cat_attributes * (state->cat_attributes+1)/2; j++) {
                 vector<Value> cat_vals = {};
-                for (auto const& state_val : state->quad_cat_cat[j]){
+                std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
+                for (auto const& state_val : ordered){
                     child_list_t<Value> struct_values;
                     struct_values.emplace_back("key1", Value(state_val.first.first));
                     struct_values.emplace_back("key2", Value(state_val.first.second));

@@ -5,7 +5,7 @@
 #include "partition.h"
 #include <iostream>
 #include <string>
-
+#include <iterator>
 
 
 void partition(const std::string &table_name, const std::vector<std::string> &con_columns, const std::vector<std::string> &con_columns_nulls,
@@ -46,8 +46,8 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     insert_query.pop_back();
     insert_query.pop_back();
     insert_query += " FROM "+table_name+" WHERE n_nulls = 0";
-    con.Query(create_table_query+")")->Print();
-    con.Query(insert_query)->Print();
+    con.Query(create_table_query+")");
+    con.Query(insert_query);
 
     //create tables 1 missing value
     idx_t col_index = 0;
@@ -70,9 +70,9 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
         create_table_query.pop_back();
         insert_query.pop_back();
         insert_query.pop_back();
-        con.Query(create_table_query+")")->Print();
-        //con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL")->Print();
-        //con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null)->Print();
+        con.Query(create_table_query+")");
+        con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL");
+        //con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
         col_index ++;
     }
 
@@ -95,8 +95,8 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
         create_table_query.pop_back();
         insert_query.pop_back();
         insert_query.pop_back();
-        con.Query(create_table_query+")")->Print();
-        con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL")->Print();
+        con.Query(create_table_query+")");
+        con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL");
         col_index ++;
     }
 
@@ -131,11 +131,59 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     insert_query.pop_back();
     insert_query.pop_back();
 
-    con.Query(create_table_query+")")->Print();
-    con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2")->Print();
+    con.Query(create_table_query+")");
+    con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2");
 
     //table is partitioned
 }
+
+void init_baseline(const std::string &table_name, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con){
+    std::string query = "SELECT ";
+    for (auto &col: con_columns_nulls)
+        query += "AVG("+col+"), ";
+    for (auto &col: cat_columns_nulls)
+        query += "MODE("+col+"), ";
+    query.pop_back();
+    query.pop_back();
+    query += " FROM "+table_name+" LIMIT 10000";
+    auto collection = con.Query(query);
+    std::vector<float> avg = {};
+    for (idx_t col_index = 0; col_index<con_columns_nulls.size()+cat_columns_nulls.size(); col_index++){
+        duckdb::Value v = collection->GetValue(col_index, 0);
+        avg.push_back(v.GetValue<float>());
+    }
+
+    for (idx_t col_index = 0; col_index<con_columns_nulls.size()+cat_columns_nulls.size(); col_index++){
+        duckdb::Value v = collection->GetValue(col_index, 0);
+        avg.push_back(v.GetValue<float>());
+    }
+
+    for (idx_t col_index = 0; col_index<con_columns_nulls.size(); col_index++){
+        float rep = avg[col_index];
+        std::string query = "CREATE TABLE rep AS SELECT "+con_columns_nulls[col_index]+" IS NULL FROM "+table_name;
+        con.Query(query);
+        con.Query("ALTER TABLE "+table_name+" ADD COLUMN "+con_columns_nulls[col_index]+"_IS_NULL BOOLEAN DEFAULT false;")->Print();
+        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+con_columns_nulls[col_index]+"_IS_NULL SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+
+        query = "CREATE TABLE rep AS SELECT COALESCE("+con_columns_nulls[col_index]+" , "+ std::to_string(rep) +") FROM "+table_name;
+        con.Query(query);
+        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+con_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+    }
+
+    for (idx_t col_index = 0; col_index<cat_columns_nulls.size(); col_index++){
+        int rep = (int) avg[col_index+con_columns_nulls.size()];
+        std::string query = "CREATE TABLE rep AS SELECT "+cat_columns_nulls[col_index]+" IS NULL FROM "+table_name;
+        con.Query(query);
+        con.Query("ALTER TABLE "+table_name+" ADD COLUMN "+cat_columns_nulls[col_index]+"_IS_NULL BOOLEAN DEFAULT false;")->Print();
+        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+cat_columns_nulls[col_index]+"_IS_NULL SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+
+        query = "CREATE TABLE rep AS SELECT COALESCE("+cat_columns_nulls[col_index]+" , "+ std::to_string(rep) +") FROM "+table_name;
+        con.Query(query);
+        con.Query("ALTER TABLE "+table_name+" ALTER COLUMN "+cat_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+    }
+
+}
+
 namespace {
     std::vector<std::vector<int>> uniq_cat_vals = {};
 }

@@ -8,6 +8,8 @@
 #include <vector>
 #include <duckdb.hpp>
 #include <map>
+#include <unordered_map>
+#include <boost/functional/hash.hpp>
 
 
 namespace Triple {
@@ -19,9 +21,9 @@ namespace Triple {
         float *lin_agg;
         float *quadratic_agg;
 
-        std::map<int, float> *lin_cat;
-        std::map<int, float> *quad_num_cat;
-        std::map<std::pair<int, int>, float> *quad_cat_cat;
+        std::unordered_map<int, float> *lin_cat;
+        std::unordered_map<int, float> *quad_num_cat;
+        std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>> *quad_cat_cat;
     };
 
 

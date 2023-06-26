@@ -23,6 +23,7 @@ void extract_data(const duckdb::Value &triple, cofactor &cofactor){
         cofactor.lin.push_back(linear[i].GetValue<float>());
 
     //copy lin. categorical
+    //std::cout<<triple.ToString()<<std::endl;
     for(idx_t i=0;i<categorical.size();i++) {
         cofactor.lin_cat.emplace_back();
         const duckdb::vector<duckdb::Value> &items_in_col = duckdb::ListValue::GetChildren(categorical[i]);
