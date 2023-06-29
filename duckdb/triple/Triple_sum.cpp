@@ -115,7 +115,7 @@ namespace Triple {
                 for(idx_t k=0; k<(num_attr*(num_attr+1))/2; k++)
                     state->quadratic_agg[k] = 0;
                 state->lin_cat = new std::unordered_map<int, float>[cat_attr];
-                state->quad_num_cat = new std::unordered_map<int, float>[cat_attr * cat_attr];
+                state->quad_num_cat = new std::unordered_map<int, float>[num_attr * cat_attr];
                 state->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[cat_attr * (cat_attr + 1)/2];
             }
 

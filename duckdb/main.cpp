@@ -12,6 +12,7 @@
 #include "experiments/flight_partition.h"
 #include "experiments/flight_baseline.h"
 
+#include "experiments/train_flight.h"
 
 #ifdef ENABLE_DOCTEST_IN_LIBRARY
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -27,6 +28,8 @@
 #include <unistd.h>
 #endif
 
+#define TRAIN_TEST
+
 int main(int argc, char* argv[]){
 
     #ifdef ENABLE_DOCTEST_IN_LIBRARY
@@ -39,6 +42,21 @@ int main(int argc, char* argv[]){
         return res;                   // propagate the result of the tests
     // your code goes here*/
     #endif
+
+#ifdef TRAIN_TEST
+    std::string path_train = argv[1];
+    std::cout<<"Start train experiments...\n";
+    Flight::train_mat_sql_lift(path_train, false);
+    Flight::train_mat_sql_lift(path_train, true);
+    Flight::train_mat_custom_lift(path_train, false, false);
+    Flight::train_mat_custom_lift(path_train, false, true);
+    Flight::train_mat_custom_lift(path_train, true, false);
+    Flight::train_mat_custom_lift(path_train, true, true);
+    Flight::train_factorized(path_train, false);
+    Flight::train_factorized(path_train, true);
+    return 0;
+#endif
+
     duckdb::DuckDB db(":memory:");
     duckdb::Connection con(db);
 
@@ -51,7 +69,6 @@ int main(int argc, char* argv[]){
     size_t mice_iters = 1;
 
     Triple::register_functions(*con.context, {con_columns.size()}, {cat_columns.size()});
-
 
     //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
 

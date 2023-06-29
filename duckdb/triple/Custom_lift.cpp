@@ -83,7 +83,7 @@ namespace Triple {
                 curr_categorical++;
             }
         }
-        std::cout<<"cat linear: "<<duckdb::ListVector::GetListSize(*result_children[1])<<"\n";
+        //std::cout<<"cat linear: "<<duckdb::ListVector::GetListSize(*result_children[1])<<"\n";
 
         //set N*N
         //std::cout<<"N*N"<<std::endl;
@@ -111,7 +111,7 @@ namespace Triple {
                 }
             }
         }
-        std::cout<<"num quad: "<<duckdb::ListVector::GetListSize(*result_children[2])<<"\n";
+        //std::cout<<"num quad: "<<duckdb::ListVector::GetListSize(*result_children[2])<<"\n";
 
 
         duckdb::ListVector::Reserve(*result_children[4], (num_cols * cat_cols) * size);
@@ -142,7 +142,7 @@ namespace Triple {
                 }
             }
         }
-        std::cout<<"num*cat: "<<duckdb::ListVector::GetListSize(*result_children[4])<<"\n";
+        //std::cout<<"num*cat: "<<duckdb::ListVector::GetListSize(*result_children[4])<<"\n";
 
         //categorical * categorical
 
@@ -175,7 +175,7 @@ namespace Triple {
             }
         }
 
-        std::cout<<"cat*cat: "<<duckdb::ListVector::GetListSize(*result_children[5])<<"\n";
+        //std::cout<<"cat*cat: "<<duckdb::ListVector::GetListSize(*result_children[5])<<"\n";
 
         //std::cout<<"set views"<<std::endl;
         //set views
