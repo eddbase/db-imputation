@@ -52,8 +52,23 @@ namespace Triple {
         auto num_attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[1]) / size;
         auto num_attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[1]) / size;
 
-        auto cat_attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[3]) / size;
-        auto cat_attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[3]) / size;
+        //(*first_triple_children[3]).Flatten(size);
+        //(*sec_triple_children[3]).Flatten(size);
+        auto cat_attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[3]);
+        auto cat_attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[3]);
+        //first_triple_children[3]->Print();
+        if (cat_attr_size_1 > 0)
+            cat_attr_size_1 = duckdb::ListVector::GetData(*first_triple_children[3])[0].length;
+        //cat_attr_size_1 = duckdb::ListValue::GetChildren(duckdb::ListVector::GetEntry(*first_triple_children[3]).GetValue(0)).size();
+        if (cat_attr_size_2 > 0)
+            cat_attr_size_2 = duckdb::ListVector::GetData(*sec_triple_children[3])[0].length;
+            //cat_attr_size_2 = duckdb::ListValue::GetChildren(duckdb::ListVector::GetEntry(*sec_triple_children[3]).GetValue(0)).size();
+
+        //D_ASSERT((*first_triple_children[3]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        //D_ASSERT((*sec_triple_children[3]).GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+
+        //auto cat_attr_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[3]) / size;
+        //auto cat_attr_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[3]) / size;
 
         UnifiedVectorFormat lin_data[2];
         duckdb::ListVector::GetEntry(
@@ -85,8 +100,9 @@ namespace Triple {
         //auto xx = *first_triple_children[3]
         Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*first_triple_children[3]);
         Vector v_cat_lin_2 = duckdb::ListVector::GetEntry(*sec_triple_children[3]);
-        duckdb::ListVector::Reserve(*result_children[3], (cat_attr_size_1 + cat_attr_size_2) * size);
+        duckdb::ListVector::Reserve(*result_children[3], (cat_attr_size_1 + cat_attr_size_2) * size);//1241
         duckdb::ListVector::SetListSize(*result_children[3], (cat_attr_size_1 + cat_attr_size_2) * size);
+        //std::cout<<"Set res lin cat list to "<< (cat_attr_size_1 + cat_attr_size_2) * size<<std::endl;
         //result_children[3]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_cat_lin_res = duckdb::ListVector::GetEntry(*result_children[3]);
 
@@ -136,13 +152,13 @@ namespace Triple {
         //set quadratic aggregates
         //std::cout<<"set quadratic aggregates\n";
 
-        RecursiveFlatten(*first_triple_children[2], size);
-                D_ASSERT(first_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
-        RecursiveFlatten(*sec_triple_children[2], size);
-                D_ASSERT(sec_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        //RecursiveFlatten(*first_triple_children[2], size);
+        //        D_ASSERT(first_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
+        //RecursiveFlatten(*sec_triple_children[2], size);
+        //        D_ASSERT(sec_triple_children[2]->GetVectorType() == duckdb::VectorType::FLAT_VECTOR);
 
-        auto quad_lists_size_1 = duckdb::ListVector::GetListSize(*first_triple_children[2]) / size;
-        auto quad_lists_size_2 = duckdb::ListVector::GetListSize(*sec_triple_children[2]) / size;
+        auto quad_lists_size_1 = num_attr_size_1 * (num_attr_size_1+1)/2;//duckdb::ListVector::GetListSize(*first_triple_children[2]) / size;
+        auto quad_lists_size_2 = num_attr_size_2 * (num_attr_size_2+1)/2;//duckdb::ListVector::GetListSize(*sec_triple_children[2]) / size;
 
         UnifiedVectorFormat quad_data[2];
         duckdb::ListVector::GetEntry(
@@ -298,7 +314,9 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[5], size_cat_cat_cols * size);
         duckdb::ListVector::SetListSize(*result_children[5], size_cat_cat_cols * size);
 
-        //result_children[5]->SetVectorType(VectorType::FLAT_VECTOR);
+        auto size_list = duckdb::ListVector::GetListSize(v_cat_cat_quad_1);
+
+        result_children[5]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_cat_cat_quad_res = duckdb::ListVector::GetEntry(*result_children[5]);
         //v_cat_cat_quad_1.Print();
         set_index = 0;
