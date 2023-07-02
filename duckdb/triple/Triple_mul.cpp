@@ -81,8 +81,12 @@ namespace Triple {
 
 
         (*result_children[1]).SetVectorType(duckdb::VectorType::FLAT_VECTOR);
-        auto meta_lin_num = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[1]);
-        auto meta_lin_cat = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[3]);
+        auto meta_lin_num = duckdb::ListVector::GetData(*result_children[1]);
+        auto meta_lin_cat = duckdb::ListVector::GetData(*result_children[3]);
+
+        duckdb::ListVector::Reserve(*result_children[1], (num_attr_size_1 + num_attr_size_2)*size);
+        duckdb::ListVector::SetListSize(*result_children[1], (num_attr_size_1 + num_attr_size_2)*size);
+        auto lin_res_num = duckdb::FlatVector::GetData<float>(duckdb::ListVector::GetEntry(*result_children[1]));
 
         //creates a single vector
         for (idx_t i = 0; i < size; i++) {
@@ -91,10 +95,10 @@ namespace Triple {
             auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
 
             for (idx_t j = 0; j < num_attr_size_1; j++)
-                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_1[lin_data[0].sel->get_index(j + (i * num_attr_size_1))] * N_2));
+                lin_res_num[(i*(num_attr_size_1 + num_attr_size_2)) + j] = lin_list_entries_1[lin_data[0].sel->get_index(j + (i * num_attr_size_1))] * N_2;
 
             for (idx_t j = 0; j < num_attr_size_2; j++)
-                duckdb::ListVector::PushBack(*result_children[1], duckdb::Value(lin_list_entries_2[lin_data[1].sel->get_index(j + (i * num_attr_size_2))] * N_1));
+                lin_res_num[(i*(num_attr_size_1 + num_attr_size_2)) + j + num_attr_size_1] = lin_list_entries_2[lin_data[1].sel->get_index(j + (i * num_attr_size_2))] * N_1;
         }
 
         //auto xx = *first_triple_children[3]
@@ -105,37 +109,93 @@ namespace Triple {
         //std::cout<<"Set res lin cat list to "<< (cat_attr_size_1 + cat_attr_size_2) * size<<std::endl;
         //result_children[3]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_cat_lin_res = duckdb::ListVector::GetEntry(*result_children[3]);
+        list_entry_t *sublist_metadata = nullptr;
+        int *cat_set_val_key = nullptr;
+        float *cat_set_val_val = nullptr;
 
+        int *cat_attr_1_val_key = nullptr;
+        float *cat_attr_1_val_val = nullptr;
+        list_entry_t *v_1_sublist_metadata = nullptr;
+        int *cat_attr_2_val_key = nullptr;
+        float *cat_attr_2_val_val = nullptr;
+        list_entry_t *v_2_sublist_metadata = nullptr;
+
+        if (cat_attr_size_1 >0 || cat_attr_size_2 >0) {
+            //init linear categorical
+            size_t total_values = 0;
+            if (cat_attr_size_1 > 0){
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*first_triple_children[3]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*first_triple_children[3]);
+                total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;
+            }
+            if (cat_attr_size_2 > 0){
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*sec_triple_children[3]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*sec_triple_children[3]);
+                total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;
+            }
+
+            Vector cat_relations_vector = duckdb::ListVector::GetEntry(*result_children[3]);
+            duckdb::ListVector::Reserve(cat_relations_vector, total_values);
+            duckdb::ListVector::SetListSize(cat_relations_vector, total_values);
+            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(cat_relations_vector);
+            vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(cat_relations_vector_sub);
+            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+
+            if (cat_attr_size_1 > 0) {
+                Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*first_triple_children[3]);
+                v_1_sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+                Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+                vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                        v_cat_lin_1_values);
+                cat_attr_1_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                cat_attr_1_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+            }
+            if (cat_attr_size_2 > 0) {
+                Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*sec_triple_children[3]);
+                v_2_sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+                Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+                vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                        v_cat_lin_1_values);
+                cat_attr_2_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                cat_attr_2_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+            }
+        }
+
+        size_t item_count = 0;
+        size_t sublist_metadata_count = 0;
+        size_t skipped = 0;
+        //set linear categorical
         for (idx_t i = 0; i < size; i++) {
             //add first linears
             auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
             auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
 
             for (idx_t column = 0; column < cat_attr_size_1; column++) {
-                vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_cat_lin_1.GetValue(column + (i*cat_attr_size_1)));
-                vector<Value> cat_vals = {};
-
-                for (idx_t item = 0; item < children.size(); item++) {
-                    child_list_t<Value> struct_values;
-                    const vector<Value> &struct_children = duckdb::StructValue::GetChildren(children[item]);
-                    struct_values.emplace_back("key", Value(struct_children[0]));
-                    struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_2));
-                    cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                auto curr_metadata = v_1_sublist_metadata[column + (i*cat_attr_size_1)];
+                for (idx_t item = 0; item < curr_metadata.length; item++) {
+                    cat_set_val_key[item_count] = cat_attr_1_val_key[item + curr_metadata.offset];
+                    cat_set_val_val[item_count] = cat_attr_1_val_val[item + curr_metadata.offset] * N_2;
+                    item_count++;
                 }
-                v_cat_lin_res.SetValue(column + (i * (cat_attr_size_1 + cat_attr_size_2)), duckdb::Value::LIST(cat_vals));
+                sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                sublist_metadata[sublist_metadata_count].offset = skipped;
+                skipped += curr_metadata.length;
+                sublist_metadata_count++;
             }
 
             for (idx_t column = 0; column < cat_attr_size_2; column++) {
-                const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_cat_lin_2.GetValue(column + (i*cat_attr_size_2)));
-                vector<Value> cat_vals = {};
-                for (idx_t item = 0; item < children.size(); item++) {
-                    child_list_t<Value> struct_values;
-                    const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[item]);
-                    struct_values.emplace_back("key", Value(struct_children[0]));
-                    struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_1));
-                    cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                auto curr_metadata = v_2_sublist_metadata[column + (i*cat_attr_size_2)];
+                for (idx_t item = 0; item < curr_metadata.length; item++) {
+                    cat_set_val_key[item_count] = cat_attr_2_val_key[item + curr_metadata.offset];
+                    cat_set_val_val[item_count] = cat_attr_2_val_val[item + curr_metadata.offset] * N_1;
+                    item_count++;
                 }
-                v_cat_lin_res.SetValue(column + cat_attr_size_1 + (i * (cat_attr_size_1 + cat_attr_size_2)), duckdb::Value::LIST(cat_vals));
+                sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                sublist_metadata[sublist_metadata_count].offset = skipped;
+                skipped += curr_metadata.length;
+                sublist_metadata_count++;
             }
         }
 
@@ -170,33 +230,35 @@ namespace Triple {
         auto quad_list_entries_2 = UnifiedVectorFormat::GetData<float>(quad_data[1]);//entries are float
 
         (*result_children[2]).SetVectorType(duckdb::VectorType::FLAT_VECTOR);
+        duckdb::ListVector::Reserve(*result_children[2], (((num_attr_size_1 + num_attr_size_2)*(num_attr_size_1 + num_attr_size_2 +1))/2)*size);
+        duckdb::ListVector::SetListSize(*result_children[2], (((num_attr_size_1 + num_attr_size_2)*(num_attr_size_1 + num_attr_size_2 +1))/2)*size);
         auto meta_quad_num = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[2]);
         auto meta_quad_num_cat = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[4]);
         auto meta_quad_cat_cat = duckdb::FlatVector::GetData<duckdb::list_entry_t>(*result_children[5]);
 
         //compute quad numerical
         //std::cout<<"set quad numerical\n";
+        auto quad_res_num = duckdb::FlatVector::GetData<float>(duckdb::ListVector::GetEntry(*result_children[2]));
 
         //for each row
+        auto set_index_num_quad = 0;
         for (idx_t i = 0; i < size; i++) {
             auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
             auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
             //scale 1st quad. aggregate
             auto idx_lin_quad = 0;
             for (idx_t j = 0; j < num_attr_size_1; j++) {
-                for (idx_t k = j;
-                     k < num_attr_size_1; k++) {//a list * b (AA, BB, <prod. A and cols other table computed down>, AB)
-                    duckdb::ListVector::PushBack(*result_children[2],
-                                                 duckdb::Value(
-                                                         quad_list_entries_1[quad_data[0].sel->get_index(idx_lin_quad + (i * quad_lists_size_1))] * (N_2)));
+                for (idx_t k = j; k < num_attr_size_1; k++) {//a list * b (AA, BB, <prod. A and cols other table computed down>, AB)
+                    quad_res_num[set_index_num_quad] = quad_list_entries_1[quad_data[0].sel->get_index(idx_lin_quad + (i * quad_lists_size_1))] * (N_2);
                     idx_lin_quad++;
+                    set_index_num_quad++;
                 }
 
                 //multiply lin. aggregates
                 for (idx_t k = 0; k < num_attr_size_2; k++) {
-                    duckdb::ListVector::PushBack(*result_children[2],
-                                                 duckdb::Value(lin_list_entries_1[lin_data[0].sel->get_index(j + (i * num_attr_size_1))] *
-                                                               lin_list_entries_2[lin_data[1].sel->get_index(k + (i * num_attr_size_2))]));
+                    quad_res_num[set_index_num_quad] = lin_list_entries_1[lin_data[0].sel->get_index(j + (i * num_attr_size_1))] *
+                                                       lin_list_entries_2[lin_data[1].sel->get_index(k + (i * num_attr_size_2))];
+                    set_index_num_quad++;
                     //std::cout<<"Quad NUM: "<<lin_list_entries_1[j + (i * num_attr_size_1)] *
                     //                         lin_list_entries_2[k + (i * num_attr_size_2)]<<"\n";
                 }
@@ -204,8 +266,8 @@ namespace Triple {
 
             //scale 2nd quad. aggregate
             for (idx_t j = 0; j < quad_lists_size_2; j++) {
-                duckdb::ListVector::PushBack(*result_children[2],
-                                             duckdb::Value(quad_list_entries_2[quad_data[1].sel->get_index(j + (i * quad_lists_size_2))] * (N_1)));
+                quad_res_num[set_index_num_quad] = quad_list_entries_2[quad_data[1].sel->get_index(j + (i * quad_lists_size_2))] * (N_1);
+                set_index_num_quad++;
             }
         }
 
@@ -225,10 +287,75 @@ namespace Triple {
         Vector &v_num_cat_quad_res = duckdb::ListVector::GetEntry(*result_children[4]);
 
         //new size is (cont_A * cat_A) (curr. size) + (cont_A * cat_B) + (cont_B * cat_A) + (cont_B * cat_B)
-        size_t set_index = 0;
+        int *cat_attr_1_num_cat_key = nullptr;
+        int *cat_attr_2_num_cat_key = nullptr;
+        float *cat_attr_1_num_cat_val = nullptr;
+        float *cat_attr_2_num_cat_val = nullptr;
+        list_entry_t *v_1_sublist_metadata_num_cat = nullptr;
+        list_entry_t *v_2_sublist_metadata_num_cat = nullptr;
+
+        if (cat_attr_size_1 >0 || cat_attr_size_2 >0) {
+            //init num*cat
+            //new size is cont_a * cat_a + cont_b*cat_b (both already computed) + cont_A*cat_B (size lin. catB * num attr A) + cont_B*catA
+            size_t total_values = 0;
+            if (cat_attr_size_1 > 0){
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*first_triple_children[4]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*first_triple_children[4]);//n of rows cont.A*cat.A
+                total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;//n. elements
+            }
+            if(cat_attr_size_2 > 0) {
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*sec_triple_children[3]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*sec_triple_children[3]);//n of rows cont.A*cat.B
+                total_values += ((sublist_meta[main_list_len - 1].offset + sublist_meta[main_list_len - 1].length) *
+                                 num_attr_size_1);//n. elements
+            }
+            if(cat_attr_size_1 > 0) {
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*first_triple_children[3]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*first_triple_children[3]);//n of rows cont.B*cat.A
+                total_values += ((sublist_meta[main_list_len - 1].offset + sublist_meta[main_list_len - 1].length) *
+                                 num_attr_size_2);//n. elements
+            }
+            if (cat_attr_size_2 > 0){
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*sec_triple_children[4]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*sec_triple_children[4]);
+                total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;
+            }
+            Vector cat_relations_vector = duckdb::ListVector::GetEntry(*result_children[4]);
+            //std::cout<<"Setting num*cat to: "<<total_values<<std::endl;
+            duckdb::ListVector::Reserve(cat_relations_vector, total_values);
+            duckdb::ListVector::SetListSize(cat_relations_vector, total_values);
+            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(cat_relations_vector);
+            vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(cat_relations_vector_sub);
+            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+
+            if (cat_attr_size_1 > 0) {
+                Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*first_triple_children[4]);
+                v_1_sublist_metadata_num_cat = duckdb::ListVector::GetData(v_cat_lin_1);
+                Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+                vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                        v_cat_lin_1_values);
+                cat_attr_1_num_cat_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                cat_attr_1_num_cat_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+            }
+            if (cat_attr_size_2 > 0) {
+                Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*sec_triple_children[4]);
+                v_2_sublist_metadata_num_cat = duckdb::ListVector::GetData(v_cat_lin_1);
+                Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+                vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                        v_cat_lin_1_values);
+                cat_attr_2_num_cat_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                cat_attr_2_num_cat_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+            }
+        }
+
 
         //compute quad num_cat
 
+        item_count = 0;
+        sublist_metadata_count = 0;
+        skipped = 0;
 
         for (idx_t i = 0; i < size; i++) {
             auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
@@ -238,72 +365,72 @@ namespace Triple {
             auto row_offset = i*(num_attr_size_1 * cat_attr_size_1);
             for (size_t col1 = 0; col1 < num_attr_size_1; col1++){
                 for (size_t col2 = 0; col2 < cat_attr_size_1; col2++){
-                    const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_num_cat_quad_1.GetValue((col1 * cat_attr_size_1) + col2 + row_offset));
-                    vector<Value> cat_vals = {};
-
-                    for(size_t cat_val = 0; cat_val < children.size(); cat_val++){
-                        child_list_t<Value> struct_values;
-                        const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[cat_val]);
-                        struct_values.emplace_back("key", struct_children[0]);
-                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_2));
-                        cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    auto curr_metadata = v_1_sublist_metadata_num_cat[(col1 * cat_attr_size_1) + col2 + row_offset];
+                    for (idx_t item = 0; item < curr_metadata.length; item++) {
+                        cat_set_val_key[item_count] = cat_attr_1_num_cat_key[item + curr_metadata.offset];
+                        cat_set_val_val[item_count] = cat_attr_1_num_cat_val[item + curr_metadata.offset] * N_2;
+                        item_count++;
                     }
-                    v_num_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                    set_index++;
+                    sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                    sublist_metadata[sublist_metadata_count].offset = skipped;
+                    skipped += curr_metadata.length;
+                    //std::cout<<"Setting metadata to: "<<skipped<<std::endl;
+                    sublist_metadata_count++;
                 }
 
                 //compute cont_A * cat_B
                 for (size_t col2 = 0; col2 < cat_attr_size_2; col2++){
-                    const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_cat_lin_2.GetValue(col2 + (i*cat_attr_size_2)));
-                    vector<Value> cat_vals = {};
-                    for(size_t cat_val = 0; cat_val < children.size(); cat_val++){
-                        child_list_t<Value> struct_values;
-                        const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[cat_val]);
-                        struct_values.emplace_back("key", struct_children[0]);
-                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * lin_list_entries_1[col1 + (i*num_attr_size_1)]));
-                        cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    auto curr_metadata = v_2_sublist_metadata[col2 + (i*cat_attr_size_2)];
+                    for(size_t cat_val = 0; cat_val < curr_metadata.length; cat_val++){
+                        cat_set_val_key[item_count] = cat_attr_2_val_key[cat_val + curr_metadata.offset];
+                        cat_set_val_val[item_count] = cat_attr_2_val_val[cat_val + curr_metadata.offset] * lin_list_entries_1[col1 + (i*num_attr_size_1)];
+                        item_count++;
                     }
-                    v_num_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                    set_index++;
+                    sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                    sublist_metadata[sublist_metadata_count].offset = skipped;
+                    skipped += curr_metadata.length;
+                    //std::cout<<"Setting metadata to: "<<skipped<<std::endl;
+                    sublist_metadata_count++;
                 }
             }
 
             //compute cont_B * cat_A
             for (size_t col1 = 0; col1 < num_attr_size_2; col1++){
                 for (size_t col2 = 0; col2 < cat_attr_size_1; col2++){
-                    const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_cat_lin_1.GetValue(col2 + (i*cat_attr_size_1)));
-                    vector<Value> cat_vals = {};
-                    for(size_t cat_val = 0; cat_val < children.size(); cat_val++){
-                        child_list_t<Value> struct_values;
-                        const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[cat_val]);
-                        struct_values.emplace_back("key", struct_children[0]);
-                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * lin_list_entries_2[col1 + (i*num_attr_size_2)]));
-                        cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    auto curr_metadata = v_1_sublist_metadata[col2 + (i*cat_attr_size_1)];
+                    for(size_t cat_val = 0; cat_val < curr_metadata.length; cat_val++){
+                        cat_set_val_key[item_count] = cat_attr_1_val_key[cat_val + curr_metadata.offset];
+                        cat_set_val_val[item_count] = cat_attr_1_val_val[cat_val + curr_metadata.offset] * lin_list_entries_2[col1 + (i*num_attr_size_2)];
+                        item_count++;
                     }
-                    v_num_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                    set_index++;
+                    sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                    sublist_metadata[sublist_metadata_count].offset = skipped;
+                    skipped += curr_metadata.length;
+                    //std::cout<<"Setting metadata to: "<<skipped<<std::endl;
+                    sublist_metadata_count++;
                 }
 
                 //scale entries cont_B * cat_B
                 row_offset = i*(num_attr_size_2 * cat_attr_size_2);
                 for (size_t col2 = 0; col2 < cat_attr_size_2; col2++){
-                    const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_num_cat_quad_2.GetValue((col1 * cat_attr_size_2) + col2 + row_offset));
-                    vector<Value> cat_vals = {};
-
-                    for(size_t cat_val = 0; cat_val < children.size(); cat_val++){
-                        child_list_t<Value> struct_values;
-                        const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[cat_val]);
-                        struct_values.emplace_back("key", struct_children[0]);
-                        struct_values.emplace_back("value", Value(struct_children[1].GetValue<float>() * N_1));
-                        cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    auto curr_metadata = v_2_sublist_metadata_num_cat[(col1 * cat_attr_size_2) + col2 + row_offset];
+                    for(size_t cat_val = 0; cat_val < curr_metadata.length; cat_val++){
+                        cat_set_val_key[item_count] = cat_attr_2_num_cat_key[cat_val + curr_metadata.offset];
+                        cat_set_val_val[item_count] = cat_attr_2_num_cat_val[cat_val + curr_metadata.offset] * N_1;
+                        item_count++;
                     }
-                    v_num_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                    set_index++;
+                    sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                    sublist_metadata[sublist_metadata_count].offset = skipped;
+                    skipped += curr_metadata.length;
+                    //std::cout<<"Setting metadata to: "<<skipped<<std::endl;
+                    sublist_metadata_count++;
                 }
             }
         }
 
         //set cat*cat aggregates
+
+        //size: catcat_A + catcat_B +
 
         Vector v_cat_cat_quad_1 = duckdb::ListVector::GetEntry(
                 *first_triple_children[5]);
@@ -314,16 +441,86 @@ namespace Triple {
         duckdb::ListVector::Reserve(*result_children[5], size_cat_cat_cols * size);
         duckdb::ListVector::SetListSize(*result_children[5], size_cat_cat_cols * size);
 
-        auto size_list = duckdb::ListVector::GetListSize(v_cat_cat_quad_1);
-
         result_children[5]->SetVectorType(VectorType::FLAT_VECTOR);
         Vector &v_cat_cat_quad_res = duckdb::ListVector::GetEntry(*result_children[5]);
-        //v_cat_cat_quad_1.Print();
-        set_index = 0;
-        //std::cout<<"set cat*cat\n";
-
         auto size_row_1 = (cat_attr_size_1 * (cat_attr_size_1+1)) /2;
         auto size_row_2 = (cat_attr_size_2 * (cat_attr_size_2+1)) /2;
+
+        int* cat_set_val_key_1 = nullptr;
+        int* cat_set_val_key_2 = nullptr;
+        int *cat_attr_1_cat_cat_key_1 = nullptr;
+        int *cat_attr_1_cat_cat_key_2 = nullptr;
+        int *cat_attr_2_cat_cat_key_1 = nullptr;
+        int *cat_attr_2_cat_cat_key_2 = nullptr;
+        float *cat_attr_1_cat_cat_val = nullptr;
+        float *cat_attr_2_cat_cat_val = nullptr;
+
+
+        if (cat_attr_size_1 >0 || cat_attr_size_2 >0) {
+            size_t total_values = 0;
+            if (cat_attr_size_1 > 0){
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*first_triple_children[5]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*first_triple_children[5]);//n of rows
+                total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;//n. elements
+            }
+            if (cat_attr_size_2 > 0){
+                auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*sec_triple_children[5]));
+                auto main_list_len = duckdb::ListVector::GetListSize(*sec_triple_children[5]);
+                total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;
+            }
+            if(cat_attr_size_1 > 0 && cat_attr_size_2 > 0) {
+                auto sublist_meta_1 = duckdb::ListVector::GetData(
+                        duckdb::ListVector::GetEntry(*first_triple_children[3]));
+                auto main_list_len_1 = duckdb::ListVector::GetListSize(*first_triple_children[3]);
+                auto sublist_meta_2 = duckdb::ListVector::GetData(
+                        duckdb::ListVector::GetEntry(*sec_triple_children[3]));
+                auto main_list_len_2 = duckdb::ListVector::GetListSize(*sec_triple_children[3]);
+
+                for (size_t k = 0; k < size; k++) {
+                    for (size_t i = 0; i < cat_attr_size_1; i++) {
+                        for (size_t j = 0; j < cat_attr_size_2; j++) {
+                            total_values += (sublist_meta_1[(k*cat_attr_size_1)+i].length *
+                                             sublist_meta_2[(k*cat_attr_size_2)+j].length);
+                        }
+                    }
+                }
+            }
+
+            Vector cat_relations_vector = duckdb::ListVector::GetEntry(*result_children[5]);
+            duckdb::ListVector::Reserve(cat_relations_vector, total_values);
+            duckdb::ListVector::SetListSize(cat_relations_vector, total_values);
+            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(cat_relations_vector);
+            vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(cat_relations_vector_sub);
+            cat_set_val_key_1 = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_key_2 = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[1]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[2]));
+
+            if (cat_attr_size_1 > 0) {
+                Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*first_triple_children[5]);
+                v_1_sublist_metadata_num_cat = duckdb::ListVector::GetData(v_cat_lin_1);
+                Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+                vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                        v_cat_lin_1_values);
+                cat_attr_1_cat_cat_key_1 = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                cat_attr_1_cat_cat_key_2 = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[1]));
+                cat_attr_1_cat_cat_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[2]));
+            }
+            if (cat_attr_size_2 > 0) {
+                Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*sec_triple_children[5]);
+                v_2_sublist_metadata_num_cat = duckdb::ListVector::GetData(v_cat_lin_1);
+                Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+                vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                        v_cat_lin_1_values);
+                cat_attr_2_cat_cat_key_1 = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                cat_attr_2_cat_cat_key_2 = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[1]));
+                cat_attr_2_cat_cat_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[2]));
+            }
+        }
+
+        item_count = 0;
+        sublist_metadata_count = 0;
+        skipped = 0;
 
         for (idx_t i = 0; i < size; i++) {
             auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
@@ -333,57 +530,53 @@ namespace Triple {
             size_t idx_cat_in = 0;
             for (size_t col1 = 0; col1 < cat_attr_size_1; col1++) {
                 for (size_t col2 = col1; col2 < cat_attr_size_1; col2++) {
-                    const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(
-                            v_cat_cat_quad_1.GetValue(idx_cat_in + (i * size_row_1)));
-                    vector<Value> cat_vals = {};
-                    for (size_t el = 0; el < children.size(); el++) {
-                        child_list_t<Value> struct_values;
-                        const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[el]);
-                        struct_values.emplace_back("key1", struct_children[0]);
-                        struct_values.emplace_back("key2", struct_children[1]);
-                        struct_values.emplace_back("value", Value(struct_children[2].GetValue<float>() * (N_2)));
-                        cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    auto curr_metadata = v_1_sublist_metadata_num_cat[idx_cat_in + (i * size_row_1)];
+                    for (size_t el = 0; el < curr_metadata.length; el++) {
+                        cat_set_val_key_1[item_count] = cat_attr_1_cat_cat_key_1[el + curr_metadata.offset];
+                        cat_set_val_key_2[item_count] = cat_attr_1_cat_cat_key_2[el + curr_metadata.offset];
+                        cat_set_val_val[item_count] = cat_attr_1_cat_cat_val[el + curr_metadata.offset] * N_2;
+                        item_count++;
                     }
-                    v_cat_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                    set_index++;
+                    sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                    sublist_metadata[sublist_metadata_count].offset = skipped;
+                    skipped += curr_metadata.length;
+                    sublist_metadata_count++;
                     idx_cat_in++;
                 }
 
                 //cat A * cat B
-                const vector<duckdb::Value> children1 = duckdb::ListValue::GetChildren(v_cat_lin_1.GetValue(col1 + (i*cat_attr_size_1)));
+                auto curr_metadata_1 = v_1_sublist_metadata[col1 + (i*cat_attr_size_1)];
                 for (size_t col2 = 0; col2 < cat_attr_size_2; col2++) {
-                    const vector<duckdb::Value> children2 = duckdb::ListValue::GetChildren(v_cat_lin_2.GetValue(col2 + (i*cat_attr_size_2)));
-                    vector<Value> cat_vals = {};
-                    for (size_t j = 0; j < children1.size(); j++){
-                        const vector<Value> &struct_children1 = duckdb::StructValue::GetChildren(children1[j]);
-                        for (size_t k = 0; k < children2.size(); k++){
-                            const vector<Value> struct_children2 = duckdb::StructValue::GetChildren(children2[k]);
-                            child_list_t<Value> struct_values;
-                            struct_values.emplace_back("key1", struct_children1[0]);
-                            struct_values.emplace_back("key2", struct_children2[0]);
-                            struct_values.emplace_back("value", Value(struct_children1[1].GetValue<float>() * struct_children2[1].GetValue<float>()));
-                            cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    auto curr_metadata_2 = v_2_sublist_metadata[col2 + (i*cat_attr_size_2)];
+                    for (size_t j = 0; j < curr_metadata_1.length; j++){
+                        for (size_t k = 0; k < curr_metadata_2.length; k++){
+                            cat_set_val_key_1[item_count] = cat_attr_1_val_key[j + curr_metadata_1.offset];
+                            cat_set_val_key_2[item_count] = cat_attr_2_val_key[k + curr_metadata_2.offset];
+                            cat_set_val_val[item_count] = cat_attr_1_val_val[j + curr_metadata_1.offset] * cat_attr_2_val_val[k + curr_metadata_2.offset];
+                            item_count++;
                         }
                     }
-                    v_cat_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                    set_index++;
+                    sublist_metadata[sublist_metadata_count].length = curr_metadata_1.length * curr_metadata_2.length;
+                    sublist_metadata[sublist_metadata_count].offset = skipped;
+                    skipped += (curr_metadata_1.length * curr_metadata_2.length);
+                    sublist_metadata_count++;
                 }
             }
 
             // (cat_B * cat_B) * count_A (scale cat_B)
             for (size_t col = 0; col < size_row_2; col++) {
-                const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(v_cat_cat_quad_2.GetValue(col + (i*size_row_2)));
-                vector<Value> cat_vals = {};
-                for (size_t el = 0; el < children.size(); el++){
-                    child_list_t<Value> struct_values;
-                    const vector<Value> struct_children = duckdb::StructValue::GetChildren(children[el]);
-                    struct_values.emplace_back("key1", struct_children[0]);
-                    struct_values.emplace_back("key2", struct_children[1]);
-                    struct_values.emplace_back("value", Value(struct_children[2].GetValue<float>() * (N_1)));
-                    cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                auto curr_metadata = v_2_sublist_metadata_num_cat[col + (i*size_row_2)];
+                for (size_t el = 0; el < curr_metadata.length; el++){
+                    cat_set_val_key_1[item_count] = cat_attr_2_cat_cat_key_1[el + curr_metadata.offset];
+                    cat_set_val_key_2[item_count] = cat_attr_2_cat_cat_key_2[el + curr_metadata.offset];
+                    cat_set_val_val[item_count] = cat_attr_2_cat_cat_val[el + curr_metadata.offset] * N_1;
+                    item_count++;
                 }
-                v_cat_cat_quad_res.SetValue(set_index, duckdb::Value::LIST(cat_vals));
-                set_index++;
+                sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
+                sublist_metadata[sublist_metadata_count].offset = skipped;
+                skipped += curr_metadata.length;
+                sublist_metadata_count++;
+                idx_cat_in++;
             }
         }
 

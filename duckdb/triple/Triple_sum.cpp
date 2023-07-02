@@ -99,7 +99,10 @@ namespace Triple {
 
         //auto list_entries = (float *) ListVector::GetEntry(c2).GetData();//entries are float
         int num_attr = num_attr_size / count;//cols = total values / num. rows
-        int cat_attr = cat_attr_size / count;
+        int cat_attr = cat_attr_size;
+        if (cat_attr > 0)
+            cat_attr = duckdb::ListVector::GetData(*children[3])[0].length;
+
 
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
@@ -148,21 +151,34 @@ namespace Triple {
         //auto list_entries_2 = UnifiedVectorFormat::GetData<float>(input_data_c3);
         //UnifiedVectorFormat::Get
 
-        //todo also for size_t
+        int *cat_set_val_key = nullptr;
+        float *cat_set_val_val = nullptr;
+        list_entry_t *sublist_metadata = nullptr;
+
+        if(cat_attr > 0){
+            Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*children[3]);
+            sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+            Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+            vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                    v_cat_lin_1_values);
+            //todo flatvector assumption
+            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+
+        }
 
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<cat_attr; k++){
-                const vector<duckdb::Value> list_of_struct = duckdb::ListValue::GetChildren(c4.GetValue(k + (j*cat_attr)));//[[{a,1},{b,1}]]
+                auto curr_metadata = sublist_metadata[k + (j*cat_attr)];
                 std::unordered_map<int, float> &col_vals_state = state->lin_cat[k];
-                for (size_t item = 0; item < list_of_struct.size(); item++){//for each column values
-                    const vector<Value> &v_struct= duckdb::StructValue::GetChildren(list_of_struct[item]);
-                    int key = v_struct[0].GetValue<int>();
+                for (size_t item = 0; item < curr_metadata.length; item++){//for each column values
+                    int key = cat_set_val_key[item+curr_metadata.offset]; // v_struct[0].GetValue<int>();
                     auto pos = col_vals_state.find(key);
                     if (pos == col_vals_state.end())
-                        col_vals_state[key] = v_struct[1].GetValue<float>();
+                        col_vals_state[key] = cat_set_val_val[item+curr_metadata.offset];
                     else
-                        pos->second += v_struct[1].GetValue<float>();
+                        pos->second += cat_set_val_val[item+curr_metadata.offset];
                 }
             }
         }
@@ -170,38 +186,60 @@ namespace Triple {
         //set num*cat
         Vector &c5 = ListVector::GetEntry(*children[4]);
 
+        if(cat_attr > 0){
+            Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*children[4]);
+            sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+            Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+            vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                    v_cat_lin_1_values);
+            //todo flatvector assumption
+            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+        }
+
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<cat_attr * num_attr; k++){
-                const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(c5.GetValue(k + (j*(cat_attr * num_attr))));
+                auto curr_metadata = sublist_metadata[k + (j*(cat_attr * num_attr))];
                 std::unordered_map<int, float> &col_vals = state->quad_num_cat[k];
-                for (size_t item = 0; item < children.size(); item++){
-                    const vector<Value> &struct_children = duckdb::StructValue::GetChildren(children[item]);
-                    int key = struct_children[0].GetValue<int>();
+                for (size_t item = 0; item < curr_metadata.length; item++){
+                    int key = cat_set_val_key[item + curr_metadata.offset];
                     auto pos = col_vals.find(key);
                     if (pos == col_vals.end())
-                        col_vals[key] = struct_children[1].GetValue<float>();
+                        col_vals[key] = cat_set_val_val[item+curr_metadata.offset];
                     else
-                        pos->second += struct_children[1].GetValue<float>();
+                        pos->second += cat_set_val_val[item+curr_metadata.offset];
                 }
             }
         }
 
         Vector &c6 = ListVector::GetEntry(*children[5]);
+        int *cat_set_val_key_1 = nullptr;
+        int *cat_set_val_key_2 = nullptr;
+        if(cat_attr > 0){
+            Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*children[5]);
+            sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+            Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
+            vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
+                    v_cat_lin_1_values);
+            //todo flatvector assumption
+            cat_set_val_key_1 = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+            cat_set_val_key_2 = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[1]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[2]));
+        }
 
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<(cat_attr * (cat_attr+1))/2; k++){
-                const vector<duckdb::Value> children = duckdb::ListValue::GetChildren(c6.GetValue(k + (j*(cat_attr * (cat_attr+1))/2)));
+                auto curr_metadata = sublist_metadata[k + (j*(cat_attr * (cat_attr+1))/2)];
                 auto &col_vals = state->quad_cat_cat[k];
-                for (size_t item = 0; item < children.size(); item++){
-                    const vector<Value> &struct_children = duckdb::StructValue::GetChildren(children[item]);
-                    std::pair<int, int> key = std::pair<int, int>(struct_children[0].GetValue<int>(), struct_children[1].GetValue<int>());
+                for (size_t item = 0; item < curr_metadata.length; item++){
+                    std::pair<int, int> key = std::pair<int, int>(cat_set_val_key_1[item + curr_metadata.offset], cat_set_val_key_2[item + curr_metadata.offset]);
                     auto pos = col_vals.find(key);
                     if (pos == col_vals.end())
-                        col_vals[key] = struct_children[2].GetValue<float>();
+                        col_vals[key] = cat_set_val_val[item + curr_metadata.offset];
                     else
-                        pos->second += struct_children[2].GetValue<float>();
+                        pos->second += cat_set_val_val[item + curr_metadata.offset];
                 }
             }
         }
@@ -287,6 +325,7 @@ namespace Triple {
                       idx_t count,
                       idx_t offset) {
 
+        assert(offset == 0);
         //std::cout<<"FINALIZE START count: "<<count<<"offset "<<offset<<std::endl;
         duckdb::UnifiedVectorFormat sdata;
         state_vector.ToUnifiedFormat(count, sdata);
@@ -302,33 +341,43 @@ namespace Triple {
             const auto row_id = i + offset;
             input_data[row_id] = states[sdata.sel->get_index(i)]->count;
         }
+
         //Set List
         Vector &c2 = *(children[1]);
                 D_ASSERT(c2.GetType().id() == LogicalTypeId::LIST);
+        Vector &c3 = *(children[2]);
+                D_ASSERT(c3.GetType().id() == LogicalTypeId::LIST);
+        if(count > 0 && states[sdata.sel->get_index(0)]->num_attributes > 0) {
+            duckdb::ListVector::Reserve(c2, states[sdata.sel->get_index(0)]->num_attributes * count);
+            duckdb::ListVector::SetListSize(c2, states[sdata.sel->get_index(0)]->num_attributes * count);
+
+            duckdb::ListVector::Reserve(c3, ((states[sdata.sel->get_index(0)]->num_attributes * (states[sdata.sel->get_index(0)]->num_attributes +1))/2) * count);
+            duckdb::ListVector::SetListSize(c3, ((states[sdata.sel->get_index(0)]->num_attributes * (states[sdata.sel->get_index(0)]->num_attributes +1))/2) * count);
+        }
+
         c2.SetVectorType(VectorType::FLAT_VECTOR);
-        auto result_data = FlatVector::GetData<list_entry_t>(c2);
+        auto result_data = ListVector::GetData(c2);
+        auto num_lin_res = FlatVector::GetData<float>(ListVector::GetEntry(c2));
+        auto num_cat_res = FlatVector::GetData<float>(ListVector::GetEntry(c3));
+
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
             for (int j = 0; j < state->num_attributes; j++) {
-                ListVector::PushBack(c2,
-                                     Value(state->lin_agg[j]));//Value::STRUCT({std::make_pair("key", bucket_value), std::make_pair("value", count_value)});
+                num_lin_res[j + (i*state->num_attributes)] = state->lin_agg[j];
             }
             result_data[row_id].length = state->num_attributes;
             result_data[row_id].offset = result_data[i].length*i;//ListVector::GetListSize(c2);
         }
 
         //set quadratic attributes
-        Vector &c3 = *(children[2]);
-                D_ASSERT(c3.GetType().id() == LogicalTypeId::LIST);
         c3.SetVectorType(VectorType::FLAT_VECTOR);
-        auto result_data2 = FlatVector::GetData<list_entry_t>(c3);
+        auto result_data2 = ListVector::GetData(c3);
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
             for (int j = 0; j < state->num_attributes*(state->num_attributes+1)/2; j++) {
-                ListVector::PushBack(c3,
-                                     Value(state->quadratic_agg[j]));//Value::STRUCT({std::make_pair("key", bucket_value), std::make_pair("value", count_value)});
+                num_cat_res[j + (i*(state->num_attributes*(state->num_attributes+1)/2))] = state->quadratic_agg[j];
             }//Value::Numeric
             result_data2[row_id].length = state->num_attributes*(state->num_attributes+1)/2;
             result_data2[row_id].offset = i * result_data2[i].length;
@@ -338,56 +387,153 @@ namespace Triple {
         Vector &c4 = *(children[3]);
                 D_ASSERT(c4.GetType().id() == LogicalTypeId::LIST);
         c4.SetVectorType(VectorType::FLAT_VECTOR);
-        auto result_data3 = FlatVector::GetData<list_entry_t>(c4);
+        auto result_data3 = ListVector::GetData(c4);
 
+        //num*cat
+        Vector &c5 = *(children[4]);
+                D_ASSERT(c5.GetType().id() == LogicalTypeId::LIST);
+        c5.SetVectorType(VectorType::FLAT_VECTOR);
+        auto result_data4 = ListVector::GetData(c5);
+
+        //cat*cat
+        Vector &c6 = *(children[5]);
+                D_ASSERT(c6.GetType().id() == LogicalTypeId::LIST);
+        c6.SetVectorType(VectorType::FLAT_VECTOR);
+        auto result_data5 = ListVector::GetData(c6);
+
+        list_entry_t *sublist_metadata = nullptr;
+        int *cat_set_val_key = nullptr;
+        float *cat_set_val_val = nullptr;
+
+        int cat_attributes = 0;
+        int num_attributes = 0;
+
+        if (count > 0 && states[sdata.sel->get_index(0)]->cat_attributes > 0) {
+            //init list size
+            cat_attributes = states[sdata.sel->get_index(0)]->cat_attributes;
+            num_attributes = states[sdata.sel->get_index(0)]->num_attributes;
+
+            int n_items = 0;
+            int n_items_cat_cat = 0;
+            for (idx_t i = 0; i < count; i++) {
+                auto state = states[sdata.sel->get_index(i)];
+                assert(state->cat_attributes == cat_attributes);
+                assert(state->num_attributes == num_attributes);
+                for(idx_t j=0; j<cat_attributes; j++)
+                    n_items += state->lin_cat[j].size();
+                for(idx_t j=0; j<(cat_attributes*(cat_attributes+1))/2; j++)
+                    n_items_cat_cat += state->quad_cat_cat[j].size();
+            }
+
+            {
+                Vector cat_relations_vector = duckdb::ListVector::GetEntry(c4);
+                duckdb::ListVector::Reserve(cat_relations_vector, n_items);
+                duckdb::ListVector::SetListSize(cat_relations_vector, n_items);
+                duckdb::ListVector::Reserve(c4, cat_attributes * count);
+                duckdb::ListVector::SetListSize(c4, cat_attributes * count);
+                sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+                Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
+                        cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
+                vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
+                        cat_relations_vector_sub);
+                cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+                cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+            }
+            {
+                Vector cat_relations_vector = duckdb::ListVector::GetEntry(c5);
+                duckdb::ListVector::Reserve(cat_relations_vector, n_items * num_attributes);
+                duckdb::ListVector::SetListSize(cat_relations_vector, n_items * num_attributes);
+                duckdb::ListVector::Reserve(c5, cat_attributes * num_attributes * count);
+                duckdb::ListVector::SetListSize(c5, cat_attributes * num_attributes * count);
+            }
+            {
+                Vector cat_relations_vector = duckdb::ListVector::GetEntry(c6);
+                duckdb::ListVector::Reserve(cat_relations_vector, n_items_cat_cat);
+                duckdb::ListVector::SetListSize(cat_relations_vector, n_items_cat_cat);
+                duckdb::ListVector::Reserve(c6, ((cat_attributes * (cat_attributes+1))/2) * count);
+                duckdb::ListVector::SetListSize(c6, ((cat_attributes * (cat_attributes+1))/2) * count);
+            }
+        }
+
+        idx_t sublist_idx = 0;
+        idx_t skipped = 0;
+        idx_t idx_element = 0;
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
             for (int j = 0; j < state->cat_attributes; j++) {
-                std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
                 vector<Value> cat_vals = {};
+                std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
                 for (auto const& state_val : ordered){
-                    child_list_t<Value> struct_values;
-                    struct_values.emplace_back("key", Value(state_val.first));
-                    struct_values.emplace_back("value", Value(state_val.second));
-                    cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    cat_set_val_key[idx_element] = state_val.first;
+                    cat_set_val_val[idx_element] = state_val.second;
+                    idx_element++;
                 }
-                ListVector::PushBack(c4, duckdb::Value::LIST(cat_vals));
+                sublist_metadata[sublist_idx].length = ordered.size();
+                sublist_metadata[sublist_idx].offset = skipped;
+                skipped += ordered.size();
+                sublist_idx++;
             }
             result_data3[row_id].length = state->cat_attributes;
             result_data3[row_id].offset = i * result_data3[i].length;
         }
 
-
         //categorical num*cat
-        Vector &c5 = *(children[4]);
-                D_ASSERT(c5.GetType().id() == LogicalTypeId::LIST);
-        c5.SetVectorType(VectorType::FLAT_VECTOR);
-        auto result_data4 = FlatVector::GetData<list_entry_t>(c5);
 
+        if(cat_attributes > 0) {
+            Vector cat_relations_vector = duckdb::ListVector::GetEntry(c5);
+            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
+                    cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
+            vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
+                    cat_relations_vector_sub);
+            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+        }
+
+        idx_element = 0;
+        sublist_idx = 0;
+        skipped = 0;
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
             for (int j = 0; j < state->cat_attributes * state->num_attributes; j++) {
-                vector<Value> cat_vals = {};
                 std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
+                vector<Value> cat_vals = {};
                 for (auto const& state_val : ordered){
-                    child_list_t<Value> struct_values;
-                    struct_values.emplace_back("key", Value(state_val.first));
-                    struct_values.emplace_back("value", Value(state_val.second));
-                    cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    cat_set_val_key[idx_element] = state_val.first;
+                    cat_set_val_val[idx_element] = state_val.second;
+                    idx_element++;
                 }
-                ListVector::PushBack(c5, duckdb::Value::LIST(cat_vals));
+                sublist_metadata[sublist_idx].length = ordered.size();
+                sublist_metadata[sublist_idx].offset = skipped;
+                skipped += ordered.size();
+                sublist_idx++;
             }
             result_data4[row_id].length = state->cat_attributes * state->num_attributes;
-            result_data4[row_id].offset = i * result_data4[i].length;
+            result_data4[row_id].offset = i * result_data4[row_id].length;
         }
 
         //categorical cat*cat
-        Vector &c6 = *(children[5]);
-                D_ASSERT(c6.GetType().id() == LogicalTypeId::LIST);
-        c6.SetVectorType(VectorType::FLAT_VECTOR);
-        auto result_data5 = FlatVector::GetData<list_entry_t>(c6);
+
+        int *cat_set_val_key_1 = nullptr;
+        int *cat_set_val_key_2 = nullptr;
+
+        if(cat_attributes > 0) {
+            Vector cat_relations_vector = duckdb::ListVector::GetEntry(c6);
+            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
+                    cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
+            vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
+                    cat_relations_vector_sub);
+            cat_set_val_key_1 = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_key_2 = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[1]));
+            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[2]));
+        }
+
+        idx_element = 0;
+        sublist_idx = 0;
+        skipped = 0;
 
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
@@ -396,16 +542,18 @@ namespace Triple {
                 vector<Value> cat_vals = {};
                 std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
                 for (auto const& state_val : ordered){
-                    child_list_t<Value> struct_values;
-                    struct_values.emplace_back("key1", Value(state_val.first.first));
-                    struct_values.emplace_back("key2", Value(state_val.first.second));
-                    struct_values.emplace_back("value", Value(state_val.second));
-                    cat_vals.push_back(duckdb::Value::STRUCT(struct_values));
+                    cat_set_val_key_1[idx_element] = state_val.first.first;
+                    cat_set_val_key_2[idx_element] = state_val.first.second;
+                    cat_set_val_val[idx_element] = state_val.second;
+                    idx_element++;
                 }
-                ListVector::PushBack(c6, duckdb::Value::LIST(cat_vals));
+                sublist_metadata[sublist_idx].length = ordered.size();
+                sublist_metadata[sublist_idx].offset = skipped;
+                skipped += ordered.size();
+                sublist_idx++;
             }
             result_data5[row_id].length = state->cat_attributes * (state->cat_attributes+1) / 2;
-            result_data5[row_id].offset = i * result_data5[i].length;
+            result_data5[row_id].offset = i * result_data5[row_id].length;
         }
 
     }

@@ -25,7 +25,7 @@ namespace Flight {
         con.Query("COPY schedule FROM '" + path +
                   "/airline_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY flight FROM '" + path +
-                  "/airlines_data_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/test.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
     }
 
 
@@ -146,7 +146,6 @@ namespace Flight {
     void train_factorized(const std::string &path, bool categorical) {
         duckdb::DuckDB db(":memory:");
         duckdb::Connection con(db);
-
         //import data
         import_data(con, path);
 
@@ -157,10 +156,10 @@ namespace Flight {
         if (categorical) {
             aaa = "SELECT triple_sum(multiply_triple(cnt1, lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP)))"
                   "FROM flight as flight JOIN ("
-                  "    SELECT SCHEDULE_ID, multiply_triple(triple_sum_no_lift2(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, OP_CARRIER), cnt) as cnt1"
+                  "    SELECT SCHEDULE_ID, multiply_triple(lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, OP_CARRIER), cnt) as cnt1"
                   "    FROM schedule as schedule JOIN "
                   "    (SELECT"
-                  "    ROUTE_ID, triple_sum_no_lift1(DISTANCE) as cnt"
+                  "    ROUTE_ID, lift(DISTANCE) as cnt"
                   "    FROM"
                   "      route) as route"
                   "      ON route.ROUTE_ID = schedule.ROUTE_ID) as schedule ON flight.SCHEDULE_ID = schedule.SCHEDULE_ID;";
