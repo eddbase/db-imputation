@@ -25,7 +25,7 @@ namespace Flight {
         con.Query("COPY schedule FROM '" + path +
                   "/airline_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY flight FROM '" + path +
-                  "/test.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/airlines_data_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
     }
 
 
@@ -186,4 +186,30 @@ namespace Flight {
         std::cout << "Time train: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";
     }
+
+    void test(const std::string &path) {
+        {
+            duckdb::DuckDB db(":memory:");
+            duckdb::Connection con(db);
+            //import data
+            import_data(con, path);
+            std::cout << "\n\n\nImported data\n\n\n";
+            Triple::register_functions(*con.context, {20, 4, 1, 20}, {3, 1, 0, 0});//con+cat, con only
+            //20,3 4,1 1,0 20,0
+            std::string aaa;
+            //factorized
+            //con.Query("SET threads TO 1;");
+            aaa = "SELECT triple_sum_no_lift4(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP) "
+                  "  FROM flight";
+            //aaa = "SELECT SUM(DEP_DELAY) FROM flight";
+            std::cout << "START TIMER\n";
+            auto begin = std::chrono::high_resolution_clock::now();
+            con.Query(aaa);//->Print();
+            auto end = std::chrono::high_resolution_clock::now();
+            std::cout << "Time part 1: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
+                      << "\n";
+            return;
+        }
+    }
+
 }

@@ -44,8 +44,10 @@ int main(int argc, char* argv[]){
     #endif
 
 #ifdef TRAIN_TEST
-    std::string path_train = argv[1];
+    //std::string path_train = argv[1];
+    std::string path_train = "/Users/massimo/";
     std::cout<<"Start train experiments...\n";
+    Flight::test(path_train);
     Flight::train_mat_sql_lift(path_train, false);
     Flight::train_mat_sql_lift(path_train, true);
     Flight::train_mat_custom_lift(path_train, false, false);
