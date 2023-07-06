@@ -12,6 +12,8 @@
 #include <boost/functional/hash.hpp>
 #include <iostream>
 #include <boost/unordered_map.hpp>
+#include <boost/container/flat_map.hpp>
+
 //#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace Triple {
@@ -23,9 +25,9 @@ namespace Triple {
         float *lin_agg;
         float *quadratic_agg;
 
-        std::unordered_map<int, float> *lin_cat;
-        std::unordered_map<int, float> *quad_num_cat;
-        std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>> *quad_cat_cat;
+        boost::container::flat_map<int, float> *lin_cat;
+        boost::container::flat_map<int, float> *quad_num_cat;
+        boost::container::flat_map<std::pair<int, int>, float> *quad_cat_cat;
     };
 
 
@@ -46,19 +48,9 @@ namespace Triple {
 
         template<class STATE>
         static void Destroy(STATE &state, duckdb::AggregateInputData &aggr_input_data) {
-            if (state.lin_agg != nullptr) {
-                delete[] state.lin_agg;
-            }
-            state.quadratic_agg = nullptr;
-            state.lin_agg = nullptr;
-            if (state.lin_cat != nullptr) {
-                delete[] state.lin_cat;
-            }
-            state.quad_num_cat = nullptr;
-            state.lin_cat = nullptr;
-            if (state.quad_cat_cat != nullptr)
-                delete[] state.quad_cat_cat;
-            state.quad_cat_cat = nullptr;
+            delete[] state.lin_agg;
+            delete[] state.lin_cat;
+            delete[] state.quad_cat_cat;
         }
 
         static bool IgnoreNull() {

@@ -120,11 +120,11 @@ namespace Triple {
                         state->quadratic_agg[k] = 0;
                 }
                 if(cat_attr > 0) {
-                    state->lin_cat = new std::unordered_map<int, float>[cat_attr + (num_attr * cat_attr)];
+                    state->lin_cat = new boost::container::flat_map<int, float>[cat_attr + (num_attr * cat_attr)];
                     if (num_attr > 0)
                         state->quad_num_cat = &(state->lin_cat[cat_attr]);
 
-                    state->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[
+                    state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                     cat_attr * (cat_attr + 1) / 2];
                 }
             }
@@ -178,7 +178,7 @@ namespace Triple {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<cat_attr; k++){
                 auto curr_metadata = sublist_metadata[k + (j*cat_attr)];
-                std::unordered_map<int, float> &col_vals_state = state->lin_cat[k];
+                auto &col_vals_state = state->lin_cat[k];
                 for (size_t item = 0; item < curr_metadata.length; item++){//for each column values
                     int key = cat_set_val_key[item+curr_metadata.offset]; // v_struct[0].GetValue<int>();
                     auto pos = col_vals_state.find(key);
@@ -208,7 +208,7 @@ namespace Triple {
             auto state = states[sdata.sel->get_index(j)];
             for(idx_t k=0; k<cat_attr * num_attr; k++){
                 auto curr_metadata = sublist_metadata[k + (j*(cat_attr * num_attr))];
-                std::unordered_map<int, float> &col_vals = state->quad_num_cat[k];
+                auto &col_vals = state->quad_num_cat[k];
                 for (size_t item = 0; item < curr_metadata.length; item++){
                     int key = cat_set_val_key[item + curr_metadata.offset];
                     auto pos = col_vals.find(key);
@@ -282,12 +282,12 @@ namespace Triple {
                 }
 
                 if(state->cat_attributes > 0) {
-                    combined_ptr[i]->lin_cat = new std::unordered_map<int, float>[state->cat_attributes + (state->num_attributes *
+                    combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes + (state->num_attributes *
                                                                                                            state->cat_attributes)];
                     if(state->num_attributes > 0)
                         combined_ptr[i]->quad_num_cat = &(combined_ptr[i]->lin_cat[state->cat_attributes]);
 
-                    combined_ptr[i]->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[
+                    combined_ptr[i]->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                     state->cat_attributes * (state->cat_attributes + 1) / 2];
                 }
             }

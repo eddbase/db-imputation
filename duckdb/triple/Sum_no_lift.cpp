@@ -14,7 +14,7 @@
 #include <boost/functional/hash.hpp>
 //#include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered/unordered_map.hpp>
-
+#include <boost/container/flat_map.hpp>
 
 duckdb::unique_ptr<duckdb::FunctionData>
 Triple::SumNoLiftBind(duckdb::ClientContext &context, duckdb::AggregateFunction &function,
@@ -98,7 +98,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
         size_t curr_cateogrical = 0;
         auto state = states[sdata.sel->get_index(j)];
         //initialize
-        if (state->lin_agg == nullptr && state->lin_agg == nullptr){
+        if (state->lin_agg == nullptr && state->lin_cat == nullptr){
             state->num_attributes = num_cols;
             state->cat_attributes = cat_cols;
 
@@ -112,10 +112,14 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             }
 
             if(cat_cols > 0) {
-                state->lin_cat = new std::unordered_map<int, float>[cat_cols + (num_cols * cat_cols)];
+                state->lin_cat = new boost::container::flat_map<int, float>[cat_cols + (num_cols * cat_cols)];
                 if (num_cols > 0)
                     state->quad_num_cat = &(state->lin_cat[cat_cols]);
-                state->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<pair<int, int>>>[
+
+                for(int i=0; i<cat_cols + (num_cols * cat_cols); i++)
+                    state->lin_cat[i].reserve(2);
+
+                state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                 cat_cols * (cat_cols + 1) / 2];
             }
         }
@@ -129,7 +133,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             }
             else{//sum categorical
                 int in_col_val = UnifiedVectorFormat::GetData<int>(input_data[k])[input_data[k].sel->get_index(j)];
-                std::unordered_map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
+                boost::container::flat_map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
                 auto pos = col_vals.find(in_col_val);
                 if (pos == col_vals.end())
                     col_vals[in_col_val] = 1;
@@ -179,7 +183,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
                     const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
-                        std::unordered_map<int, float> &vals = state->quad_num_cat[col_idx];
+                        boost::container::flat_map<int, float> &vals = state->quad_num_cat[col_idx];
                         int key = sec_column_data[input_data[k].sel->get_index(i)];
                         auto pos = vals.find(key);
                         if (pos == vals.end())
@@ -256,13 +260,13 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
             }
 
             if(state->cat_attributes > 0) {
-                combined_ptr[i]->lin_cat = new std::unordered_map<int, float>[state->cat_attributes +
+                combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes +
                                                                               (state->num_attributes *
                                                                                state->cat_attributes)];
                 if(state->num_attributes > 0)
                     combined_ptr[i]->quad_num_cat = &(combined_ptr[i]->lin_cat[state->cat_attributes]);
 
-                combined_ptr[i]->quad_cat_cat = new std::unordered_map<std::pair<int, int>, float, boost::hash<std::pair<int, int>>>[
+                combined_ptr[i]->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                 state->cat_attributes * (state->cat_attributes + 1) / 2];
             }
         }
@@ -467,7 +471,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         const auto row_id = i + offset;
 
         for (int j = 0; j < state->cat_attributes; j++) {
-            std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
+            //std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
+            const auto &ordered = state->lin_cat[j];
             for (auto const& state_val : ordered){
                 cat_set_val_key[idx_element] = state_val.first;
                 cat_set_val_val[idx_element] = state_val.second;
@@ -507,7 +512,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
 
         for (int j = 0; j < state->cat_attributes * state->num_attributes; j++) {
             //std::cout<<state->quad_num_cat[j].begin()->first<<" "<<state->quad_num_cat[j].begin()->second;
-            std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
+            //std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
+            const auto &ordered = state->quad_num_cat[j];
             for (auto const& state_val : ordered){
                 cat_set_val_key[idx_element] = state_val.first;
                 cat_set_val_val[idx_element] = state_val.second;
@@ -552,7 +558,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         const auto row_id = i + offset;
 
         for (int j = 0; j < state->cat_attributes * (state->cat_attributes+1)/2; j++) {
-            std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
+            //std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
+            const auto &ordered = state->quad_cat_cat[j];
             for (auto const& state_val : ordered){
                 cat_set_val_key_1[idx_element] = state_val.first.first;
                 cat_set_val_key_2[idx_element] = state_val.first.second;
