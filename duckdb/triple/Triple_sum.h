@@ -22,11 +22,14 @@ namespace Triple {
         int count;
         int num_attributes;
         int cat_attributes;
+
+        //int num_keys_total_categories;
+
         float *lin_agg;
         float *quadratic_agg;
 
         boost::container::flat_map<int, float> *lin_cat;
-        boost::container::flat_map<int, float> *quad_num_cat;
+        boost::container::flat_map<int, std::vector<float>> *quad_num_cat;
         boost::container::flat_map<std::pair<int, int>, float> *quad_cat_cat;
     };
 
@@ -37,6 +40,7 @@ namespace Triple {
             state.count = 0;
             state.num_attributes = 0;
             state.cat_attributes = 0;
+
             state.lin_agg = nullptr;
             state.quadratic_agg = nullptr;
             state.lin_cat = nullptr;
@@ -51,6 +55,7 @@ namespace Triple {
             delete[] state.lin_agg;
             delete[] state.lin_cat;
             delete[] state.quad_cat_cat;
+            delete[] state.quad_num_cat;
         }
 
         static bool IgnoreNull() {

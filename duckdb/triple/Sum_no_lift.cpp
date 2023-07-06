@@ -112,15 +112,15 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             }
 
             if(cat_cols > 0) {
-                state->lin_cat = new boost::container::flat_map<int, float>[cat_cols + (num_cols * cat_cols)];
-                if (num_cols > 0)
-                    state->quad_num_cat = &(state->lin_cat[cat_cols]);
-
-                for(int i=0; i<cat_cols + (num_cols * cat_cols); i++)
-                    state->lin_cat[i].reserve(2);
-
-                state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
-                cat_cols * (cat_cols + 1) / 2];
+                state->lin_cat = new boost::container::flat_map<int, float>[cat_cols];
+                for(int kk=0; kk<cat_cols; kk++)
+                    state->lin_cat[kk].reserve(4);
+                if (num_cols > 0) {
+                    state->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[cat_cols];
+                    for(int kk=0; kk<cat_cols; kk++)
+                        state->quad_num_cat[kk].reserve(4);
+                }
+                state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[cat_cols * (cat_cols + 1) / 2];
             }
         }
 
@@ -135,8 +135,10 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
                 int in_col_val = UnifiedVectorFormat::GetData<int>(input_data[k])[input_data[k].sel->get_index(j)];
                 boost::container::flat_map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
                 auto pos = col_vals.find(in_col_val);
-                if (pos == col_vals.end())
+                if (pos == col_vals.end()) {
                     col_vals[in_col_val] = 1;
+                    //state->num_keys_total_categories++;
+                }
                 else
                     pos->second++;
                 curr_cateogrical++;
@@ -169,34 +171,49 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
     }
     //std::cout<<"Start NUMCAT"<<std::endl;
 
+    //count unique keys in each categorical
+    //and allocate appropriate float vector
+
+
 
     //SUM NUM*CAT
-    col_idx = 0;
 
-    for(idx_t j=0; j<cols; j++) {
-        auto col_type = inputs[j].GetType();
-        if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {//numericals
-            const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[j]);
-            for (idx_t k = 0; k < cols; k++) {
-                auto col_type = inputs[k].GetType();
+    //NUM*CAT
+    if (cat_cols > 0 && num_cols > 0) {
+        for (idx_t i = 0; i < count; i++) {
+            col_idx = 0;
+            auto state = states[sdata.sel->get_index(i)];
+            for (idx_t j = 0; j < cols; j++) {
+                auto col_type = inputs[j].GetType();
                 if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
-                    const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
-                    for (idx_t i = 0; i < count; i++) {
-                        auto state = states[sdata.sel->get_index(i)];
-                        boost::container::flat_map<int, float> &vals = state->quad_num_cat[col_idx];
-                        int key = sec_column_data[input_data[k].sel->get_index(i)];
-                        auto pos = vals.find(key);
-                        if (pos == vals.end())
-                            vals[key] = first_column_data[input_data[j].sel->get_index(i)];
-                        else
-                            pos->second += first_column_data[input_data[j].sel->get_index(i)];
+                    const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[j]);
+                    boost::container::flat_map<int, std::vector<float>> &vals = state->quad_num_cat[col_idx];
+                    int key = sec_column_data[input_data[j].sel->get_index(i)];
+                    auto pos = vals.find(key);
+                    if (pos == vals.end()) {
+                        //add num_cat columns
+                        std::vector<float> payload = std::vector<float>(num_cols);
+                        for(idx_t k = 0; k<num_cols; k++) {
+                            const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[k]);
+                            payload[k] = first_column_data[input_data[k].sel->get_index(i)];
+                        }
+                        vals[key] = std::move(payload);
+                    }
+                    else {
+                        auto &payload = pos->second;
+                        for(idx_t k = 0; k<num_cols; k++) {
+                            const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[k]);
+                            payload[k] += first_column_data[input_data[k].sel->get_index(i)];
+                        }
                     }
                     col_idx++;
                 }
             }
         }
     }
-    //std::cout<<"End NUMCAT"<<std::endl;
+
+
+            //std::cout<<"End NUMCAT"<<std::endl;
 
     //SUM CAT*CAT
     col_idx = 0;
@@ -260,11 +277,9 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
             }
 
             if(state->cat_attributes > 0) {
-                combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes +
-                                                                              (state->num_attributes *
-                                                                               state->cat_attributes)];
+                combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes];
                 if(state->num_attributes > 0)
-                    combined_ptr[i]->quad_num_cat = &(combined_ptr[i]->lin_cat[state->cat_attributes]);
+                    combined_ptr[i]->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[state->cat_attributes];
 
                 combined_ptr[i]->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                 state->cat_attributes * (state->cat_attributes + 1) / 2];
@@ -292,14 +307,15 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
         }
 
         //num*categorical
-        for (int j = 0; j < combined_ptr[i]->cat_attributes*combined_ptr[i]->num_attributes; j++) {
-            auto &taget_map = combined_ptr[i]->quad_num_cat[j];
+        for (int j = 0; j < combined_ptr[i]->cat_attributes; j++) {
+            auto &taget_map = combined_ptr[i]->quad_num_cat[j];//map of cat. col j
             for (auto const& state_vals : state->quad_num_cat[j]){//search in combine states map state values
                 auto pos = taget_map.find(state_vals.first);
                 if (pos == taget_map.end())
-                    taget_map[state_vals.first] = state_vals.second;
+                    taget_map[state_vals.first] = std::vector(state_vals.second);
                 else
-                    pos->second += state_vals.second;
+                    for(int k=0; k<state_vals.second.size(); k++)
+                        pos->second[k] += state_vals.second[k];
             }
         }
 
@@ -410,13 +426,12 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         //init list size
         cat_attributes = states[sdata.sel->get_index(0)]->cat_attributes;
         num_attributes = states[sdata.sel->get_index(0)]->num_attributes;
-
-        int n_items = 0;
+        int n_keys_cat_columns = 0;
         int n_items_cat_cat = 0;
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             for(idx_t j=0; j<cat_attributes; j++)
-                n_items += state->lin_cat[j].size();
+                n_keys_cat_columns += state->lin_cat[j].size();
             for(idx_t j=0; j<(cat_attributes*(cat_attributes+1))/2; j++)
                 n_items_cat_cat += state->quad_cat_cat[j].size();
         }
@@ -424,16 +439,16 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         {
             c4.SetVectorType(VectorType::FLAT_VECTOR);
             Vector cat_relations_vector = duckdb::ListVector::GetEntry(c4);
-            duckdb::ListVector::Reserve(cat_relations_vector, n_items);
-            duckdb::ListVector::SetListSize(cat_relations_vector, n_items);
+            duckdb::ListVector::Reserve(cat_relations_vector, n_keys_cat_columns);
+            duckdb::ListVector::SetListSize(cat_relations_vector, n_keys_cat_columns);
             duckdb::ListVector::Reserve(c4, cat_attributes * count);
             duckdb::ListVector::SetListSize(c4, cat_attributes * count);
         }
         {
             c5.SetVectorType(VectorType::FLAT_VECTOR);
             Vector cat_relations_vector = duckdb::ListVector::GetEntry(c5);
-            duckdb::ListVector::Reserve(cat_relations_vector, n_items * num_attributes);
-            duckdb::ListVector::SetListSize(cat_relations_vector, n_items * num_attributes);
+            duckdb::ListVector::Reserve(cat_relations_vector, n_keys_cat_columns * num_attributes);
+            duckdb::ListVector::SetListSize(cat_relations_vector, n_keys_cat_columns * num_attributes);
             duckdb::ListVector::Reserve(c5, cat_attributes * num_attributes * count);
             duckdb::ListVector::SetListSize(c5, cat_attributes * num_attributes * count);
         }
@@ -464,7 +479,6 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
 
     }
-    //problem is here
 
     for (idx_t i = 0; i < count; i++) {
         auto state = states[sdata.sel->get_index(i)];
@@ -506,27 +520,44 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
     idx_element = 0;
     sublist_idx = 0;
     skipped = 0;
+    size_t row_offset = 0;
     for (idx_t i = 0; i < count; i++) {
+
         auto state = states[sdata.sel->get_index(i)];
         const auto row_id = i + offset;
 
-        for (int j = 0; j < state->cat_attributes * state->num_attributes; j++) {
-            //std::cout<<state->quad_num_cat[j].begin()->first<<" "<<state->quad_num_cat[j].begin()->second;
-            //std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
-            const auto &ordered = state->quad_num_cat[j];
-            for (auto const& state_val : ordered){
-                cat_set_val_key[idx_element] = state_val.first;
-                cat_set_val_val[idx_element] = state_val.second;
-                idx_element++;
+        size_t cat_offset = 0;
+        for (int j = 0; j < state->cat_attributes; j++)
+            cat_offset += state->quad_num_cat[j].size();//all the keys in this row
+
+        size_t cat_idx = 0;
+        for (int j = 0; j < state->cat_attributes; j++) {
+            const auto &ordered = state->quad_num_cat[j];//map of categorical column j
+            for (auto const& state_val : ordered){//for each key of the cat. variable...
+                auto &num_vals = state_val.second;
+                for(int k=0; k<num_vals.size(); k++) {
+                    size_t index = cat_idx + (k * cat_offset) + row_offset;
+                    cat_set_val_key[index] = state_val.first;
+                    cat_set_val_val[index] = num_vals[k];
+                    idx_element++;
+                }
+                cat_idx++;
             }
-            sublist_metadata[sublist_idx].length = ordered.size();
-            sublist_metadata[sublist_idx].offset = skipped;
-            skipped += ordered.size();
-            sublist_idx++;
         }
+
+        for (int k=0; k<state->num_attributes; k++) {
+            for (int j = 0; j < state->cat_attributes; j++) {
+                sublist_metadata[sublist_idx].length = state->quad_num_cat[j].size();
+                sublist_metadata[sublist_idx].offset = skipped;
+                skipped += state->quad_num_cat[j].size();
+                sublist_idx++;
+            }
+        }
+
+        row_offset += (cat_offset * state->num_attributes);
+
         result_data4[row_id].length = state->cat_attributes * state->num_attributes;
         result_data4[row_id].offset = i * result_data4[row_id].length;
-        //std::cout<<"numcat len: "<<result_data4[row_id].length<<"numcat offs: "<<result_data4[row_id].offset<<std::endl;
     }
 
     //categorical cat*cat

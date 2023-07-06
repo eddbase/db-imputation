@@ -120,9 +120,9 @@ namespace Triple {
                         state->quadratic_agg[k] = 0;
                 }
                 if(cat_attr > 0) {
-                    state->lin_cat = new boost::container::flat_map<int, float>[cat_attr + (num_attr * cat_attr)];
+                    state->lin_cat = new boost::container::flat_map<int, float>[cat_attr];
                     if (num_attr > 0)
-                        state->quad_num_cat = &(state->lin_cat[cat_attr]);
+                        state->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[cat_attr];
 
                     state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                     cat_attr * (cat_attr + 1) / 2];
@@ -206,19 +206,34 @@ namespace Triple {
 
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
-            for(idx_t k=0; k<cat_attr * num_attr; k++){
-                auto curr_metadata = sublist_metadata[k + (j*(cat_attr * num_attr))];
-                auto &col_vals = state->quad_num_cat[k];
-                for (size_t item = 0; item < curr_metadata.length; item++){
-                    int key = cat_set_val_key[item + curr_metadata.offset];
+
+            for(idx_t k=0; k<cat_attr; k++){
+                auto &col_vals = state->quad_num_cat[k];//get the map
+                //they have the same key length for each categorical, so get length from first categorical*numerical
+                auto size_keys_cat_col = sublist_metadata[k + (j*(cat_attr * num_attr))];
+
+                for(int key_idx=0; key_idx<size_keys_cat_col.length; key_idx++){//for each key of the map
+                    int key = cat_set_val_key[key_idx + size_keys_cat_col.offset];//key value
+                    std::vector<float> sum_vals = std::vector<float>(num_attr);//sum of values for key
+
+                    for(idx_t l=0; l<num_attr; l++){//same categorical, new numerical
+                        auto curr_metadata = sublist_metadata[(l*cat_attr) + k + (j*(cat_attr * num_attr))];
+                        assert(cat_set_val_key[key_idx+curr_metadata.offset] == key);
+                        assert(curr_metadata.length == size_keys_cat_col.length);
+                        sum_vals[l] = cat_set_val_val[key_idx+curr_metadata.offset];
+                    }
                     auto pos = col_vals.find(key);
-                    if (pos == col_vals.end())
-                        col_vals[key] = cat_set_val_val[item+curr_metadata.offset];
-                    else
-                        pos->second += cat_set_val_val[item+curr_metadata.offset];
+                    if (pos == col_vals.end()) {
+                        col_vals[key] = std::move(sum_vals);
+                    }
+                    else {
+                        for(idx_t l=0; l<num_attr; l++)
+                            pos->second[l] += sum_vals[l];
+                    }
                 }
             }
         }
+
 
         Vector &c6 = ListVector::GetEntry(*children[5]);
         int *cat_set_val_key_1 = nullptr;
@@ -282,10 +297,9 @@ namespace Triple {
                 }
 
                 if(state->cat_attributes > 0) {
-                    combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes + (state->num_attributes *
-                                                                                                           state->cat_attributes)];
+                    combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes];
                     if(state->num_attributes > 0)
-                        combined_ptr[i]->quad_num_cat = &(combined_ptr[i]->lin_cat[state->cat_attributes]);
+                        combined_ptr[i]->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[state->cat_attributes];
 
                     combined_ptr[i]->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                     state->cat_attributes * (state->cat_attributes + 1) / 2];
@@ -313,14 +327,15 @@ namespace Triple {
             }
 
             //num*categorical
-            for (int j = 0; j < combined_ptr[i]->cat_attributes*combined_ptr[i]->num_attributes; j++) {
-                auto &taget_map = combined_ptr[i]->quad_num_cat[j];
+            for (int j = 0; j < combined_ptr[i]->cat_attributes; j++) {
+                auto &taget_map = combined_ptr[i]->quad_num_cat[j];//map of cat. col j
                 for (auto const& state_vals : state->quad_num_cat[j]){//search in combine states map state values
                     auto pos = taget_map.find(state_vals.first);
                     if (pos == taget_map.end())
-                        taget_map[state_vals.first] = state_vals.second;
+                        taget_map[state_vals.first] = std::vector(state_vals.second);
                     else
-                        pos->second += state_vals.second;
+                        for(int k=0; k<state_vals.second.size(); k++)
+                            pos->second[k] += state_vals.second[k];
                 }
             }
 
@@ -343,8 +358,6 @@ namespace Triple {
                       idx_t count,
                       idx_t offset) {
 
-
-        //std::cout<<"Start fin"<<std::endl;
         assert(offset == 0);
                 D_ASSERT(result.GetType().id() == duckdb::LogicalTypeId::STRUCT);
 
@@ -433,13 +446,12 @@ namespace Triple {
             //init list size
             cat_attributes = states[sdata.sel->get_index(0)]->cat_attributes;
             num_attributes = states[sdata.sel->get_index(0)]->num_attributes;
-
-            int n_items = 0;
+            int n_keys_cat_columns = 0;
             int n_items_cat_cat = 0;
             for (idx_t i = 0; i < count; i++) {
                 auto state = states[sdata.sel->get_index(i)];
                 for(idx_t j=0; j<cat_attributes; j++)
-                    n_items += state->lin_cat[j].size();
+                    n_keys_cat_columns += state->lin_cat[j].size();
                 for(idx_t j=0; j<(cat_attributes*(cat_attributes+1))/2; j++)
                     n_items_cat_cat += state->quad_cat_cat[j].size();
             }
@@ -447,16 +459,16 @@ namespace Triple {
             {
                 c4.SetVectorType(VectorType::FLAT_VECTOR);
                 Vector cat_relations_vector = duckdb::ListVector::GetEntry(c4);
-                duckdb::ListVector::Reserve(cat_relations_vector, n_items);
-                duckdb::ListVector::SetListSize(cat_relations_vector, n_items);
+                duckdb::ListVector::Reserve(cat_relations_vector, n_keys_cat_columns);
+                duckdb::ListVector::SetListSize(cat_relations_vector, n_keys_cat_columns);
                 duckdb::ListVector::Reserve(c4, cat_attributes * count);
                 duckdb::ListVector::SetListSize(c4, cat_attributes * count);
             }
             {
                 c5.SetVectorType(VectorType::FLAT_VECTOR);
                 Vector cat_relations_vector = duckdb::ListVector::GetEntry(c5);
-                duckdb::ListVector::Reserve(cat_relations_vector, n_items * num_attributes);
-                duckdb::ListVector::SetListSize(cat_relations_vector, n_items * num_attributes);
+                duckdb::ListVector::Reserve(cat_relations_vector, n_keys_cat_columns * num_attributes);
+                duckdb::ListVector::SetListSize(cat_relations_vector, n_keys_cat_columns * num_attributes);
                 duckdb::ListVector::Reserve(c5, cat_attributes * num_attributes * count);
                 duckdb::ListVector::SetListSize(c5, cat_attributes * num_attributes * count);
             }
@@ -487,14 +499,14 @@ namespace Triple {
             cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
 
         }
-        //problem is here
 
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
 
             for (int j = 0; j < state->cat_attributes; j++) {
-                std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
+                //std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
+                const auto &ordered = state->lin_cat[j];
                 for (auto const& state_val : ordered){
                     cat_set_val_key[idx_element] = state_val.first;
                     cat_set_val_val[idx_element] = state_val.second;
@@ -528,26 +540,43 @@ namespace Triple {
         idx_element = 0;
         sublist_idx = 0;
         skipped = 0;
+        size_t row_offset = 0;
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
 
-            for (int j = 0; j < state->cat_attributes * state->num_attributes; j++) {
-                //std::cout<<state->quad_num_cat[j].begin()->first<<" "<<state->quad_num_cat[j].begin()->second;
-                std::map<int, float> ordered(state->quad_num_cat[j].begin(), state->quad_num_cat[j].end());
-                for (auto const& state_val : ordered){
-                    cat_set_val_key[idx_element] = state_val.first;
-                    cat_set_val_val[idx_element] = state_val.second;
-                    idx_element++;
+            size_t cat_offset = 0;
+            for (int j = 0; j < state->cat_attributes; j++)
+                cat_offset += state->quad_num_cat[j].size();//all the keys in this row
+
+            size_t cat_idx = 0;
+            for (int j = 0; j < state->cat_attributes; j++) {
+                const auto &ordered = state->quad_num_cat[j];//map of categorical column j
+                for (auto const& state_val : ordered){//for each key of the cat. variable...
+                    auto &num_vals = state_val.second;
+                    for(int k=0; k<num_vals.size(); k++) {
+                        size_t index = cat_idx + (k * cat_offset) + row_offset;
+                        cat_set_val_key[index] = state_val.first;
+                        cat_set_val_val[index] = num_vals[k];
+                        idx_element++;
+                    }
+                    cat_idx++;
                 }
-                sublist_metadata[sublist_idx].length = ordered.size();
-                sublist_metadata[sublist_idx].offset = skipped;
-                skipped += ordered.size();
-                sublist_idx++;
             }
+
+            for (int k=0; k<state->num_attributes; k++) {
+                for (int j = 0; j < state->cat_attributes; j++) {
+                    sublist_metadata[sublist_idx].length = state->quad_num_cat[j].size();
+                    sublist_metadata[sublist_idx].offset = skipped;
+                    skipped += state->quad_num_cat[j].size();
+                    sublist_idx++;
+                }
+            }
+
+            row_offset += (cat_offset * state->num_attributes);
+
             result_data4[row_id].length = state->cat_attributes * state->num_attributes;
             result_data4[row_id].offset = i * result_data4[row_id].length;
-            //std::cout<<"numcat len: "<<result_data4[row_id].length<<"numcat offs: "<<result_data4[row_id].offset<<std::endl;
         }
 
         //categorical cat*cat
@@ -579,7 +608,8 @@ namespace Triple {
             const auto row_id = i + offset;
 
             for (int j = 0; j < state->cat_attributes * (state->cat_attributes+1)/2; j++) {
-                std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
+                //std::map<std::pair<int, int>, float> ordered(state->quad_cat_cat[j].begin(), state->quad_cat_cat[j].end());
+                const auto &ordered = state->quad_cat_cat[j];
                 for (auto const& state_val : ordered){
                     cat_set_val_key_1[idx_element] = state_val.first.first;
                     cat_set_val_key_2[idx_element] = state_val.first.second;
@@ -595,7 +625,6 @@ namespace Triple {
             result_data5[row_id].offset = i * result_data5[row_id].length;
             //std::cout<<"catcat len: "<<result_data5[row_id].length<<"catcat offs: "<<result_data5[row_id].offset<<std::endl;
         }
-
 
     }
 
