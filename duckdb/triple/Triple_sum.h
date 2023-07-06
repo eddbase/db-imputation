@@ -10,7 +10,9 @@
 #include <map>
 #include <unordered_map>
 #include <boost/functional/hash.hpp>
-
+#include <iostream>
+#include <boost/unordered_map.hpp>
+//#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace Triple {
 
@@ -44,13 +46,19 @@ namespace Triple {
 
         template<class STATE>
         static void Destroy(STATE &state, duckdb::AggregateInputData &aggr_input_data) {
-            delete[] state.lin_agg;
-            delete[] state.quadratic_agg;
-            delete[] state.lin_cat;
-            delete[] state.quad_num_cat;
-            delete[] state.quad_cat_cat;
-            //state->lin_agg.clear();
-            //state->quadratic_agg.clear();
+            if (state.lin_agg != nullptr) {
+                delete[] state.lin_agg;
+            }
+            state.quadratic_agg = nullptr;
+            state.lin_agg = nullptr;
+            if (state.lin_cat != nullptr) {
+                delete[] state.lin_cat;
+            }
+            state.quad_num_cat = nullptr;
+            state.lin_cat = nullptr;
+            if (state.quad_cat_cat != nullptr)
+                delete[] state.quad_cat_cat;
+            state.quad_cat_cat = nullptr;
         }
 
         static bool IgnoreNull() {
