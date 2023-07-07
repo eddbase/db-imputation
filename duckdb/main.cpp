@@ -13,6 +13,7 @@
 #include "experiments/flight_baseline.h"
 
 #include "experiments/train_flight.h"
+#include "experiments/train_retailer.h"
 
 #ifdef ENABLE_DOCTEST_IN_LIBRARY
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -47,7 +48,16 @@ int main(int argc, char* argv[]){
     //std::string path_train = argv[1];
     std::string path_train = "/Users/massimo/";
     std::cout<<"Start train experiments...\n";
-    Flight::test(path_train);
+
+    Retailer::train_mat_sql_lift(path_train, false);
+    Retailer::train_mat_sql_lift(path_train, true);
+    Retailer::train_mat_custom_lift(path_train, false, false);
+    Retailer::train_mat_custom_lift(path_train, false, true);
+    Retailer::train_mat_custom_lift(path_train, true, false);
+    Retailer::train_mat_custom_lift(path_train, true, true);
+    Retailer::train_factorized(path_train, false);
+    Retailer::train_factorized(path_train, true);
+    /*
     Flight::train_mat_sql_lift(path_train, false);
     Flight::train_mat_sql_lift(path_train, true);
     Flight::train_mat_custom_lift(path_train, false, false);
@@ -55,7 +65,7 @@ int main(int argc, char* argv[]){
     Flight::train_mat_custom_lift(path_train, true, false);
     Flight::train_mat_custom_lift(path_train, true, true);
     Flight::train_factorized(path_train, false);
-    Flight::train_factorized(path_train, true);
+    Flight::train_factorized(path_train, true);*/
     return 0;
 #endif
 

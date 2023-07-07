@@ -154,8 +154,9 @@ namespace Flight {
         std::string aaa;
         //factorized
         if (categorical) {
-            aaa = "SELECT triple_sum(multiply_triple(cnt1, lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP)))"
-                  "FROM flight as flight JOIN ("
+            aaa = "SELECT triple_sum(multiply_triple(cnt1, cnt2)) FROM "
+                  "(SELECT SCHEDULE_ID, triple_sum_no_lift4(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN,  ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP) AS cnt2 "
+                  " FROM flight as flight group by SCHEDULE_ID) as flight JOIN ("
                   "    SELECT SCHEDULE_ID, multiply_triple(lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN, OP_CARRIER), cnt) as cnt1"
                   "    FROM schedule as schedule JOIN "
                   "    (SELECT"
@@ -163,9 +164,11 @@ namespace Flight {
                   "    FROM"
                   "      route) as route"
                   "      ON route.ROUTE_ID = schedule.ROUTE_ID) as schedule ON flight.SCHEDULE_ID = schedule.SCHEDULE_ID;";
+
         } else {
-            aaa = "SELECT triple_sum(multiply_triple(cnt1, lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS)))"
-                  " FROM flight as flight JOIN ("
+            aaa = "SELECT triple_sum(multiply_triple(cnt1, cnt2)) FROM "
+                  " (SELECT SCHEDULE_ID, triple_sum_no_lift3(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN, ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS) AS cnt2 "
+                  " FROM flight as flight group by SCHEDULE_ID) as flight JOIN ("
                   "    SELECT SCHEDULE_ID, multiply_triple(lift(CRS_DEP_HOUR, CRS_DEP_MIN, CRS_ARR_HOUR, CRS_ARR_MIN), cnt) as cnt1"
                   "    FROM schedule as schedule JOIN "
                   "    (SELECT"
@@ -173,8 +176,7 @@ namespace Flight {
                   "    FROM"
                   "      route) as route"
                   "      ON route.ROUTE_ID = schedule.ROUTE_ID) as schedule ON flight.SCHEDULE_ID = schedule.SCHEDULE_ID;";
-        }
-        auto begin = std::chrono::high_resolution_clock::now();
+        }        auto begin = std::chrono::high_resolution_clock::now();
         duckdb::Value train_triple = con.Query(aaa)->GetValue(0, 0);
         auto end = std::chrono::high_resolution_clock::now();
 

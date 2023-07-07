@@ -76,15 +76,15 @@ namespace Retailer {
                   ");");
 
         con.Query("COPY Census FROM '" + path +
-                  "/schedule.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/census_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY Location FROM '" + path +
-                  "/distances.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/location_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY Item FROM '" + path +
-                  "/airlines_data.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/item_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY Weather FROM '" + path +
-                  "/schedule.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/weather_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY Inventory FROM '" + path +
-                  "/distances.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/inventory_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
     }
 
 
@@ -101,7 +101,7 @@ namespace Retailer {
                                                 "supertargetdistance", "supertargetdrivetime", "targetdistance",
                                                 "targetdrivetime", "walmartdistance", "walmartdrivetime",
                                                 "walmartsupercenterdistance", "walmartsupercenterdrivetime", "prize",
-                                                "feat_1", "maxtemp", "mintemp", "meanwind", "thunder",
+                                                "feat_1", "maxtemp", "mintemp", "meanwind",
                                                 "inventoryunits"};
 
         if (materialized) {
@@ -120,16 +120,19 @@ namespace Retailer {
         query.pop_back();
         query.pop_back();
 
-        query += "), 'lin_cat':LIST_VALUE(), 'quad_num_cat':LIST_VALUE(), 'quad_cat':LIST_VALUE()} FROM ";
+        query += "), 'quad_agg': LIST_VALUE(";
 
         for (size_t i = 0; i < con_columns.size(); i++) {
             for (size_t j = i; j < con_columns.size(); j++) {
                 query += "SUM(" + con_columns[i] + "*" + con_columns[j] + "), ";
             }
         }
+
+
         query.pop_back();
         query.pop_back();
-        query += ") FROM ";
+        query += "), 'lin_cat':LIST_VALUE(), 'quad_num_cat':LIST_VALUE(), 'quad_cat':LIST_VALUE()} FROM ";
+
         if (materialized)
             query += "tbl_retailer";
         else
@@ -163,11 +166,14 @@ namespace Retailer {
                                                 "supertargetdistance", "supertargetdrivetime", "targetdistance",
                                                 "targetdrivetime", "walmartdistance", "walmartdrivetime",
                                                 "walmartsupercenterdistance", "walmartsupercenterdrivetime", "prize",
-                                                "feat_1", "maxtemp", "mintemp", "meanwind", "thunder",
+                                                "feat_1", "maxtemp", "mintemp", "meanwind",
                                                 "inventoryunits"};
-        std::vector<std::string> cat_columns = {"subcategory", "category", "categoryCluster", "rain", "snow"};
+        std::vector<std::string> cat_columns = {"subcategory", "category", "categoryCluster", "rain", "snow", "thunder"};
 
-        Triple::register_functions(*con.context, {con_columns.size()}, {cat_columns.size()});
+        if(categorical)
+            Triple::register_functions(*con.context, {con_columns.size()}, {cat_columns.size()});
+        else
+            Triple::register_functions(*con.context, {con_columns.size()}, {0});
 
         if (materialized) {
             auto begin = std::chrono::high_resolution_clock::now();
@@ -213,18 +219,21 @@ namespace Retailer {
 
         //import data
         import_data(con, path);
+        if(categorical)
+            Triple::register_functions(*con.context, {2, 27}, {3, 0});//con+cat, con only
+            else
+            Triple::register_functions(*con.context, {2, 27}, {0, 0});//con+cat, con only
 
-        Triple::register_functions(*con.context, {20, 4, 1, 20, 4, 1}, {3, 1, 0, 0, 0, 0});//con+cat, con only
 
         std::string aaa;
         //factorized
         if (categorical) {
             aaa = "SELECT "
-                  "  triple_sum(multiply(t2.cnt, t3.cnt))"
+                  "  triple_sum(multiply_triple(t2.cnt, t3.cnt))"
                   " FROM"
                   "  ("
                   "    SELECT"
-                  "      t1.locn, triple_sum(multiply("
+                  "      t1.locn, triple_sum(multiply_triple("
                   "        t1.cnt, lift(W.maxtemp,"
                   "          W.mintemp, W.meanwind, W.rain, W.snow,"
                   "          W.thunder)"
@@ -233,7 +242,7 @@ namespace Retailer {
                   "    FROM"
                   "      (SELECT"
                   "          Inv.locn,"
-                  "          Inv.dateid,triple_sum_no_lift(Inv.inventoryunits,"
+                  "          Inv.dateid,triple_sum_no_lift1(Inv.inventoryunits,"
                   "              It.prize, It.subcategory,"
                   "              It.category, It.categoryCluster)"
                   "              AS cnt"
@@ -251,7 +260,7 @@ namespace Retailer {
                   "  ) AS t2"
                   "  JOIN ("
                   "    SELECT"
-                  "      L.locn, triple_sum_no_lift(ARRAY[C.population,"
+                  "      L.locn, triple_sum_no_lift2(C.population,"
                   "          C.white, C.asian, C.pacific, C.black,"
                   "          C.medianage,  C.occupiedhouseunits,"
                   "          C.houseunits, C.families, C.households,C.husbwife,"
@@ -260,7 +269,7 @@ namespace Retailer {
                   "          L.clim_zn_nbr, L.tot_area_sq_ft,"
                   "          L.sell_area_sq_ft, L.avghhi, L.supertargetdistance,"
                   "          L.supertargetdrivetime, L.targetdistance,L.targetdrivetime,"
-                  "          L.walmartdistance, L.walmartdrivetime,  L.walmartsupercenterdistance],ARRAY[] :: int4[]"
+                  "          L.walmartdistance, L.walmartdrivetime,  L.walmartsupercenterdistance"
                   "      ) AS cnt"
                   "    FROM"
                   "      Location AS L"
@@ -270,19 +279,19 @@ namespace Retailer {
                   "  ) AS t3 ON t2.locn = t3.locn;";
         } else {
             aaa = "SELECT "
-                  "  triple_sum(multiply(t2.cnt , t3.cnt))"
+                  "  triple_sum(multiply_triple(t2.cnt , t3.cnt))"
                   " FROM"
                   "  ("
                   "    SELECT"
-                  "      t1.locn, triple_sum(multiply("
-                  "        t1.cnt, to_cofactor(W.maxtemp,"
+                  "      t1.locn, triple_sum(multiply_triple("
+                  "        t1.cnt, lift(W.maxtemp,"
                   "          W.mintemp, W.meanwind)"
                   "        )"
                   "      ) AS cnt"
                   "    FROM"
                   "      (SELECT"
                   "          Inv.locn,"
-                  "          Inv.dateid,triple_sum_no_lift(Inv.inventoryunits,"
+                  "          Inv.dateid,triple_sum_no_lift1(Inv.inventoryunits,"
                   "              It.prize)"
                   "          AS cnt"
                   "        FROM"
@@ -299,7 +308,7 @@ namespace Retailer {
                   "  ) AS t2"
                   "  JOIN ("
                   "    SELECT"
-                  "      L.locn, triple_sum_no_lift(C.population,"
+                  "      L.locn, triple_sum_no_lift2(C.population,"
                   "          C.white, C.asian, C.pacific, C.black,"
                   "          C.medianage,  C.occupiedhouseunits,"
                   "          C.houseunits, C.families, C.households,C.husbwife,"
@@ -317,6 +326,8 @@ namespace Retailer {
                   "      L.locn"
                   "  ) AS t3 ON t2.locn = t3.locn;";
         }
+        //std::cout<<aaa<<"\n";
+        //con.Query(aaa)->Print();
         auto begin = std::chrono::high_resolution_clock::now();
         duckdb::Value train_triple = con.Query(aaa)->GetValue(0, 0);
         auto end = std::chrono::high_resolution_clock::now();

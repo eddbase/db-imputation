@@ -285,7 +285,7 @@ BEGIN
 
 END$$;
 
-CALL train_cofactor_join_retailer_mat(ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'thunder', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow']::text[])
+CALL train_cofactor_join_retailer_mat(ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow', 'thunder']::text[])
 
 
 CREATE OR REPLACE PROCEDURE train_cofactor_join_retailer(
@@ -335,7 +335,7 @@ BEGIN
 
 END$$;
 
-CALL train_cofactor_join_retailer(ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'thunder', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow']::text[])
+CALL train_cofactor_join_retailer(ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow', 'thunder']::text[])
 
 
 
