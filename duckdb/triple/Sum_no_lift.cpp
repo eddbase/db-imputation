@@ -98,7 +98,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
         size_t curr_cateogrical = 0;
         auto state = states[sdata.sel->get_index(j)];
         //initialize
-        if (state->lin_agg == nullptr && state->lin_cat == nullptr){
+        if (state->lin_agg == nullptr && state->quad_num_cat == nullptr){
             state->num_attributes = num_cols;
             state->cat_attributes = cat_cols;
 
@@ -112,37 +112,16 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
             }
 
             if(cat_cols > 0) {
-                state->lin_cat = new boost::container::flat_map<int, float>[cat_cols];
-                for(int kk=0; kk<cat_cols; kk++)
-                    state->lin_cat[kk].reserve(4);
-                if (num_cols > 0) {
                     state->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[cat_cols];
                     for(int kk=0; kk<cat_cols; kk++)
                         state->quad_num_cat[kk].reserve(4);
-                }
                 state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[cat_cols * (cat_cols + 1) / 2];
             }
         }
 
 
-        for(idx_t k=0; k<cols; k++) {
-            auto col_type = inputs[k].GetType();
-            if (col_type == LogicalType::FLOAT || col_type == LogicalType::DOUBLE) {//sum numerical
-                state->lin_agg[curr_numerical] += UnifiedVectorFormat::GetData<float>(input_data[k])[input_data[k].sel->get_index(j)];
-                curr_numerical++;
-            }
-            else{//sum categorical
-                int in_col_val = UnifiedVectorFormat::GetData<int>(input_data[k])[input_data[k].sel->get_index(j)];
-                boost::container::flat_map<int, float> &col_vals = state->lin_cat[curr_cateogrical];
-                auto pos = col_vals.find(in_col_val);
-                if (pos == col_vals.end()) {
-                    col_vals[in_col_val] = 1;
-                    //state->num_keys_total_categories++;
-                }
-                else
-                    pos->second++;
-                curr_cateogrical++;
-            }
+        for(idx_t k=0; k<num_cols; k++) {
+                state->lin_agg[k] += UnifiedVectorFormat::GetData<float>(input_data[k])[input_data[k].sel->get_index(j)];
         }
     }
 
@@ -179,35 +158,35 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
     //SUM NUM*CAT
 
     //NUM*CAT
-    if (cat_cols > 0 && num_cols > 0) {
+    float payload[num_cols+1];
+    if (cat_cols > 0) {
         for (idx_t i = 0; i < count; i++) {
             col_idx = 0;
             auto state = states[sdata.sel->get_index(i)];
-            for (idx_t j = 0; j < cols; j++) {
-                auto col_type = inputs[j].GetType();
-                if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
+            for (idx_t j = num_cols; j < cols; j++) {
                     const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[j]);
-                    boost::container::flat_map<int, std::vector<float>> &vals = state->quad_num_cat[col_idx];
+                    boost::container::flat_map<int, std::vector<float>> &vals = state->quad_num_cat[col_idx];//map of the column
                     int key = sec_column_data[input_data[j].sel->get_index(i)];
                     auto pos = vals.find(key);
                     if (pos == vals.end()) {
+
                         //add num_cat columns
-                        std::vector<float> payload = std::vector<float>(num_cols);
                         for(idx_t k = 0; k<num_cols; k++) {
                             const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[k]);
-                            payload[k] = first_column_data[input_data[k].sel->get_index(i)];
+                            payload[k+1] = first_column_data[input_data[k].sel->get_index(i)];
                         }
-                        vals[key] = std::move(payload);
+                        payload[0] = 1;
+                        vals[key] = std::vector(payload, payload+num_cols+1);
                     }
                     else {
                         auto &payload = pos->second;
                         for(idx_t k = 0; k<num_cols; k++) {
                             const float *first_column_data = UnifiedVectorFormat::GetData<float>(input_data[k]);
-                            payload[k] += first_column_data[input_data[k].sel->get_index(i)];
+                            payload[k+1] += first_column_data[input_data[k].sel->get_index(i)];
                         }
+                        payload[0]+=1;
                     }
                     col_idx++;
-                }
             }
         }
     }
@@ -217,13 +196,9 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
 
     //SUM CAT*CAT
     col_idx = 0;
-    for(idx_t j=0; j<cols; j++) {
-        auto col_type = inputs[j].GetType();
-        if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
+    for(idx_t j=num_cols; j<cols; j++) {
             const int *first_column_data = UnifiedVectorFormat::GetData<int>(input_data[j]);
             for (idx_t k = j; k < cols; k++) {
-                auto col_type = inputs[k].GetType();
-                if (col_type != LogicalType::FLOAT && col_type != LogicalType::DOUBLE) {//categorical
                     const int *sec_column_data = UnifiedVectorFormat::GetData<int>(input_data[k]);
                     for (idx_t i = 0; i < count; i++) {
                         auto state = states[sdata.sel->get_index(i)];
@@ -238,9 +213,7 @@ void Triple::SumNoLift(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr
                         }
                     }
                     col_idx++;
-                }
             }
-        }
     }
     //std::cout<<"END SUMNOLIFT"<<std::endl;
 }
@@ -259,7 +232,7 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
     for (idx_t i = 0; i < count; i++) {
         auto state = states_ptr[sdata.sel->get_index(i)];
         combined_ptr[i]->count += state->count;
-        if (combined_ptr[i]->lin_agg == nullptr && combined_ptr[i]->lin_cat == nullptr) {//init
+        if (combined_ptr[i]->lin_agg == nullptr && combined_ptr[i]->quad_num_cat == nullptr) {//init
 
             combined_ptr[i]->num_attributes = state->num_attributes;
             combined_ptr[i]->cat_attributes = state->cat_attributes;
@@ -277,9 +250,7 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
             }
 
             if(state->cat_attributes > 0) {
-                combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes];
-                if(state->num_attributes > 0)
-                    combined_ptr[i]->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[state->cat_attributes];
+                combined_ptr[i]->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[state->cat_attributes];
 
                 combined_ptr[i]->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                 state->cat_attributes * (state->cat_attributes + 1) / 2];
@@ -294,19 +265,7 @@ Triple::SumNoLiftCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb
             combined_ptr[i]->quadratic_agg[j] += state->quadratic_agg[j];
         }
         //SUM CATEGORICAL STATES
-        //linear categorical states
-        for (int j = 0; j < combined_ptr[i]->cat_attributes; j++) {
-            auto &taget_map = combined_ptr[i]->lin_cat[j];
-            for (auto const& state_vals : state->lin_cat[j]){//search in combine states map state values
-                auto pos = taget_map.find(state_vals.first);
-                if (pos == taget_map.end())
-                    taget_map[state_vals.first] = state_vals.second;
-                else
-                    pos->second += state_vals.second;
-            }
-        }
-
-        //num*categorical
+        //num*categorical (and count)
         for (int j = 0; j < combined_ptr[i]->cat_attributes; j++) {
             auto &taget_map = combined_ptr[i]->quad_num_cat[j];//map of cat. col j
             for (auto const& state_vals : state->quad_num_cat[j]){//search in combine states map state values
@@ -415,9 +374,14 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
     c6.SetVectorType(VectorType::FLAT_VECTOR);
     auto result_data5 = ListVector::GetData(c6);
 
-    list_entry_t *sublist_metadata = nullptr;
-    int *cat_set_val_key = nullptr;
-    float *cat_set_val_val = nullptr;
+    list_entry_t *sublist_metadata_lin_cat = nullptr;
+    list_entry_t *sublist_metadata_num_cat = nullptr;
+    list_entry_t *sublist_metadata_cat_cat = nullptr;
+    int *cat_set_val_key_lin_cat = nullptr;
+    float *cat_set_val_val_lin_cat = nullptr;
+    int *cat_set_val_key_num_cat = nullptr;
+    float *cat_set_val_val_num_cat = nullptr;
+
 
     int cat_attributes = 0;
     int num_attributes = 0;
@@ -431,7 +395,7 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
             for(idx_t j=0; j<cat_attributes; j++)
-                n_keys_cat_columns += state->lin_cat[j].size();
+                n_keys_cat_columns += state->quad_num_cat[j].size();
             for(idx_t j=0; j<(cat_attributes*(cat_attributes+1))/2; j++)
                 n_items_cat_cat += state->quad_cat_cat[j].size();
         }
@@ -462,12 +426,9 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         }
     }
 
-    idx_t sublist_idx = 0;
-    idx_t skipped = 0;
-    idx_t idx_element = 0;
     if(cat_attributes > 0){
         Vector cat_relations_vector = duckdb::ListVector::GetEntry(c4);
-        sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+        sublist_metadata_lin_cat = duckdb::ListVector::GetData(cat_relations_vector);
         Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
                 cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
         vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
@@ -475,51 +436,33 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
         c4.SetVectorType(VectorType::FLAT_VECTOR);
         ((lin_struct_vector)[0])->SetVectorType(VectorType::FLAT_VECTOR);
         ((lin_struct_vector)[1])->SetVectorType(VectorType::FLAT_VECTOR);
-        cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
-        cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+        cat_set_val_key_lin_cat = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+        cat_set_val_val_lin_cat = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
 
     }
 
-    for (idx_t i = 0; i < count; i++) {
-        auto state = states[sdata.sel->get_index(i)];
-        const auto row_id = i + offset;
-
-        for (int j = 0; j < state->cat_attributes; j++) {
-            //std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
-            const auto &ordered = state->lin_cat[j];
-            for (auto const& state_val : ordered){
-                cat_set_val_key[idx_element] = state_val.first;
-                cat_set_val_val[idx_element] = state_val.second;
-                idx_element++;
-            }
-            sublist_metadata[sublist_idx].length = ordered.size();
-            sublist_metadata[sublist_idx].offset = skipped;
-            skipped += ordered.size();
-            sublist_idx++;
-        }
-        result_data3[row_id].length = state->cat_attributes;
-        result_data3[row_id].offset = i * result_data3[row_id].length;
-        //std::cout<<"cat len: "<<result_data3[row_id].length<<"cat offs: "<<result_data3[row_id].offset<<std::endl;
-    }
 
     //categorical num*cat
 
     if(cat_attributes > 0) {
         Vector cat_relations_vector = duckdb::ListVector::GetEntry(c5);
-        sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+        sublist_metadata_num_cat = duckdb::ListVector::GetData(cat_relations_vector);
         Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
                 cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
         vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
                 cat_relations_vector_sub);
         ((lin_struct_vector)[0])->SetVectorType(VectorType::FLAT_VECTOR);
         ((lin_struct_vector)[1])->SetVectorType(VectorType::FLAT_VECTOR);
-        cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
-        cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+        cat_set_val_key_num_cat = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+        cat_set_val_val_num_cat = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
     }
 
-    idx_element = 0;
-    sublist_idx = 0;
-    skipped = 0;
+    idx_t idx_element = 0;
+    idx_t sublist_idx_num_cat = 0;
+    idx_t sublist_idx_lin_cat = 0;
+    idx_t skipped_num_cat = 0;
+    idx_t skipped_lin_cat = 0;
+
     size_t row_offset = 0;
     for (idx_t i = 0; i < count; i++) {
 
@@ -535,26 +478,40 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
             const auto &ordered = state->quad_num_cat[j];//map of categorical column j
             for (auto const& state_val : ordered){//for each key of the cat. variable...
                 auto &num_vals = state_val.second;
-                for(int k=0; k<num_vals.size(); k++) {
+
+                //set lin_agg
+                cat_set_val_key_lin_cat[idx_element] = state_val.first;
+                cat_set_val_val_lin_cat[idx_element] = num_vals[0];
+                idx_element++;
+
+                //set num. columns
+                for(int k=0; k<num_vals.size()-1; k++) {
                     size_t index = cat_idx + (k * cat_offset) + row_offset;
-                    cat_set_val_key[index] = state_val.first;
-                    cat_set_val_val[index] = num_vals[k];
-                    idx_element++;
+                    cat_set_val_key_num_cat[index] = state_val.first;
+                    cat_set_val_val_num_cat[index] = num_vals[k+1];
                 }
                 cat_idx++;
             }
+
+            sublist_metadata_lin_cat[sublist_idx_lin_cat].length = ordered.size();
+            sublist_metadata_lin_cat[sublist_idx_lin_cat].offset = skipped_lin_cat;
+            skipped_lin_cat += ordered.size();
+            sublist_idx_lin_cat++;
         }
 
         for (int k=0; k<state->num_attributes; k++) {
             for (int j = 0; j < state->cat_attributes; j++) {
-                sublist_metadata[sublist_idx].length = state->quad_num_cat[j].size();
-                sublist_metadata[sublist_idx].offset = skipped;
-                skipped += state->quad_num_cat[j].size();
-                sublist_idx++;
+                sublist_metadata_num_cat[sublist_idx_num_cat].length = state->quad_num_cat[j].size();
+                sublist_metadata_num_cat[sublist_idx_num_cat].offset = skipped_num_cat;
+                skipped_num_cat += state->quad_num_cat[j].size();
+                sublist_idx_num_cat++;
             }
         }
 
         row_offset += (cat_offset * state->num_attributes);
+
+        result_data3[row_id].length = state->cat_attributes;
+        result_data3[row_id].offset = i * result_data3[row_id].length;
 
         result_data4[row_id].length = state->cat_attributes * state->num_attributes;
         result_data4[row_id].offset = i * result_data4[row_id].length;
@@ -564,10 +521,11 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
 
     int *cat_set_val_key_1 = nullptr;
     int *cat_set_val_key_2 = nullptr;
+    float *cat_set_val_val = nullptr;
 
     if(cat_attributes > 0) {
         Vector cat_relations_vector = duckdb::ListVector::GetEntry(c6);
-        sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+        sublist_metadata_cat_cat = duckdb::ListVector::GetData(cat_relations_vector);
         Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
                 cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
         vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
@@ -581,8 +539,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
     }
 
     idx_element = 0;
-    sublist_idx = 0;
-    skipped = 0;
+    idx_t sublist_idx = 0;
+    idx_t skipped = 0;
 
     for (idx_t i = 0; i < count; i++) {
         auto state = states[sdata.sel->get_index(i)];
@@ -597,8 +555,8 @@ void Triple::SumNoLiftFinalize(duckdb::Vector &state_vector, duckdb::AggregateIn
                 cat_set_val_val[idx_element] = state_val.second;
                 idx_element++;
             }
-            sublist_metadata[sublist_idx].length = ordered.size();
-            sublist_metadata[sublist_idx].offset = skipped;
+            sublist_metadata_cat_cat[sublist_idx].length = ordered.size();
+            sublist_metadata_cat_cat[sublist_idx].offset = skipped;
             skipped += ordered.size();
             sublist_idx++;
         }

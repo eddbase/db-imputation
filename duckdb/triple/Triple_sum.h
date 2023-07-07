@@ -28,7 +28,7 @@ namespace Triple {
         float *lin_agg;
         float *quadratic_agg;
 
-        boost::container::flat_map<int, float> *lin_cat;
+        //boost::container::flat_map<int, float> *lin_cat;
         boost::container::flat_map<int, std::vector<float>> *quad_num_cat;
         boost::container::flat_map<std::pair<int, int>, float> *quad_cat_cat;
     };
@@ -43,7 +43,6 @@ namespace Triple {
 
             state.lin_agg = nullptr;
             state.quadratic_agg = nullptr;
-            state.lin_cat = nullptr;
             state.quad_num_cat = nullptr;
             state.quad_cat_cat = nullptr;
             //state->lin_agg = {};
@@ -53,7 +52,6 @@ namespace Triple {
         template<class STATE>
         static void Destroy(STATE &state, duckdb::AggregateInputData &aggr_input_data) {
             delete[] state.lin_agg;
-            delete[] state.lin_cat;
             delete[] state.quad_cat_cat;
             delete[] state.quad_num_cat;
         }

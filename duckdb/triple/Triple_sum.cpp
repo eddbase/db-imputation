@@ -107,7 +107,7 @@ namespace Triple {
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
 
-            if (state->lin_agg == nullptr && state->lin_cat == nullptr){//initialize
+            if (state->lin_agg == nullptr && state->quad_num_cat == nullptr){//initialize
                 state->num_attributes = num_attr;
                 state->cat_attributes = cat_attr;
                 if(num_attr > 0) {
@@ -120,9 +120,7 @@ namespace Triple {
                         state->quadratic_agg[k] = 0;
                 }
                 if(cat_attr > 0) {
-                    state->lin_cat = new boost::container::flat_map<int, float>[cat_attr];
-                    if (num_attr > 0)
-                        state->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[cat_attr];
+                    state->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[cat_attr];
 
                     state->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                     cat_attr * (cat_attr + 1) / 2];
@@ -158,36 +156,23 @@ namespace Triple {
         //auto list_entries_2 = UnifiedVectorFormat::GetData<float>(input_data_c3);
         //UnifiedVectorFormat::Get
 
-        int *cat_set_val_key = nullptr;
-        float *cat_set_val_val = nullptr;
-        list_entry_t *sublist_metadata = nullptr;
+        int *cat_set_val_key_lin_cat = nullptr;
+        float *cat_set_val_val_lin_cat = nullptr;
+        int *cat_set_val_key_num_cat = nullptr;
+        float *cat_set_val_val_num_cat = nullptr;
+        list_entry_t *sublist_metadata_lin_cat = nullptr;
+        list_entry_t *sublist_metadata_num_cat = nullptr;
 
         if(cat_attr > 0){
             Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*children[3]);
-            sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+            sublist_metadata_lin_cat = duckdb::ListVector::GetData(v_cat_lin_1);
             Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
             vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
                     v_cat_lin_1_values);
             //todo flatvector assumption
-            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
-            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+            cat_set_val_key_lin_cat = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+            cat_set_val_val_lin_cat = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
 
-        }
-
-        for (idx_t j = 0; j < count; j++) {
-            auto state = states[sdata.sel->get_index(j)];
-            for(idx_t k=0; k<cat_attr; k++){
-                auto curr_metadata = sublist_metadata[k + (j*cat_attr)];
-                auto &col_vals_state = state->lin_cat[k];
-                for (size_t item = 0; item < curr_metadata.length; item++){//for each column values
-                    int key = cat_set_val_key[item+curr_metadata.offset]; // v_struct[0].GetValue<int>();
-                    auto pos = col_vals_state.find(key);
-                    if (pos == col_vals_state.end())
-                        col_vals_state[key] = cat_set_val_val[item+curr_metadata.offset];
-                    else
-                        pos->second += cat_set_val_val[item+curr_metadata.offset];
-                }
-            }
         }
 
         //set num*cat
@@ -195,14 +180,16 @@ namespace Triple {
 
         if(cat_attr > 0){
             Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*children[4]);
-            sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
+            sublist_metadata_num_cat = duckdb::ListVector::GetData(v_cat_lin_1);
             Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
             vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
                     v_cat_lin_1_values);
             //todo flatvector assumption
-            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
-            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+            cat_set_val_key_num_cat = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+            cat_set_val_val_num_cat = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
         }
+
+        float sum_vals[num_attr+1];//sum of values for key
 
         for (idx_t j = 0; j < count; j++) {
             auto state = states[sdata.sel->get_index(j)];
@@ -210,24 +197,25 @@ namespace Triple {
             for(idx_t k=0; k<cat_attr; k++){
                 auto &col_vals = state->quad_num_cat[k];//get the map
                 //they have the same key length for each categorical, so get length from first categorical*numerical
-                auto size_keys_cat_col = sublist_metadata[k + (j*(cat_attr * num_attr))];
+                //auto size_keys_cat_col = sublist_metadata_num_cat[k + (j*(cat_attr * num_attr))];
+                auto curr_metadata_lin_cat = sublist_metadata_lin_cat[(j*cat_attr) + k];
 
-                for(int key_idx=0; key_idx<size_keys_cat_col.length; key_idx++){//for each key of the map
-                    int key = cat_set_val_key[key_idx + size_keys_cat_col.offset];//key value
-                    std::vector<float> sum_vals = std::vector<float>(num_attr);//sum of values for key
-
+                for(int key_idx=0; key_idx<curr_metadata_lin_cat.length; key_idx++){//for each key of the map
+                    int key = cat_set_val_key_lin_cat[key_idx + curr_metadata_lin_cat.offset];//key value
+                    //need to sum counts
+                    sum_vals[0] = cat_set_val_val_lin_cat[curr_metadata_lin_cat.offset + key_idx];
                     for(idx_t l=0; l<num_attr; l++){//same categorical, new numerical
-                        auto curr_metadata = sublist_metadata[(l*cat_attr) + k + (j*(cat_attr * num_attr))];
-                        assert(cat_set_val_key[key_idx+curr_metadata.offset] == key);
-                        assert(curr_metadata.length == size_keys_cat_col.length);
-                        sum_vals[l] = cat_set_val_val[key_idx+curr_metadata.offset];
+                        auto curr_metadata = sublist_metadata_num_cat[(l*cat_attr) + k + (j*(cat_attr * num_attr))];
+                        assert(cat_set_val_key_num_cat[key_idx+curr_metadata.offset] == key);
+                        assert(curr_metadata.length == curr_metadata_lin_cat.length);
+                        sum_vals[l+1] = cat_set_val_val_num_cat[key_idx+curr_metadata.offset];
                     }
                     auto pos = col_vals.find(key);
                     if (pos == col_vals.end()) {
-                        col_vals[key] = std::move(sum_vals);
+                        col_vals[key] = std::vector(sum_vals, sum_vals+num_attr+1);
                     }
                     else {
-                        for(idx_t l=0; l<num_attr; l++)
+                        for(idx_t l=0; l<num_attr+1; l++)
                             pos->second[l] += sum_vals[l];
                     }
                 }
@@ -238,6 +226,8 @@ namespace Triple {
         Vector &c6 = ListVector::GetEntry(*children[5]);
         int *cat_set_val_key_1 = nullptr;
         int *cat_set_val_key_2 = nullptr;
+        float *cat_set_val_val = nullptr;
+        list_entry_t *sublist_metadata;
         if(cat_attr > 0){
             Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*children[5]);
             sublist_metadata = duckdb::ListVector::GetData(v_cat_lin_1);
@@ -280,26 +270,25 @@ namespace Triple {
         for (idx_t i = 0; i < count; i++) {
             auto state = states_ptr[sdata.sel->get_index(i)];
             combined_ptr[i]->count += state->count;
-            if (combined_ptr[i]->lin_agg == nullptr && combined_ptr[i]->lin_cat == nullptr) {//init
+            if (combined_ptr[i]->lin_agg == nullptr && combined_ptr[i]->quad_num_cat == nullptr) {//init
 
                 combined_ptr[i]->num_attributes = state->num_attributes;
                 combined_ptr[i]->cat_attributes = state->cat_attributes;
-
                 if(state->num_attributes > 0) {
-                    combined_ptr[i]->lin_agg = new float[state->num_attributes + ((state->num_attributes * (state->num_attributes + 1)) /
-                                                                                  2)];
+                    combined_ptr[i]->lin_agg = new float[state->num_attributes +
+                                                         ((state->num_attributes * (state->num_attributes + 1)) / 2)];
+
                     combined_ptr[i]->quadratic_agg = &(combined_ptr[i]->lin_agg[state->num_attributes]);
+
+                    for (idx_t k = 0; k < state->num_attributes; k++)
+                        combined_ptr[i]->lin_agg[k] = 0;
 
                     for (idx_t k = 0; k < (state->num_attributes * (state->num_attributes + 1)) / 2; k++)
                         combined_ptr[i]->quadratic_agg[k] = 0;
-                    for (idx_t k = 0; k < state->num_attributes; k++)
-                        combined_ptr[i]->lin_agg[k] = 0;
                 }
 
                 if(state->cat_attributes > 0) {
-                    combined_ptr[i]->lin_cat = new boost::container::flat_map<int, float>[state->cat_attributes];
-                    if(state->num_attributes > 0)
-                        combined_ptr[i]->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[state->cat_attributes];
+                    combined_ptr[i]->quad_num_cat = new boost::container::flat_map<int, std::vector<float>>[state->cat_attributes];
 
                     combined_ptr[i]->quad_cat_cat = new boost::container::flat_map<std::pair<int, int>, float>[
                     state->cat_attributes * (state->cat_attributes + 1) / 2];
@@ -314,19 +303,7 @@ namespace Triple {
                 combined_ptr[i]->quadratic_agg[j] += state->quadratic_agg[j];
             }
             //SUM CATEGORICAL STATES
-            //linear categorical states
-            for (int j = 0; j < combined_ptr[i]->cat_attributes; j++) {
-                auto &taget_map = combined_ptr[i]->lin_cat[j];
-                for (auto const& state_vals : state->lin_cat[j]){//search in combine states map state values
-                    auto pos = taget_map.find(state_vals.first);
-                    if (pos == taget_map.end())
-                        taget_map[state_vals.first] = state_vals.second;
-                    else
-                        pos->second += state_vals.second;
-                }
-            }
-
-            //num*categorical
+            //num*categorical (and count)
             for (int j = 0; j < combined_ptr[i]->cat_attributes; j++) {
                 auto &taget_map = combined_ptr[i]->quad_num_cat[j];//map of cat. col j
                 for (auto const& state_vals : state->quad_num_cat[j]){//search in combine states map state values
@@ -351,7 +328,6 @@ namespace Triple {
                 }
             }
         }
-
     }
 
     void ListFinalize(duckdb::Vector &state_vector, duckdb::AggregateInputData &aggr_input_data, duckdb::Vector &result,
@@ -360,6 +336,7 @@ namespace Triple {
 
         assert(offset == 0);
                 D_ASSERT(result.GetType().id() == duckdb::LogicalTypeId::STRUCT);
+
 
         duckdb::UnifiedVectorFormat sdata;
         state_vector.ToUnifiedFormat(count, sdata);
@@ -435,9 +412,14 @@ namespace Triple {
         c6.SetVectorType(VectorType::FLAT_VECTOR);
         auto result_data5 = ListVector::GetData(c6);
 
-        list_entry_t *sublist_metadata = nullptr;
-        int *cat_set_val_key = nullptr;
-        float *cat_set_val_val = nullptr;
+        list_entry_t *sublist_metadata_lin_cat = nullptr;
+        list_entry_t *sublist_metadata_num_cat = nullptr;
+        list_entry_t *sublist_metadata_cat_cat = nullptr;
+        int *cat_set_val_key_lin_cat = nullptr;
+        float *cat_set_val_val_lin_cat = nullptr;
+        int *cat_set_val_key_num_cat = nullptr;
+        float *cat_set_val_val_num_cat = nullptr;
+
 
         int cat_attributes = 0;
         int num_attributes = 0;
@@ -451,7 +433,7 @@ namespace Triple {
             for (idx_t i = 0; i < count; i++) {
                 auto state = states[sdata.sel->get_index(i)];
                 for(idx_t j=0; j<cat_attributes; j++)
-                    n_keys_cat_columns += state->lin_cat[j].size();
+                    n_keys_cat_columns += state->quad_num_cat[j].size();
                 for(idx_t j=0; j<(cat_attributes*(cat_attributes+1))/2; j++)
                     n_items_cat_cat += state->quad_cat_cat[j].size();
             }
@@ -482,12 +464,9 @@ namespace Triple {
             }
         }
 
-        idx_t sublist_idx = 0;
-        idx_t skipped = 0;
-        idx_t idx_element = 0;
         if(cat_attributes > 0){
             Vector cat_relations_vector = duckdb::ListVector::GetEntry(c4);
-            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            sublist_metadata_lin_cat = duckdb::ListVector::GetData(cat_relations_vector);
             Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
                     cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
             vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
@@ -495,53 +474,36 @@ namespace Triple {
             c4.SetVectorType(VectorType::FLAT_VECTOR);
             ((lin_struct_vector)[0])->SetVectorType(VectorType::FLAT_VECTOR);
             ((lin_struct_vector)[1])->SetVectorType(VectorType::FLAT_VECTOR);
-            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
-            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+            cat_set_val_key_lin_cat = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_val_lin_cat = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
 
         }
 
-        for (idx_t i = 0; i < count; i++) {
-            auto state = states[sdata.sel->get_index(i)];
-            const auto row_id = i + offset;
-
-            for (int j = 0; j < state->cat_attributes; j++) {
-                //std::map<int, float> ordered(state->lin_cat[j].begin(), state->lin_cat[j].end());
-                const auto &ordered = state->lin_cat[j];
-                for (auto const& state_val : ordered){
-                    cat_set_val_key[idx_element] = state_val.first;
-                    cat_set_val_val[idx_element] = state_val.second;
-                    idx_element++;
-                }
-                sublist_metadata[sublist_idx].length = ordered.size();
-                sublist_metadata[sublist_idx].offset = skipped;
-                skipped += ordered.size();
-                sublist_idx++;
-            }
-            result_data3[row_id].length = state->cat_attributes;
-            result_data3[row_id].offset = i * result_data3[row_id].length;
-            //std::cout<<"cat len: "<<result_data3[row_id].length<<"cat offs: "<<result_data3[row_id].offset<<std::endl;
-        }
 
         //categorical num*cat
 
         if(cat_attributes > 0) {
             Vector cat_relations_vector = duckdb::ListVector::GetEntry(c5);
-            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            sublist_metadata_num_cat = duckdb::ListVector::GetData(cat_relations_vector);
             Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
                     cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
             vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
                     cat_relations_vector_sub);
             ((lin_struct_vector)[0])->SetVectorType(VectorType::FLAT_VECTOR);
             ((lin_struct_vector)[1])->SetVectorType(VectorType::FLAT_VECTOR);
-            cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
-            cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+            cat_set_val_key_num_cat = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
+            cat_set_val_val_num_cat = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
         }
 
-        idx_element = 0;
-        sublist_idx = 0;
-        skipped = 0;
+        idx_t idx_element = 0;
+        idx_t sublist_idx_num_cat = 0;
+        idx_t sublist_idx_lin_cat = 0;
+        idx_t skipped_num_cat = 0;
+        idx_t skipped_lin_cat = 0;
+
         size_t row_offset = 0;
         for (idx_t i = 0; i < count; i++) {
+
             auto state = states[sdata.sel->get_index(i)];
             const auto row_id = i + offset;
 
@@ -554,26 +516,40 @@ namespace Triple {
                 const auto &ordered = state->quad_num_cat[j];//map of categorical column j
                 for (auto const& state_val : ordered){//for each key of the cat. variable...
                     auto &num_vals = state_val.second;
-                    for(int k=0; k<num_vals.size(); k++) {
+
+                    //set lin_agg
+                    cat_set_val_key_lin_cat[idx_element] = state_val.first;
+                    cat_set_val_val_lin_cat[idx_element] = num_vals[0];
+                    idx_element++;
+
+                    //set num. columns
+                    for(int k=0; k<num_vals.size()-1; k++) {
                         size_t index = cat_idx + (k * cat_offset) + row_offset;
-                        cat_set_val_key[index] = state_val.first;
-                        cat_set_val_val[index] = num_vals[k];
-                        idx_element++;
+                        cat_set_val_key_num_cat[index] = state_val.first;
+                        cat_set_val_val_num_cat[index] = num_vals[k+1];
                     }
                     cat_idx++;
                 }
+
+                sublist_metadata_lin_cat[sublist_idx_lin_cat].length = ordered.size();
+                sublist_metadata_lin_cat[sublist_idx_lin_cat].offset = skipped_lin_cat;
+                skipped_lin_cat += ordered.size();
+                sublist_idx_lin_cat++;
             }
 
             for (int k=0; k<state->num_attributes; k++) {
                 for (int j = 0; j < state->cat_attributes; j++) {
-                    sublist_metadata[sublist_idx].length = state->quad_num_cat[j].size();
-                    sublist_metadata[sublist_idx].offset = skipped;
-                    skipped += state->quad_num_cat[j].size();
-                    sublist_idx++;
+                    sublist_metadata_num_cat[sublist_idx_num_cat].length = state->quad_num_cat[j].size();
+                    sublist_metadata_num_cat[sublist_idx_num_cat].offset = skipped_num_cat;
+                    skipped_num_cat += state->quad_num_cat[j].size();
+                    sublist_idx_num_cat++;
                 }
             }
 
             row_offset += (cat_offset * state->num_attributes);
+
+            result_data3[row_id].length = state->cat_attributes;
+            result_data3[row_id].offset = i * result_data3[row_id].length;
 
             result_data4[row_id].length = state->cat_attributes * state->num_attributes;
             result_data4[row_id].offset = i * result_data4[row_id].length;
@@ -583,10 +559,11 @@ namespace Triple {
 
         int *cat_set_val_key_1 = nullptr;
         int *cat_set_val_key_2 = nullptr;
+        float *cat_set_val_val = nullptr;
 
         if(cat_attributes > 0) {
             Vector cat_relations_vector = duckdb::ListVector::GetEntry(c6);
-            sublist_metadata = duckdb::ListVector::GetData(cat_relations_vector);
+            sublist_metadata_cat_cat = duckdb::ListVector::GetData(cat_relations_vector);
             Vector cat_relations_vector_sub = duckdb::ListVector::GetEntry(
                     cat_relations_vector);//this is a sequence of values (struct in our case, 2 vectors)
             vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(
@@ -600,8 +577,8 @@ namespace Triple {
         }
 
         idx_element = 0;
-        sublist_idx = 0;
-        skipped = 0;
+        idx_t sublist_idx = 0;
+        idx_t skipped = 0;
 
         for (idx_t i = 0; i < count; i++) {
             auto state = states[sdata.sel->get_index(i)];
@@ -616,8 +593,8 @@ namespace Triple {
                     cat_set_val_val[idx_element] = state_val.second;
                     idx_element++;
                 }
-                sublist_metadata[sublist_idx].length = ordered.size();
-                sublist_metadata[sublist_idx].offset = skipped;
+                sublist_metadata_cat_cat[sublist_idx].length = ordered.size();
+                sublist_metadata_cat_cat[sublist_idx].offset = skipped;
                 skipped += ordered.size();
                 sublist_idx++;
             }
@@ -625,7 +602,6 @@ namespace Triple {
             result_data5[row_id].offset = i * result_data5[row_id].length;
             //std::cout<<"catcat len: "<<result_data5[row_id].length<<"catcat offs: "<<result_data5[row_id].offset<<std::endl;
         }
-
     }
 
     vector<Value> sum_list_of_structs(const vector<Value> &v1, const vector<Value> &v2){
