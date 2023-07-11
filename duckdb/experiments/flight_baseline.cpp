@@ -19,8 +19,8 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
 
     for (int mice_iter =0; mice_iter<mice_iters;mice_iter++){
         //continuous cols
-        std::vector<std::string> testtest = {"WHEELS_ON_HOUR"};
-        for(auto &col_null : testtest) {
+        for(auto &col_null : con_columns_nulls) {
+            std::cout<<"\n\nColumn: "<<col_null<<"\n\n";
             //select
             std::string delta_query = "SELECT triple_sum_no_lift(";
             for (auto &col: con_columns)
@@ -45,17 +45,17 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
             std::vector <double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
 
             //predict query
-            std::string new_val = "";
+            std::string new_val = "(";
             for(size_t i=0; i< con_columns.size(); i++) {
                 if (i==label_index)
                     continue;
                 new_val+="("+ std::to_string((float)params[i])+" * "+con_columns[i]+")+";
             }
-            for(size_t i=0; i< cat_columns.size(); i++) {
-                new_val+="("+ std::to_string((float)params[i+con_columns.size()])+" * "+cat_columns[i]+")+";
-            }
-            new_val.pop_back();
-            //update
+
+            std::string cat_columns_query;
+            query_categorical_num(cat_columns, cat_columns_query, std::vector<float>(params.begin()+con_columns.size(), params.end()));
+            new_val+=cat_columns_query+")::FLOAT";
+                //update
             std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete\n";
             begin = std::chrono::high_resolution_clock::now();
             con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");

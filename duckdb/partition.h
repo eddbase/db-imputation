@@ -10,8 +10,13 @@
 
 
 void partition(const std::string &table_name, const std::vector<std::string> &con_columns, const std::vector<std::string> &con_columns_nulls,
-               const std::vector<std::string> &cat_columns, const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con);
-void query_categorical(const std::vector<std::string> &cat_columns, size_t label, std::string &cat_columns_query, std::string &predict_column_query);
+               const std::vector<std::string> &cat_columns, const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con, const std::string& order = "");
 void build_list_of_uniq_categoricals(const std::vector<std::string> &cat_columns, duckdb::Connection &con, const std::string &table_name);
 void init_baseline(const std::string &table_name, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con);
+void partition_reduce_col_null(const std::string &table_name, const std::vector<std::string> &con_columns, const std::vector<std::string> &con_columns_nulls,
+                               const std::vector<std::string> &cat_columns, const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con, const std::vector<std::string> &assume_columns_nulls);
+
+void query_categorical(const std::vector<std::string> &cat_columns, size_t label, std::string &cat_columns_query, std::string &predict_column_query);
+void query_categorical_num(const std::vector<std::string> &cat_columns, std::string &predict_column_query, const std::vector<float> &cat_columns_parameters);
+
 #endif //TEST_PARTITION_H

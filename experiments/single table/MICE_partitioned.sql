@@ -385,7 +385,6 @@ BEGIN
             
         END LOOP;
         
-
         FOREACH col in ARRAY continuous_columns_null LOOP
             RAISE INFO '  |- Column %', col;
             

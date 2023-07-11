@@ -73,9 +73,8 @@ void LDA_impute(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb:
             feats_c[1 + j] = (double)  duckdb::UnifiedVectorFormat::GetData<float>(input_data[j+1])[input_data[j+1].sel->get_index(i)];
         }
 
-        int cat_padding = 0;
         for (int j = 0; j < cat_cols; j++) {
-            feats_c[1 + j + num_cols + duckdb::UnifiedVectorFormat::GetData<int>(input_data[j+1+num_cols])[input_data[j+1+num_cols].sel->get_index(i)]] = 1;//cat_padding
+            feats_c[1 + num_cols + duckdb::UnifiedVectorFormat::GetData<int>(input_data[j+1+num_cols])[input_data[j+1+num_cols].sel->get_index(i)]] = 1;//cat_padding
         }
 
         char task = 'N';
@@ -103,6 +102,7 @@ void LDA_impute(duckdb::DataChunk &args, duckdb::ExpressionState &state, duckdb:
     delete[] res;
     delete[] coefficients;
     delete[] intercept;
+    delete[] params;
 }
 
 //Returns the datatype used by this function
