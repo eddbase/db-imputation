@@ -18,5 +18,6 @@ void partition_reduce_col_null(const std::string &table_name, const std::vector<
 
 void query_categorical(const std::vector<std::string> &cat_columns, size_t label, std::string &cat_columns_query, std::string &predict_column_query);
 void query_categorical_num(const std::vector<std::string> &cat_columns, std::string &predict_column_query, const std::vector<float> &cat_columns_parameters);
+void build_list_of_uniq_categoricals(const std::vector<std::pair<std::string, std::string>> &cat_columns, duckdb::Connection &con);
 
 #endif //TEST_PARTITION_H

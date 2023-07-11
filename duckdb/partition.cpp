@@ -326,6 +326,20 @@ void build_list_of_uniq_categoricals(const std::vector<std::string> &cat_columns
     }
 }
 
+//pair of col. name, table name
+void build_list_of_uniq_categoricals(const std::vector<std::pair<std::string, std::string>> &cat_columns, duckdb::Connection &con){
+    std::string ttt;
+    for (size_t i=0; i<cat_columns.size(); i++) {
+        ttt = "SELECT DISTINCT "+cat_columns[i].first+" from "+cat_columns[i].second+" WHERE "+cat_columns[i].first+" IS NOT NULL ORDER BY "+cat_columns[i].first;
+        auto uniq_vals = con.Query(ttt);
+        n_uniq_vals.push_back(uniq_vals->RowCount());
+        uniq_cat_vals.emplace_back();
+        for(size_t j=0; j<uniq_vals->RowCount(); j++){
+            uniq_cat_vals[i].push_back(uniq_vals->GetValue(0, j).GetValue<int>());
+        }
+    }
+}
+
 void query_categorical(const std::vector<std::string> &cat_columns, size_t label, std::string &cat_columns_query, std::string &predict_column_query){
     //store unique vals
     int curr_sum = 0;

@@ -20,6 +20,8 @@
 #ifdef ENABLE_DOCTEST_IN_LIBRARY
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "doctest/doctest.h"
+#include "experiments/factorized_imputation_retailer.h"
+
 #else
 #define DOCTEST_CONFIG_DISABLE
 #endif
@@ -85,7 +87,8 @@ std::cout<<"\n\nFlight\n\n";
     bool single_table_retailer = false;
     bool single_table_air_quality = false;
     bool col_scal_exp = false;
-    bool flight_factorized = true;
+    bool flight_factorized = false;
+    bool retailer_factorized = true;
     if (single_table_flight) {
 
     duckdb::DuckDB db(":memory:");
@@ -332,6 +335,11 @@ if(col_scal_exp){
         run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters);
         std::cout<<"---- Baseline ----\n";
         run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters);
+    }
+
+    if (retailer_factorized) {
+        std::string path = "/disk/scratch/imputation_project/systemds/data";        //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
+        run_flight_partition_factorized_retailer(path, "join_table", 1);
     }
 
 

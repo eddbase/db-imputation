@@ -120,6 +120,8 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
                     continue;
                 new_val+="("+ std::to_string((float)params[i])+" * "+con_columns[i]+")+";
             }
+            if(cat_columns.empty())
+                new_val.pop_back();
 
             std::string cat_columns_query;
             query_categorical_num(cat_columns, cat_columns_query, std::vector<float>(params.begin()+con_columns.size(), params.end()));

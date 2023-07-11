@@ -396,7 +396,7 @@ FROM
           L.clim_zn_nbr, L.tot_area_sq_ft,
           L.sell_area_sq_ft, L.avghhi, L.supertargetdistance,
           L.supertargetdrivetime, L.targetdistance,L.targetdrivetime,
-          L.walmartdistance, L.walmartdrivetime,  L.walmartsupercenterdistance],ARRAY[] :: int4[]
+          L.walmartdistance, L.walmartdrivetime,  L.walmartsupercenterdistance, L.walmartsupercenterdrivetime],ARRAY[] :: int4[]
         )
       ) AS cnt
     FROM
