@@ -1,6 +1,4 @@
-//
-// Created by " " on 02/06/2023.
-//
+
 
 #include "Custom_lift.h"
 #include "From_duckdb.h"

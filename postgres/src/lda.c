@@ -1,6 +1,4 @@
-//
-// Created by   on 09/02/2022.
-//
+
 #include "cofactor.h"
 #include "relation.h"
 #include "matrix.h"

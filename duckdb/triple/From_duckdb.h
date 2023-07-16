@@ -1,6 +1,4 @@
-//
-// Created by " " on 01/06/2023.
-//
+
 
 #ifndef DUCKDB_FROM_DUCKDB_H
 #define DUCKDB_FROM_DUCKDB_H

@@ -1,6 +1,4 @@
-//
-// Created by " " on 30/05/2023.
-//
+
 
 #include "Triple_sum.h"
 #include "From_duckdb.h"

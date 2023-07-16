@@ -1,6 +1,4 @@
-//
-// Created by " " on 23/06/2023.
-//
+
 #include <doctest/doctest.h>
 #include <duckdb.hpp>
 #include "../triple/helper.h"

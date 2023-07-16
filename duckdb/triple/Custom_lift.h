@@ -1,6 +1,4 @@
-//
-// Created by " " on 02/06/2023.
-//
+
 
 #ifndef DUCKDB_CUSTOM_LIFT_H
 #define DUCKDB_CUSTOM_LIFT_H

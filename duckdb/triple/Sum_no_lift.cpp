@@ -1,6 +1,4 @@
-//
-// Created by " " on 03/06/2023.
-//
+
 
 #include "Sum_no_lift.h"
 #include <duckdb/function/scalar/nested_functions.hpp>

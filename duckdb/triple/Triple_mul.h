@@ -1,6 +1,4 @@
-//
-// Created by " " on 30/05/2023.
-//
+
 
 #include <duckdb.hpp>
 

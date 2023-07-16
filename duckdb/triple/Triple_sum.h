@@ -1,6 +1,4 @@
-//
-// Created by " " on 30/05/2023.
-//
+
 
 #ifndef DUCKDB_TRIPLE_SUM_H
 #define DUCKDB_TRIPLE_SUM_H

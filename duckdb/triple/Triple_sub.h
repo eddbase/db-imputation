@@ -1,6 +1,4 @@
-//
-// Created by " " on 05/06/2023.
-//
+
 
 
 #ifndef DUCKDB_TRIPLE_SUB_H

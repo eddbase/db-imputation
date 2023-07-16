@@ -1,13 +1,8 @@
-//
-// Created by " " on 05/06/2023.
-//
+
 
 #include "Triple_sub.h"
 #include <duckdb/function/scalar/nested_functions.hpp>
 
-//
-// Created by " " on 30/05/2023.
-//
 
 #include "Triple_mul.h"
 

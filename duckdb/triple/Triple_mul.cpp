@@ -1,6 +1,4 @@
-//
-// Created by " " on 30/05/2023.
-//
+
 
 #include "Triple_mul.h"
 #include <duckdb/function/scalar/nested_functions.hpp>
