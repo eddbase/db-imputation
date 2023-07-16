@@ -15,10 +15,10 @@ INITDB if needed
 12) arch -x86_64 make -j8
 13) arch -x86_64 ./madpack -s madlib -p postgres -c <>@localhost:5432/postgres install
 
-PYTHON=/afs/inf.ed.ac.uk/user/s21/s2121589/.conda/envs/python2/bin/python2.7 ./madpack -s madlib -p postgres -c s2121589@localhost:5432/postgres reinstall
+PYTHON=<>/.conda/envs/python2/bin/python2.7 ./madpack -s madlib -p postgres -c <>@localhost:5432/postgres reinstall
 
 
-PYTHON=/afs/inf.ed.ac.uk/user/s21/s2121589/.conda/envs/python2/bin/python2.7 ./madpack -s madlib -p postgres -c s2121589@localhost:5432/postgres reinstall
+PYTHON=<>/.conda/envs/python2/bin/python2.7 ./madpack -s madlib -p postgres -c <>@localhost:5432/postgres reinstall
 
 PYTHON=/Users/janedoe/anaconda/bin/python
 

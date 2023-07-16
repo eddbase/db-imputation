@@ -195,7 +195,7 @@ DECLARE
 
 try:
 	with engine.begin() as conn:
-	    qry = 'CREATE DATABASE example_db WITH ENGINE = "postgres", PARAMETERS = {"user": "s2121589","password": "","host": "localhost","port": "5432","database": "postgres"};'
+	    qry = 'CREATE DATABASE example_db WITH ENGINE = "postgres", PARAMETERS = {"user": "...","password": "","host": "localhost","port": "5432","database": "postgres"};'
 	    resultset = conn.execute(qry)
 except:
   print("Connection already established") 
