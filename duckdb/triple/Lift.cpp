@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 31/05/2023.
+// Created by " " on 31/05/2023.
 //
 
 #include "Lift.h"

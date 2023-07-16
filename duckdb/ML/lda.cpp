@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 21/06/2023.
-//
+
 
 #include "lda.h"
 #include <math.h>

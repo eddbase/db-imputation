@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 11/07/2023.
-//
+
 
 #ifndef TEST_FACTORIZED_IMPUTATION_RETAILER_H
 #define TEST_FACTORIZED_IMPUTATION_RETAILER_H

@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 22/06/2023.
-//
+
 
 #ifndef TEST_LDA_IMPUTE_H
 #define TEST_LDA_IMPUTE_H

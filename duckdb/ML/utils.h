@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 21/06/2023.
+// Created by " " on 21/06/2023.
 //
 
 #ifndef TEST_UTILS_H

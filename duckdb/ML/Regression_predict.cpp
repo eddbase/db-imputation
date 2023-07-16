@@ -1,13 +1,7 @@
-//
-// Created by Massimo Perini on 06/06/2023.
-//
 
 #include "Regression_predict.h"
 #include <duckdb/function/scalar/nested_functions.hpp>
 
-//
-// Created by Massimo Perini on 30/05/2023.
-//
 
 #include <iostream>
 #include <algorithm>

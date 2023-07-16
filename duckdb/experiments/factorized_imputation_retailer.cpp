@@ -1,7 +1,4 @@
 //
-// Created by Massimo Perini on 11/07/2023.
-//
-
 #include "factorized_imputation_retailer.h"
 #include <iostream>
 #include "../partition.h"

@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 06/06/2023.
+// Created by " " on 06/06/2023.
 //
 
 #ifndef DUCKDB_REGRESSION_PREDICT_H

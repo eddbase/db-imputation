@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 09/02/2022.
+// Created by   on 09/02/2022.
 //
 
 #ifndef FACTML_LDA_H

@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 03/06/2023.
+// Created by " " on 03/06/2023.
 //
 
 #include "Sum_no_lift.h"

@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 23/06/2023.
+// Created by " " on 23/06/2023.
 //
 #include <doctest/doctest.h>
 #include <duckdb.hpp>

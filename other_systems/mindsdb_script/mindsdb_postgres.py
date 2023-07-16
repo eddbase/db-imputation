@@ -27,8 +27,7 @@ engine = get_connection()
 conn = engine.connect()
 print(f"Connection to the {host} for user {user} created successfully.")
 
-#engine2 = create_engine("postgresql://massimo:@localhost:5432/postgres")
-engine2 = create_engine("postgresql://s2121589:@localhost:5432/postgres")
+engine2 = create_engine("postgresql://username:@localhost:5432/postgres")
 conn2 = engine2.connect()
 
 Session = sessionmaker(bind=engine2, autocommit=True)

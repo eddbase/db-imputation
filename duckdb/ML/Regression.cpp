@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 06/06/2023.
-//
+
 
 #include "Regression.h"
 #include "utils.h"

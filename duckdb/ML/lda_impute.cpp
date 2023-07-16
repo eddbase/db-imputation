@@ -1,6 +1,3 @@
-//
-// Created by Massimo Perini on 22/06/2023.
-//
 
 #include "lda_impute.h"
 

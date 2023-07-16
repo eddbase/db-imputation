@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 28/06/2023.
-//
+
 
 #ifndef TEST_TRAIN_RETAILER_H
 #define TEST_TRAIN_RETAILER_H

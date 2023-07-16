@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 01/06/2023.
+// Created by " " on 01/06/2023.
 //
 
 #ifndef DUCKDB_FROM_DUCKDB_H

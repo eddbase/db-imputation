@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 26/06/2023.
-//
+
 
 #ifndef TEST_FLIGHT_PARTITION_H
 #define TEST_FLIGHT_PARTITION_H

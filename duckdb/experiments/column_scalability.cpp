@@ -1,13 +1,4 @@
-//
-// Created by Massimo Perini on 08/07/2023.
-//
-
 #include "column_scalability.h"
-
-//
-// Created by Massimo Perini on 26/06/2023.
-//
-
 #include "flight_partition.h"
 #include <iostream>
 #include "../partition.h"

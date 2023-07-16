@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 02/06/2023.
+// Created by " " on 02/06/2023.
 //
 
 #ifndef DUCKDB_CUSTOM_LIFT_H

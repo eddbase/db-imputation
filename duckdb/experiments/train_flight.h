@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 26/06/2023.
-//
+
 
 #ifndef TEST_TRAIN_FLIGHT_H
 #define TEST_TRAIN_FLIGHT_H

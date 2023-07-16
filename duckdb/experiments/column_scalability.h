@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 08/07/2023.
+// Created by " " on 08/07/2023.
 //
 
 #ifndef TEST_COLUMN_SCALABILITY_H

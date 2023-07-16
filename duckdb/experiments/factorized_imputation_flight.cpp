@@ -1,7 +1,3 @@
-//
-// Created by Massimo Perini on 10/07/2023.
-//
-
 #include "factorized_imputation_flight.h"
 #include <iostream>
 #include "../partition.h"

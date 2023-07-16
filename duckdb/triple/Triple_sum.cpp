@@ -1,5 +1,5 @@
 //
-// Created by Massimo Perini on 30/05/2023.
+// Created by " " on 30/05/2023.
 //
 
 #include "Triple_sum.h"

@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 26/06/2023.
-//
+
 
 #include "train_flight.h"
 
