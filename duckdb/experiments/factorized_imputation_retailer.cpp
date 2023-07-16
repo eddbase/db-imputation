@@ -7,12 +7,11 @@
 #include "../partition.h"
 #include "../triple/Triple_sub.h"
 #include "../triple/Triple_sum.h"
-#include "../ML/lda.h"
 #include "../ML/Regression.h"
 #include "../triple/helper.h"
 
 
-    void import_data(duckdb::Connection &con, const std::string &path) {
+static void import_data(duckdb::Connection &con, const std::string &path) {
         con.Query("CREATE TABLE Census("
                   "    zip INTEGER,"
                   "    population FLOAT,"
@@ -295,8 +294,6 @@
 
                 std::vector<double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
                 //predict query
-
-                //todo need to be all columns
 
                 std::string new_val = "(";
                 for (size_t i = 0; i < con_columns_join.size(); i++) {
