@@ -281,7 +281,7 @@ BEGIN
             IF array_length(categorical_columns,1) = 1 AND array_length(categorical_columns_null,1) = 1 THEN --only 1 cat. var. null, so no cat. features
             	subquery := 'ARRAY[]';
             ELSE
-	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index] ||' END)' ||
+	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index]-lower_bound_categorical[label_index] ||' END)' ||
     	        ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
        		 	' WHERE a.nr != ' || label_index ||')';
        		END IF;
@@ -433,7 +433,6 @@ BEGIN
             RAISE DEBUG '%', query;
             EXECUTE query;
                         
-            
             -- IMPUTE
             SELECT array_agg(x || ' * ' || params[array_position(continuous_columns, x) + 1])
             FROM unnest(continuous_columns) AS x
@@ -441,17 +440,17 @@ BEGIN
             INTO tmp_array;
             
             low_bound_categorical := ARRAY[0] || array_remove(upper_bound_categorical , upper_bound_categorical[array_upper(upper_bound_categorical, 1)]);
-            
-            SELECT array_agg(params[a.bound_down + array_position(categorical_columns[a.bound_down+1:a.bound_up], a.x) + array_length(continuous_columns, 1)])
+                        
+            SELECT array_agg('(ARRAY['||array_to_string(params[(array_length(continuous_columns, 1) + a.bound_down + 1 + 1) : (array_length(continuous_columns, 1) + a.bound_up + 1)], ', ')||'])[array_position(ARRAY['||array_to_string(categorical_uniq_vals_sorted[bound_down+1:bound_up], ', ') ||'], '||x||')]')
             FROM unnest(categorical_columns, upper_bound_categorical, low_bound_categorical) WITH ORDINALITY a(x, bound_up, bound_down, nr) 
-            INTO tmp_array2;
-            
+            INTO tmp_array2;--add categorical to imputation
+                        
             --- 'normal_rand(1, 0, ' || sqrt(params[array_length(params, 1)])::text || ')'
             SELECT array_agg(LOWER(x)) FROM unnest(continuous_columns) as x INTO columns_lower;
 
             
             SELECT array_agg(
-            	CASE WHEN array_position(columns_lower, x) = label_index THEN
+            	CASE WHEN array_position(columns_lower, LOWER(x)) = label_index THEN
             	    array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') || ' AS ' || x
             	ELSE
             	    x || ' AS ' || x
