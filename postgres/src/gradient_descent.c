@@ -307,7 +307,7 @@ Datum ridge_linear_regression_from_params(PG_FUNCTION_ARGS)
     for (size_t i = 0; i < arrayLength1; i++){
         sigma[(num_params*row)+col] = (double) DatumGetFloat4(arrayContent1[i]);
         sigma[(num_params*col)+row] = (double) DatumGetFloat4(arrayContent1[i]);
-        elog(WARNING, "val: = %lf, row %d, col %d", (double) DatumGetFloat4(arrayContent1[i]), row, col);
+        //elog(WARNING, "val: = %lf, row %d, col %d", (double) DatumGetFloat4(arrayContent1[i]), row, col);
         col++;
         if (col%num_params == 0){
             row++;

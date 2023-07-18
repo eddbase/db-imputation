@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 
 NULL = 0
 
-def load_flights(path = "flights/", nulls={'DIVERTED':NULL, 'WHEELS_ON_HOUR':NULL, 'WHEELS_OFF_HOUR':NULL, 'TAXI_OUT':NULL, 'TAXI_IN':NULL, 'ARR_DELAY':NULL, 'DEP_DELAY':NULL}, max_rows = None):#'snow':0.1
+def load_flights(path = "flights_dataset/", nulls={'DIVERTED':NULL, 'WHEELS_ON_HOUR':NULL, 'WHEELS_OFF_HOUR':NULL, 'TAXI_OUT':NULL, 'TAXI_IN':NULL, 'ARR_DELAY':NULL, 'DEP_DELAY':NULL}, max_rows = None):#'snow':0.1
 
     schedule = pd.read_csv(path+"schedule.csv")
     distances = pd.read_csv(path+"distances.csv")

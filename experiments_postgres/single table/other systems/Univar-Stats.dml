@@ -40,14 +40,20 @@
 #    STATS=data/univarOut.mtx CONSOLE_OUTPUT=TRUE
 #
 
-consoleOutput = ifdef($CONSOLE_OUTPUT, FALSE);
-
-F = read($X, rows=38771, cols=806, format="csv");      # data file
-K = read($TYPES, rows=1, cols=806, format="csv");  # attribute kind file
+consoleOutput = ifdef($CONSOLE_OUTPUT, TRUE);
+#84055817x40, 84055817, 44, 34
+F = read($X, rows=60552738, cols=34, format="csv", default=NaN);      #60552738 data file small: rows=15000000, cols: 806,  data file, rows: 39929989, cols: 28  ---  38771, 806  30187235x806
+print("read!");
+K = read($TYPES, rows=1, cols=34, format="csv");  # attribute kind file
+print("read!");
+#stop("arrived here!")
 n = ncol(F);       # number of features/attributes
 m = nrow(F);       # number of data records
 
-print(toString(K));
+#Mask1 = is.na(X);
+#print(sum(Mask1[, in_c]));
+
+#print(toString(K));
 
 
 #cat_cont = matrix("4 3 NaN 8 7 8 5 NaN 6", rows=3, cols=3)
@@ -55,9 +61,12 @@ print(toString(K));
 
 
 #F = matrix("4 3 NaN 8 7 8 5 NaN 6", rows=3, cols=3);
-Mask1 = is.na(F);
-print(toString(rowSums(Mask1)));
-cMask = K;
-dataset = mice(X=F, cMask=cMask, iter=7, verbose=TRUE);
-
+#Mask1 = is.na(F);
+#print(toString(rowSums(Mask1)));
+#cMask = K;
+print("calling mice...");
+#stop("arrived here!")
+#todo change here...
+dataset = mice(X=F, cMask=K, iter=1, verbose=TRUE);
+print("writing result");
 write(dataset, "results.txt");

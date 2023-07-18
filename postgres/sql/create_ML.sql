@@ -34,15 +34,6 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression_from_params(
      AS :FACTML_LIBRARY, 'lda_train'
      LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
- CREATE OR REPLACE FUNCTION lda_train_from_params(
-         c float4[],
-         label_start int,
-        label_end int,
-         shrinkage float8
-     )
-     RETURNS float4[]
-     AS :FACTML_LIBRARY, 'lda_train_from_params'
-     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
  CREATE OR REPLACE FUNCTION lda_impute(
          train_data float4[],

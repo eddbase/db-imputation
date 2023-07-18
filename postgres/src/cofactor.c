@@ -791,7 +791,7 @@ Datum pg_cofactor_stats(PG_FUNCTION_ARGS)
     }
     float8 avg_tuples = (float8) total_tuples / sz_relation_array;
     float8 stdev_tuples = sqrt((float8) total_squared_tuples / sz_relation_array - avg_tuples * avg_tuples);
-
+/*
     elog(INFO, "num_cont_vars = %hu, num_cat_vars = %hu", a->num_continuous_vars, a->num_categorical_vars);
     elog(INFO, "num_categories = %zu", get_num_categories(a, -1));
     elog(INFO, "num_relations = %zu", sz_relation_array);
@@ -800,7 +800,7 @@ Datum pg_cofactor_stats(PG_FUNCTION_ARGS)
                 stdev = %f, \
                 max = %zu, \
                 min = %zu", \
-                total_tuples, avg_tuples, stdev_tuples, max_tuples, min_tuples);
+                total_tuples, avg_tuples, stdev_tuples, max_tuples, min_tuples);*/
 
     PG_RETURN_VOID();
 }

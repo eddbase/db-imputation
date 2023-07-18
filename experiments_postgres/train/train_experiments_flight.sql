@@ -55,13 +55,13 @@ BEGIN
     IF array_length(categorical_columns, 1) > 0 THEN
         EXECUTE 'DROP TABLE tbl_madlib_flight_1_hot';
     end if;
-    EXECUTE 'DROP TABLE tbl_madlib_flight';
-    EXECUTE 'DROP TABLE res_linregr_summary';
+    EXECUTE 'DROP TABLE IF EXISTS tbl_madlib_flight';
+    EXECUTE 'DROP TABLE IF EXISTS res_linregr_summary';
 END$$;
 --'DIVERTED', 'EXTRA_DAY_ARR', 'EXTRA_DAY_DEP', 'OP_CARRIER'
 CALL train_madlib_flight(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY[]::text[]);
 
-CREATE OR REPLACE PROCEDURE train_postgres_retailer_mat(
+CREATE OR REPLACE PROCEDURE train_postgres_flight_mat(
         continuous_columns text[],
         categorical_columns text[]
     ) LANGUAGE plpgsql AS $$
@@ -127,7 +127,7 @@ BEGIN
     RAISE NOTICE '%', query;
     start_ts := clock_timestamp();
     EXECUTE query INTO values;
-    RAISE NOTICE '%', values;
+    --RAISE NOTICE '%', values;
     end_ts := clock_timestamp();
     RAISE INFO 'TIME aggregates: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
@@ -139,15 +139,15 @@ BEGIN
     IF array_length(categorical_columns, 1) > 0 THEN
         EXECUTE 'DROP TABLE tbl_postgres_flight_1_hot';
     end if;
-    EXECUTE 'DROP TABLE tbl_postgres_flight';
-    EXECUTE 'DROP TABLE res_linregr_summary';
+    EXECUTE 'DROP TABLE IF EXISTS tbl_postgres_flight';
+    EXECUTE 'DROP TABLE IF EXISTS res_linregr_summary';
 
 END$$;
 --
 
-CALL train_postgres_retailer_mat(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY[]::text[]);
+CALL train_postgres_flight_mat(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY[]::text[]);
 
-CREATE OR REPLACE PROCEDURE train_postgres_retailer(
+CREATE OR REPLACE PROCEDURE train_postgres_flight(
         continuous_columns text[],
         categorical_columns text[]
     ) LANGUAGE plpgsql AS $$
@@ -220,9 +220,9 @@ BEGIN
 
 END$$;
 
-CALL train_postgres_retailer(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY[]::text[]);
+CALL train_postgres_flight(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY[]::text[]);
 
-CREATE OR REPLACE PROCEDURE train_cofactor_join_retailer_mat(
+CREATE OR REPLACE PROCEDURE train_cofactor_join_flight_mat(
         continuous_columns text[],
         categorical_columns text[]
     ) LANGUAGE plpgsql AS $$
@@ -265,17 +265,17 @@ BEGIN
 
     label_index := array_position(continuous_columns, 'inventoryunits');
     start_ts := clock_timestamp();
-    params := ridge_linear_regression(cofactor, label_index - 1, 0.001, 0, 10000);
+    params := ridge_linear_regression(cofactor, label_index - 1, 0.001, 0, 10000, 0);
     end_ts := clock_timestamp();
     RAISE INFO 'TIME train: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
 END$$;
 
-CALL train_cofactor_join_retailer_mat(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['DIVERTED', 'EXTRA_DAY_ARR', 'EXTRA_DAY_DEP', 'OP_CARRIER']::text[]);
+CALL train_cofactor_join_flight_mat(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['DIVERTED', 'EXTRA_DAY_ARR', 'EXTRA_DAY_DEP', 'OP_CARRIER']::text[]);
 
 ---
 
-CREATE OR REPLACE PROCEDURE train_cofactor_join_retailer(
+CREATE OR REPLACE PROCEDURE train_cofactor_join_flight(
         continuous_columns text[],
         categorical_columns text[]
     ) LANGUAGE plpgsql AS $$
@@ -307,13 +307,13 @@ BEGIN
 
     label_index := array_position(continuous_columns, 'inventoryunits');
     start_ts := clock_timestamp();
-    params := ridge_linear_regression(cofactor, label_index - 1, 0.001, 0, 10000);
+    params := ridge_linear_regression(cofactor, label_index - 1, 0.001, 0, 10000, 0);
     end_ts := clock_timestamp();
     RAISE INFO 'TIME train: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
 END$$;
 
-CALL train_cofactor_join_retailer(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['DIVERTED', 'EXTRA_DAY_ARR', 'EXTRA_DAY_DEP', 'OP_CARRIER']::text[]);
+CALL train_cofactor_join_flight(ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['DIVERTED', 'EXTRA_DAY_ARR', 'EXTRA_DAY_DEP', 'OP_CARRIER']::text[]);
 
 CREATE OR REPLACE PROCEDURE train_cofactor_factorized_flight() LANGUAGE plpgsql AS $$
 DECLARE
@@ -345,7 +345,7 @@ BEGIN
     RAISE INFO 'TIME cofactor: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
     label_index := 0;
     start_ts := clock_timestamp();
-    params := ridge_linear_regression(cofactor, label_index, 0.001, 0, 10000);
+    params := ridge_linear_regression(cofactor, label_index, 0.001, 0, 10000, 0);
     end_ts := clock_timestamp();
     RAISE INFO 'TIME train: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 END$$;

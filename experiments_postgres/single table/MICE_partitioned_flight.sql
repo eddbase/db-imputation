@@ -19,19 +19,16 @@ DECLARE
     tmp_array text[];
     tmp_array2 text[];
     tmp_array3 text[];
+    columns_lower text[];
     cofactor_global cofactor;
     cofactor_null cofactor;
     col text;
     params float8[];
     tmp_columns_names text[];
     label_index int4;
-    max_range int4;
-    --categorical_uniq_vals_sorted int[] := ARRAY[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28, 29,30,31,32,3,14,15,31,32,33,35,40,64,65,48,102,104,105,106,107,108,109,0,1,0,1];--categorical columns sorted by values -> RETAILER
-    --upper_bound_categorical  int[] := ARRAY[32,42,50,52,54];--5,9,11 
-    
-    categorical_uniq_vals_sorted int[] := ARRAY[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22, 0,1];--categorical columns sorted by values  -> FLIGHTS
-    upper_bound_categorical  int[] := ARRAY[23,25];--5,9,11 
-
+    max_range int4;    
+    categorical_uniq_vals_sorted int[] := ARRAY[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22, 0,1,0,1,0,1];--categorical columns sorted by values  -> FLIGHTS
+    upper_bound_categorical  int[] := ARRAY[23,25,27,29];--5,9,11 
     low_bound_categorical  int[]; 
 
 BEGIN
@@ -46,10 +43,10 @@ BEGIN
 
     query := ' SELECT ARRAY[ ' || array_to_string(tmp_array, ', ') || ' ]::float8[]' || 
              ' FROM ( SELECT ' || array_to_string(continuous_columns_null, ', ') || 
-                    ' FROM ' || input_table_name || ' LIMIT 100000 ) AS t';
+                    ' FROM ' || input_table_name || ' LIMIT 500000 ) AS t';
     query2 := ' SELECT ARRAY[ ' || array_to_string(tmp_array2, ', ') || ' ]::int[]' || 
              ' FROM ( SELECT ' || array_to_string(categorical_columns_null, ', ') || 
-                    ' FROM ' || input_table_name || ' LIMIT 100000 ) AS t';
+                    ' FROM ' || input_table_name || ' LIMIT 500000 ) AS t';
 
     RAISE DEBUG '%', query;
 
@@ -121,15 +118,21 @@ BEGIN
     FOR col_id in 1..max_range LOOP
         query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt1_col' || col_id || 
                  ' PARTITION OF ' || output_table_name || '_nullcnt1' || 
-                 ' FOR VALUES FROM (' || col_id || ') TO (' || col_id + 1 || ') WITH (fillfactor=80)';
+                 ' FOR VALUES FROM (' || col_id || ') TO (' || col_id + 1 || ') WITH (fillfactor=100)';
         RAISE DEBUG '%', query;
         EXECUTE QUERY;
     END LOOP;
     
     IF max_range >= 2 THEN
-    query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt2' || 
-             ' PARTITION OF ' || output_table_name ||
-             ' FOR VALUES FROM (2) TO (' || array_length(continuous_columns_null, 1) + array_length(categorical_columns_null, 1) + 1 || ') WITH (fillfactor=70)';
+    	    if array_length(categorical_columns_null, 1) > 0 then
+    			query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt2' || 
+             	' PARTITION OF ' || output_table_name ||
+             	' FOR VALUES FROM (2) TO (' || array_length(continuous_columns_null, 1) + array_length(categorical_columns_null, 1) + 1 || ') WITH (fillfactor=75)';
+             else
+            	query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt2' || 
+             	' PARTITION OF ' || output_table_name ||
+             	' FOR VALUES FROM (2) TO (' || array_length(continuous_columns_null, 1) + 1 || ') WITH (fillfactor=75)';
+             end if;
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     END IF;
@@ -180,11 +183,10 @@ BEGIN
         )         
         FROM unnest(continuous_columns_null || categorical_columns_null) AS x
     )
-    INTO tmp_array2;
-    
+    INTO tmp_array2;    
     
     query := 'INSERT INTO ' || output_table_name || 
-             ' SELECT ' || array_to_string(tmp_array, ', ') || ', CASE ' || array_to_string(tmp_array2, '  ') || ' ELSE 0 END, 0' ||
+             ' SELECT ' || array_to_string(tmp_array, ', ') || ', CASE ' || array_to_string(tmp_array2, '  ') || ' ELSE 0 END ' ||
              ' FROM ' || input_table_name;
     RAISE DEBUG '%', query;
 
@@ -207,7 +209,7 @@ BEGIN
     
     COMMIT;
     
-    FOR i in 1..5 LOOP
+    FOR i in 1..1 LOOP
         RAISE INFO 'Iteration %', i;
         
         
@@ -263,10 +265,6 @@ BEGIN
             start_ts := clock_timestamp();
             params := lda_train(cofactor_global, label_index - 1, 0);
             end_ts := clock_timestamp();
-            --RAISE DEBUG '%', params;
-            RAISE DEBUG ' cat columns 2: %',categorical_columns ;
-            RAISE DEBUG ' cat columns null 2: %', categorical_columns_null;
-
             RAISE INFO 'TRAIN ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
             
             -- IMPUTE
@@ -289,17 +287,10 @@ BEGIN
        		END IF;
 
             RAISE DEBUG ' SUBQUERY: %', subquery;
-            
                         
-            --query := 'UPDATE ' || output_table_name || 
-            --    ' SET ' || col || ' = (ARRAY[' || array_to_string(categorical_uniq_vals_sorted[low_bound_categorical[label_index]+1 : upper_bound_categorical[label_index]], ', ') ||'])[1+ lda_impute(ARRAY[ ' || array_to_string(params, ', ') || ']::float4[], ' || 'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float4[], '
-             --   || subquery || ' ::int[])] ' ||
-             --   ' WHERE NULL_CNT = 1 AND NULL_COL_ID = ' || array_position(categorical_columns_null, col) + array_length(continuous_columns_null, 1)  || ';';
-            -- RAISE DEBUG 'UPDATE QUERY: %', query;
-            
             query := 'SELECT array_agg(quote_ident(column_name)) FROM information_schema.columns WHERE table_name = ''' || output_table_name || ''';';
             EXECUTE query INTO tmp_columns_names;
-            RAISE NOTICE '%', tmp_columns_names;
+            RAISE DEBUG '%', tmp_columns_names;
             
             query := 'ALTER TABLE '||output_table_name || '_nullcnt1 DETACH PARTITION '|| output_table_name ||'_nullcnt1_col'||array_position(categorical_columns_null, col)+ array_length(continuous_columns_null, 1);
             RAISE DEBUG '%', query;
@@ -311,8 +302,11 @@ BEGIN
             EXECUTE query;
             
             
+            SELECT array_agg(LOWER(x)) FROM unnest(categorical_columns) as x INTO columns_lower;
+            
+            
             SELECT array_agg(
-            	CASE WHEN array_position(categorical_columns_null, x) = label_index THEN
+            	CASE WHEN array_position(columns_lower, LOWER(x)) = label_index THEN
             	    '(ARRAY[' || array_to_string(categorical_uniq_vals_sorted[low_bound_categorical[label_index]+1 : upper_bound_categorical[label_index]], ', ') ||'])[1+ lda_impute(ARRAY[ ' || array_to_string(params, ', ') || ']::float4[], ' || 'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float4[], '
                 || subquery || ' ::int[])] ' || ' AS ' || x
             	ELSE
@@ -322,9 +316,9 @@ BEGIN
             FROM unnest(tmp_columns_names) AS x
             INTO tmp_array3;
             
-            RAISE DEBUG '%', tmp_array3;
-            --EXECUTE query;
-                        
+            RAISE DEBUG '%', categorical_columns;
+            RAISE DEBUG '%', label_index;                        
+                      
             
             query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt1_col'||array_position(categorical_columns_null, col)+ array_length(continuous_columns_null, 1)  || ' AS SELECT ';
             query := query || array_to_string(tmp_array3, ' , ') ||' FROM tmp_table';
@@ -376,7 +370,6 @@ BEGIN
             
         END LOOP;
         
-
         FOREACH col in ARRAY continuous_columns_null LOOP
             RAISE INFO '  |- Column %', col;
             
@@ -416,9 +409,9 @@ BEGIN
             END IF;
 
             -- TRAIN
-            label_index := array_position(continuous_columns_null, col);
+            label_index := array_position(continuous_columns, col);
             start_ts := clock_timestamp();
-            params := ridge_linear_regression(cofactor_global, label_index - 1, 0.001, 0, 10000);
+            params := ridge_linear_regression(cofactor_global, label_index - 1, 0.001, 0, 10000, 1);
             end_ts := clock_timestamp();
             RAISE INFO 'TRAIN: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
             RAISE DEBUG '%', params;
@@ -429,7 +422,7 @@ BEGIN
             
             query := 'SELECT array_agg(quote_ident(column_name)) FROM information_schema.columns WHERE table_name = ''' || output_table_name || ''';';
             EXECUTE query INTO tmp_columns_names;
-            RAISE NOTICE '%', tmp_columns_names;
+            RAISE DEBUG '%', tmp_columns_names;
             
             query := 'ALTER TABLE '||output_table_name || '_nullcnt1 DETACH PARTITION '|| output_table_name ||'_nullcnt1_col'||array_position(continuous_columns_null, col);
             RAISE DEBUG '%', query;
@@ -453,9 +446,13 @@ BEGIN
             FROM unnest(categorical_columns, upper_bound_categorical, low_bound_categorical) WITH ORDINALITY a(x, bound_up, bound_down, nr) 
             INTO tmp_array2;
             
+            --- 'normal_rand(1, 0, ' || sqrt(params[array_length(params, 1)])::text || ')'
+            SELECT array_agg(LOWER(x)) FROM unnest(continuous_columns) as x INTO columns_lower;
+
+            
             SELECT array_agg(
-            	CASE WHEN array_position(continuous_columns_null, x) = label_index THEN
-            	    array_to_string(array_prepend(params[1]::text, tmp_array || tmp_array2), ' + ') || ' AS ' || x
+            	CASE WHEN array_position(columns_lower, x) = label_index THEN
+            	    array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') || ' AS ' || x
             	ELSE
             	    x || ' AS ' || x
             	END
@@ -463,7 +460,6 @@ BEGIN
             FROM unnest(tmp_columns_names) AS x
             INTO tmp_array3;
             
-            RAISE DEBUG '%', tmp_array3;
             --EXECUTE query;
                         
             
@@ -484,7 +480,7 @@ BEGIN
             RAISE INFO 'IMPUTE DATA (1): ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
             
             query := 'UPDATE ' || output_table_name || 
-                ' SET ' || col || ' = ' || array_to_string(array_prepend(params[1]::text, tmp_array || tmp_array2), ' + ') ||
+                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
                 ' WHERE NULL_CNT >= 2 AND ' || col || '_ISNULL;';
             RAISE DEBUG '%', query;
 
@@ -518,25 +514,14 @@ BEGIN
     END LOOP;
 END$$;
 
-CREATE UNLOGGED TABLE join_table AS (SELECT * FROM retailer.Weather JOIN retailer.Location USING (locn) JOIN retailer.Inventory USING (locn, dateid) JOIN retailer.Item USING (ksn) JOIN retailer.Census USING (zip));
-
-CREATE UNLOGGED TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID));
-
-
 
 CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'thunder', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow']::text[], ARRAY['inventoryunits', 'maxtemp', 'mintemp', 'supertargetdistance', 'walmartdistance'], ARRAY['rain', 'snow']::text[]);
 
 
 ----
-CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['id','DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS', 'EXTRA_DAY_DEP', 'EXTRA_DAY_ARR', 'SCHEDULE_ID', 'CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE'], ARRAY['OP_CARRIER', 'DIVERTED']::text[], ARRAY['WHEELS_ON_HOUR', 'WHEELS_OFF_HOUR', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'], ARRAY['DIVERTED']::text[]);
+--CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['id','DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS', 'EXTRA_DAY_DEP', 'EXTRA_DAY_ARR', 'SCHEDULE_ID', 'CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE'], ARRAY['OP_CARRIER', 'DIVERTED']::text[], ARRAY['WHEELS_ON_HOUR', 'WHEELS_OFF_HOUR', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'], ARRAY['DIVERTED']::text[]);
 
 
 CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['OP_CARRIER', 'DIVERTED', 'EXTRA_DAY_DEP', 'EXTRA_DAY_ARR']::text[], ARRAY['WHEELS_ON_HOUR', 'WHEELS_OFF_HOUR', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'], ARRAY['DIVERTED']::text[]);
 
 -- SET client_min_messages TO INFO;
-
--- CALL MICE_incremental_partitioned('R', 'R_complete', ARRAY['A', 'B', 'C', 'D', 'E'], ARRAY[]::text[], ARRAY[ 'A', 'B', 'C'], ARRAY[]::text[]);
----WHEELS_ON_HOUR':0.005, 'WHEELS_OFF_HOUR':0.005, 'TAXI_OUT':0.005, 'TAXI_IN
----CREATE TEMPORARY TABLE join_table AS (SELECT * FROM flight.Route JOIN flight.schedule USING (ROUTE_ID) JOIN flight.flight USING (SCHEDULE_ID))
-
--- CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['dep_delay', 'taxi_out', 'taxi_in', 'arr_delay', 'diverted', 'actual_elapsed_time', 'air_time', 'dep_time_hour', 'dep_time_min', 'wheels_off_hour', 'wheels_off_min', 'wheels_on_hour', 'wheels_on_min', 'arr_time_hour', 'arr_time_min', 'month_sin', 'month_cos', 'day_sin', 'day_cos', 'weekday_sin', 'weekday_cos', 'extra_day_arr', 'extra_day_dep', 'distance', 'crs_dep_hour', 'crs_dep_min', 'crs_arr_hour', 'crs_arr_min' ], ARRAY[]::text[], ARRAY[ 'dep_delay', 'arr_delay', 'taxi_in', 'taxi_out', 'diverted', 'WHEELS_OFF_HOUR', 'WHEELS_ON_HOUR' ], ARRAY[]::text[]);
