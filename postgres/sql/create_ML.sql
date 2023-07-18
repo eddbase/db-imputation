@@ -7,7 +7,8 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression(
         label_idx int, 
         step_size float8, 
         lambda float8, 
-        max_iterations int
+        max_iterations int,
+        return_variance int
     )
     RETURNS float8[]
     AS :FACTML_LIBRARY, 'ridge_linear_regression'

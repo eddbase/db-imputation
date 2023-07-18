@@ -137,8 +137,8 @@ cofactor_t *union_cofactors(const cofactor_t *a,
 }
 
 cofactor_t *difference_cofactors(const cofactor_t *a,
-                            const cofactor_t *b,
-                            union_relations_fn_t union_relations_fn)
+                                 const cofactor_t *b,
+                                 union_relations_fn_t union_relations_fn)
 {
 #ifdef DEBUG_COFACTOR
     assert(a->num_continuous_vars == b->num_continuous_vars &&
@@ -273,7 +273,7 @@ size_t size_for_multiply_cofactors(const cofactor_t *a, const cofactor_t *b)
 }
 
 void multiply_scalar_arrays(const cofactor_t *a, const cofactor_t *b,
-                            /* out */ float8 *out)
+        /* out */ float8 *out)
 {
     // - degree 1
     const float8 *const a_sum1_array = cscalar_array(a);
@@ -308,7 +308,7 @@ void multiply_scalar_arrays(const cofactor_t *a, const cofactor_t *b,
 }
 
 size_t multiply_relation_arrays(const cofactor_t *a, const cofactor_t *b,
-                                /* out */ char *out)
+        /* out */ char *out)
 {
     const char *const a_relation_array = crelation_array(a);
     const char *const b_relation_array = crelation_array(b);
@@ -573,7 +573,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
 
     const float8 *cont_values = (float8 *)ARR_DATA_PTR(cont_array);
     float8 *out_scalar_array = scalar_array(out);
-    
+
     switch (num_cont)
     {
         case 0:
@@ -585,74 +585,74 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
             out_scalar_array[1] = a * a;
             break;
         }
-        // case 5:
-        // {
-        //     float8 a = cont_values[0];
-        //     float8 b = cont_values[1];
-        //     float8 c = cont_values[2];
-        //     float8 d = cont_values[3];
-        //     float8 e = cont_values[4];
+            // case 5:
+            // {
+            //     float8 a = cont_values[0];
+            //     float8 b = cont_values[1];
+            //     float8 c = cont_values[2];
+            //     float8 d = cont_values[3];
+            //     float8 e = cont_values[4];
 
-        //     out_scalar_array[0] = a;
-        //     out_scalar_array[1] = b;
-        //     out_scalar_array[2] = c;
-        //     out_scalar_array[3] = d;
-        //     out_scalar_array[4] = e;
-        //     out_scalar_array[5] = a * a;
-        //     out_scalar_array[6] = a * b;
-        //     out_scalar_array[7] = a * c;
-        //     out_scalar_array[8] = a * d;
-        //     out_scalar_array[9] = a * e;
-        //     out_scalar_array[10] = b * b;
-        //     out_scalar_array[11] = b * c;
-        //     out_scalar_array[12] = b * d;
-        //     out_scalar_array[13] = b * e;
-        //     out_scalar_array[14] = c * c;
-        //     out_scalar_array[15] = c * d;
-        //     out_scalar_array[16] = c * e;
-        //     out_scalar_array[17] = d * d;
-        //     out_scalar_array[18] = d * e;
-        //     out_scalar_array[19] = e * e;
-        //     break;
-        // }
-        // case 6:
-        // {
-        //     float8 a = cont_values[0];
-        //     float8 b = cont_values[1];
-        //     float8 c = cont_values[2];
-        //     float8 d = cont_values[3];
-        //     float8 e = cont_values[4];
-        //     float8 f = cont_values[5];
+            //     out_scalar_array[0] = a;
+            //     out_scalar_array[1] = b;
+            //     out_scalar_array[2] = c;
+            //     out_scalar_array[3] = d;
+            //     out_scalar_array[4] = e;
+            //     out_scalar_array[5] = a * a;
+            //     out_scalar_array[6] = a * b;
+            //     out_scalar_array[7] = a * c;
+            //     out_scalar_array[8] = a * d;
+            //     out_scalar_array[9] = a * e;
+            //     out_scalar_array[10] = b * b;
+            //     out_scalar_array[11] = b * c;
+            //     out_scalar_array[12] = b * d;
+            //     out_scalar_array[13] = b * e;
+            //     out_scalar_array[14] = c * c;
+            //     out_scalar_array[15] = c * d;
+            //     out_scalar_array[16] = c * e;
+            //     out_scalar_array[17] = d * d;
+            //     out_scalar_array[18] = d * e;
+            //     out_scalar_array[19] = e * e;
+            //     break;
+            // }
+            // case 6:
+            // {
+            //     float8 a = cont_values[0];
+            //     float8 b = cont_values[1];
+            //     float8 c = cont_values[2];
+            //     float8 d = cont_values[3];
+            //     float8 e = cont_values[4];
+            //     float8 f = cont_values[5];
 
-        //     out_scalar_array[0] = a;
-        //     out_scalar_array[1] = b;
-        //     out_scalar_array[2] = c;
-        //     out_scalar_array[3] = d;
-        //     out_scalar_array[4] = e;
-        //     out_scalar_array[5] = f;
-        //     out_scalar_array[6] = a * a;
-        //     out_scalar_array[7] = a * b;
-        //     out_scalar_array[8] = a * c;
-        //     out_scalar_array[9] = a * d;
-        //     out_scalar_array[10] = a * e;
-        //     out_scalar_array[11] = a * f;
-        //     out_scalar_array[12] = b * b;
-        //     out_scalar_array[13] = b * c;
-        //     out_scalar_array[14] = b * d;
-        //     out_scalar_array[15] = b * e;
-        //     out_scalar_array[16] = b * f;
-        //     out_scalar_array[17] = c * c;
-        //     out_scalar_array[18] = c * d;
-        //     out_scalar_array[19] = c * e;
-        //     out_scalar_array[20] = c * f;
-        //     out_scalar_array[21] = d * d;
-        //     out_scalar_array[22] = d * e;
-        //     out_scalar_array[23] = d * f;
-        //     out_scalar_array[24] = e * e;
-        //     out_scalar_array[25] = e * f;
-        //     out_scalar_array[26] = f * f;
-        //     break;
-        // }
+            //     out_scalar_array[0] = a;
+            //     out_scalar_array[1] = b;
+            //     out_scalar_array[2] = c;
+            //     out_scalar_array[3] = d;
+            //     out_scalar_array[4] = e;
+            //     out_scalar_array[5] = f;
+            //     out_scalar_array[6] = a * a;
+            //     out_scalar_array[7] = a * b;
+            //     out_scalar_array[8] = a * c;
+            //     out_scalar_array[9] = a * d;
+            //     out_scalar_array[10] = a * e;
+            //     out_scalar_array[11] = a * f;
+            //     out_scalar_array[12] = b * b;
+            //     out_scalar_array[13] = b * c;
+            //     out_scalar_array[14] = b * d;
+            //     out_scalar_array[15] = b * e;
+            //     out_scalar_array[16] = b * f;
+            //     out_scalar_array[17] = c * c;
+            //     out_scalar_array[18] = c * d;
+            //     out_scalar_array[19] = c * e;
+            //     out_scalar_array[20] = c * f;
+            //     out_scalar_array[21] = d * d;
+            //     out_scalar_array[22] = d * e;
+            //     out_scalar_array[23] = d * f;
+            //     out_scalar_array[24] = e * e;
+            //     out_scalar_array[25] = e * f;
+            //     out_scalar_array[26] = f * f;
+            //     break;
+            // }
         default:
         {
             for (size_t i = 0; i < num_cont; i++)
@@ -750,7 +750,7 @@ Datum lift_to_cofactor(PG_FUNCTION_ARGS)
 size_t get_num_categories(const cofactor_t *cofactor, int label_categorical_sigma)
 {
     size_t num_categories = 0;
-    
+
     const char *relation_data = crelation_array(cofactor);
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
     {
@@ -777,7 +777,7 @@ Datum pg_cofactor_stats(PG_FUNCTION_ARGS)
 
     const char * a_relation_array = crelation_array(a);
     size_t sz_relation_array =
-        size_relation_array(a->num_continuous_vars, a->num_categorical_vars);
+            size_relation_array(a->num_continuous_vars, a->num_categorical_vars);
 
     size_t total_tuples = 0, total_squared_tuples = 0, max_tuples = 0;
     size_t min_tuples = ((const relation_t *)a_relation_array)->num_tuples;
@@ -826,26 +826,26 @@ size_t find_in_array(uint64_t a, const uint64_t *array, size_t start, size_t end
         index++;
     }
     return index;
-} 
+}
 
 //if label_categorical_sigma >=0, removes the label_categorical_sigma-th variable from the cofactor matrix
 void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int label_categorical_sigma,
-                        /* out */ float8 *sigma)
-{   
+        /* out */ float8 *sigma)
+{
     // start numerical data: 
     // numerical_params = cofactor->num_continuous_vars + 1
 
     // count
     sigma[0] = cofactor->count;
-    elog(WARNING, "COUNT: %d ", sigma[0]);
+    //elog(WARNING, "COUNT: %d ", sigma[0]);
 
     // sum1
-    const float8 *sum1_scalar_array = cscalar_array(cofactor);    
+    const float8 *sum1_scalar_array = cscalar_array(cofactor);
     for (size_t i = 0; i < cofactor->num_continuous_vars; i++)
     {
         sigma[i + 1] = sum1_scalar_array[i];
         sigma[(i + 1) * matrix_size] = sum1_scalar_array[i];
-        elog(WARNING, "SUM1: %d ", sigma[i + 1]);
+        //elog(WARNING, "SUM1: %d ", sigma[i + 1]);
     }
 
     //sum2 full matrix (from half)
@@ -874,8 +874,8 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++) {
         relation_t *r = (relation_t *) relation_data;
         if (label_categorical_sigma >= 0 && ((size_t)label_categorical_sigma) == i ){
-            cat_vars_idxs[i + 1] = cat_vars_idxs[i];
             relation_data += r->sz_struct;
+            cat_vars_idxs[i + 1] = cat_vars_idxs[i];
             continue;
         }
         //create sorted array
@@ -900,6 +900,9 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
         relation_data += r->sz_struct;
     }
 
+    for (size_t i = 0; i < num_categories-1; i++){
+        //elog(WARNING, "val: %d", cat_array[i]);
+    }
     // count * categorical (group by A, group by B, ...)
     relation_data = crelation_array(cofactor);
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
@@ -912,7 +915,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
             continue;
         }
 
-        for (size_t j = 0; j < r->num_tuples; j++) 
+        for (size_t j = 0; j < r->num_tuples; j++)
         {
             // search key index
             size_t key_index = find_in_array(r->tuples[j].key, cat_array, cat_vars_idxs[i], cat_vars_idxs[i + 1]);
@@ -934,7 +937,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
 
         relation_data += r->sz_struct;
     }
-
+    //elog(WARNING, "categorical * numerical ");
     // categorical * numerical
     for (size_t numerical = 1; numerical < cofactor->num_continuous_vars + 1; numerical++)
     {
@@ -955,6 +958,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
                 search_end = cat_vars_idxs[categorical + 1];
 
                 size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
+                //elog(WARNING, "%d %d %d %d", key_index, r->tuples[j].key, search_start, search_end);
                 assert(key_index < search_end);
 
                 // add to sigma matrix
@@ -965,9 +969,9 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
             relation_data += r->sz_struct;
         }
     }
-
+    //elog(WARNING, "categorical * cat. ");
     // categorical * categorical
-    for (size_t curr_cat_var = 0; curr_cat_var < cofactor->num_categorical_vars; curr_cat_var++) 
+    for (size_t curr_cat_var = 0; curr_cat_var < cofactor->num_categorical_vars; curr_cat_var++)
     {
         for (size_t other_cat_var = curr_cat_var + 1; other_cat_var < cofactor->num_categorical_vars; other_cat_var++)
         {
@@ -1003,8 +1007,7 @@ void build_sigma_matrix(const cofactor_t *cofactor, size_t matrix_size, int labe
             relation_data += r->sz_struct;
         }
     }
-
+    //elog(WARNING, "done");
     pfree(cat_array);
     pfree(cat_vars_idxs);
 }
-

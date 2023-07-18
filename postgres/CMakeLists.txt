@@ -4,6 +4,7 @@ project(factML C)
 set(HASHTAB_FLAGS "-DHAVE_STDLIB_H -DHAVE_STRING_H -DHAVE_LIMITS_H -D HAVE_INTTYPES_H -DHAVE_STDINT_H -DHAVE_MALLOC_H")
 
 if (APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "13" CACHE STRING "Minimum OS X deployment version")
     set(HASHTAB_FLAGS "-DHAVE_STDLIB_H -DHAVE_STRING_H -DHAVE_LIMITS_H -D HAVE_INTTYPES_H -DHAVE_STDINT_H")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flat_namespace -undefined suppress")
 endif()
@@ -41,13 +42,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(factML SHARED
     src/relation.c
-        src/matrix.c
-    src/cofactor.c
+        src/cofactor.c
     src/serializer.c
         src/lda.c
     src/gradient_descent.c
 )
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
+target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY}/catalog PRIVATE include)
 
 target_link_libraries(factML ${lapackblas_libraries})
 target_compile_options(factML PRIVATE ${LAPACK_LINKER_FLAGS})

@@ -7,7 +7,14 @@
 #include <math.h>
 #include <assert.h>
 
-void print_matrix(size_t sz, const double *m) 
+#include <utils/array.h>
+#include <utils/lsyscache.h>
+
+
+extern void dgemv (char *TRANSA, int *M, int* N, double *ALPHA,
+                   double *A, int *LDA, double *X, int *INCX, double *BETA, double *Y, int *INCY);
+
+void print_matrix(size_t sz, const double *m)
 {
     for (size_t i = 0; i < sz; i++)
     {
@@ -20,7 +27,7 @@ void print_matrix(size_t sz, const double *m)
 
 void compute_gradient(size_t num_params, size_t label_idx,
                       const double *sigma, const double *params,
-                      /* out */ double *grad)
+        /* out */ double *grad)
 {
     if (sigma[0] == 0.0) return;
 
@@ -105,6 +112,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
     double step_size = PG_GETARG_FLOAT8(2);
     double lambda = PG_GETARG_FLOAT8(3);
     int max_num_iterations = PG_GETARG_INT64(4);
+    int compute_variance = PG_GETARG_INT64(5);
 
     if (cofactor->num_continuous_vars <= label) {
         elog(WARNING, "label ID >= number of continuous attributes");
@@ -112,7 +120,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
     }
 
     size_t num_params = sizeof_sigma_matrix(cofactor, -1);
-    
+
     elog(DEBUG5, "num_params = %zu", num_params);
 
     double *grad = (double *)palloc0(sizeof(double) * num_params);
@@ -135,7 +143,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
     learned_coeff[label] = -1;
 
     compute_gradient(num_params, label, sigma, learned_coeff, grad);
-    
+
     double gradient_norm = grad[0] * grad[0]; // bias
     for (size_t i = 1; i < num_params; i++)
     {
@@ -157,7 +165,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
         prev_grad[0] = grad[0];
         learned_coeff[0] = learned_coeff[0] - step_size * update[0];
         double dparam_norm = update[0] * update[0];
-        
+
         for (size_t i = 1; i < num_params; i++)
         {
             update[i] = grad[i] + lambda * learned_coeff[i];
@@ -170,7 +178,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
         learned_coeff[label] = -1;
         gradient_norm -= lambda * lambda; // label correction
         dparam_norm = step_size * sqrt(dparam_norm);
-        
+
         double error = compute_error(num_params, sigma, learned_coeff, lambda);
 
         /* Backtracking Line Search: Decrease step_size until condition is satisfied */
@@ -201,23 +209,50 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
             break;
         }
         compute_gradient(num_params, label, sigma, learned_coeff, grad);
-        
+
         step_size = compute_step_size(step_size, num_params, learned_coeff, prev_learned_coeff, grad, prev_grad);
-        
+
         elog(DEBUG5, "error = %f", error);
         prev_error = error;
-        num_iterations++;        
-    } while (num_iterations < 1000 || num_iterations < max_num_iterations);
+        num_iterations++;
+    } while (num_iterations < max_num_iterations);
 
     elog(DEBUG1, "num_iterations = %zu", num_iterations);
     elog(DEBUG1, "error = %lf", prev_error);
+    double variance = 0;
+    if(compute_variance != 0){
+        //compute variance for stochastic linear regression
+
+        char task = 'N';
+        double alpha = 1;
+        int increment = 1;
+        double beta = 0;
+        int int_num_params = num_params;
+        double *res = (double *)palloc0(sizeof(double) * num_params);
+        //sigma * (X^T * X)
+        learned_coeff[label] = -1;
+        dgemv(&task, &int_num_params, &int_num_params, &alpha, sigma, &int_num_params, learned_coeff, &increment, &beta, res, &increment);
+        int size_row = 1;
+        //(sigma * (X^T * X))*sigma^T
+        dgemv(&task, &size_row, &int_num_params, &alpha, res, &size_row, learned_coeff, &increment, &beta, &variance, &increment);
+    }
 
     // export params to pgpsql
-    Datum *d = (Datum *)palloc(sizeof(Datum) * num_params);
+    Datum *d;
+    if(compute_variance==0)
+        d = (Datum *)palloc(sizeof(Datum) * num_params);
+    else
+        d = (Datum *)palloc(sizeof(Datum) * num_params + 1);
+
     for (int i = 0; i < num_params; i++) 
     {
         d[i] = Float8GetDatum(learned_coeff[i]);
         elog(DEBUG2, "learned_coeff[%d] = %f", i, learned_coeff[i]);
+    }
+
+    if(compute_variance != 0){
+        d[num_params] = variance;
+        num_params++;
     }
 
     pfree(grad);
@@ -272,7 +307,7 @@ Datum ridge_linear_regression_from_params(PG_FUNCTION_ARGS)
     for (size_t i = 0; i < arrayLength1; i++){
         sigma[(num_params*row)+col] = (double) DatumGetFloat4(arrayContent1[i]);
         sigma[(num_params*col)+row] = (double) DatumGetFloat4(arrayContent1[i]);
-        elog(DEBUG1, "val: = %lf", DatumGetFloat4(arrayContent1[i]);
+        elog(WARNING, "val: = %lf, row %d, col %d", (double) DatumGetFloat4(arrayContent1[i]), row, col);
         col++;
         if (col%num_params == 0){
             row++;
@@ -375,18 +410,21 @@ Datum ridge_linear_regression_from_params(PG_FUNCTION_ARGS)
         d[i] = Float8GetDatum(learned_coeff[i]);
         elog(DEBUG2, "learned_coeff[%d] = %f", i, learned_coeff[i]);
     }
-    elog(DEBUG1, "done...");
-
+    elog(DEBUG3, "returning...");
     pfree(grad);
+    elog(DEBUG3, "areturning...");
     pfree(prev_grad);
+    elog(DEBUG3, "breturning...");
     pfree(learned_coeff);
+    elog(DEBUG3, "creturning...");
     pfree(prev_learned_coeff);
+    elog(DEBUG3, "dreturning...");
     pfree(sigma);
+    elog(DEBUG3, "ereturning...");
     //pfree(update);
+    elog(DEBUG3, "freturning...");
 
     ArrayType *a = construct_array(d, num_params, FLOAT8OID, sizeof(float8), true, 'd');
-    elog(DEBUG1, "returning...");
-
     PG_RETURN_ARRAYTYPE_P(a);
 }
 

@@ -62,7 +62,7 @@ Datum write_relation(PG_FUNCTION_ARGS)
 // Union relations with compaction
 //
 inline void add_relations_merge(const relation_t *r, const relation_t *s,
-                                /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     out->num_tuples = 0;
 
@@ -106,7 +106,7 @@ inline void add_relations_merge(const relation_t *r, const relation_t *s,
 }
 
 inline void add_relations_linear(const relation_t *r, const relation_t *s,
-                                 /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     memcpy((void *) out, (void *) r, r->sz_struct);
 
@@ -131,7 +131,7 @@ inline void add_relations_linear(const relation_t *r, const relation_t *s,
 }
 
 inline void add_relations_singleton(const relation_t *r, tuple_t s_tuple,
-                                    /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     out->num_tuples = r->num_tuples;
 
@@ -154,7 +154,7 @@ inline void add_relations_singleton(const relation_t *r, tuple_t s_tuple,
 }
 
 void add_relations(const relation_t *r, const relation_t *s,
-                   /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     if (r->num_tuples >= s->num_tuples)
     {
@@ -170,7 +170,7 @@ void add_relations(const relation_t *r, const relation_t *s,
 // Subtract relations with compaction; equivalent to add_relations(r, -s, out)
 //
 void subtract_relations(const relation_t *r, const relation_t *s,
-                        /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     out->num_tuples = r->num_tuples;
     for (size_t i = 0; i < r->num_tuples; i++)
@@ -199,7 +199,7 @@ void subtract_relations(const relation_t *r, const relation_t *s,
 }
 
 void multiply_relations(const relation_t *r, const relation_t *s,
-                        /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     out->num_tuples = r->num_tuples * s->num_tuples;
     out->sz_struct = sizeof_relation_t(out->num_tuples);
@@ -217,7 +217,7 @@ void multiply_relations(const relation_t *r, const relation_t *s,
 }
 
 void scale_relation(const relation_t *r, float8 scale_factor,
-                    /* out */ relation_t *out)
+        /* out */ relation_t *out)
 {
     out->sz_struct = r->sz_struct;
     out->num_tuples = r->num_tuples;

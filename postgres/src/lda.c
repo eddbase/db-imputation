@@ -1,7 +1,5 @@
-
 #include "cofactor.h"
 #include "relation.h"
-#include "matrix.h"
 #include <math.h>
 
 //#include <clapack.h>
@@ -12,8 +10,11 @@
 #include <utils/array.h>
 #include <utils/lsyscache.h>
 
+#define  TYPALIGN_INT			'i'
+#define  TYPALIGN_DOUBLE		'd'
+
 extern void dgesdd_(char *JOBZ, int *m, int *n, double *A, int *lda, double *s, double *u, int *LDU, double *vt, int *l,
-             double *work, int *lwork, int *iwork, int *info);
+                    double *work, int *lwork, int *iwork, int *info);
 extern void dgelsd( int* m, int* n, int* nrhs, double* a, int* lda,
                     double* b, int* ldb, double* s, double* rcond, int* rank,
                     double* work, int* lwork, int* iwork, int* info );
@@ -61,17 +62,17 @@ void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int l
         for (size_t j = 0; j < r->num_tuples; j++) {
             //size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
             //if (key_index == search_end){
-                uint64_t value_to_insert = r->tuples[j].key;
-                uint64_t tmp;
-                for (size_t k = search_start; k < search_end; k++){
-                    if (value_to_insert < cat_array[k]){
-                        tmp = cat_array[k];
-                        cat_array[k] = value_to_insert;
-                        value_to_insert = tmp;
-                    }
+            uint64_t value_to_insert = r->tuples[j].key;
+            uint64_t tmp;
+            for (size_t k = search_start; k < search_end; k++){
+                if (value_to_insert < cat_array[k]){
+                    tmp = cat_array[k];
+                    cat_array[k] = value_to_insert;
+                    value_to_insert = tmp;
                 }
-                cat_array[search_end] = value_to_insert;
-                search_end++;
+            }
+            cat_array[search_end] = value_to_insert;
+            search_end++;
             //}
         }
         search_start = search_end;
@@ -277,10 +278,11 @@ Datum lda_train(PG_FUNCTION_ARGS)
 
     size_t num_params = sizeof_sigma_matrix(cofactor, label);
     float8 *sigma_matrix = (float8 *)palloc0(sizeof(float8) * num_params * num_params);
-
+    //elog(WARNING, " A ");
     //count distinct classes in var
     size_t num_categories = 0;
     const char *relation_data = crelation_array(cofactor);
+    //elog(WARNING, " B ");
     for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
     {
         relation_t *r = (relation_t *) relation_data;
@@ -291,160 +293,33 @@ Datum lda_train(PG_FUNCTION_ARGS)
         }
         relation_data += r->sz_struct;
     }
-
+    //elog(WARNING, " C ");
     double *sum_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
     double *mean_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
     double *coef = (double *)palloc0(sizeof(double) * num_params * num_categories);//from mean to coeff
 
     //uint64_t *idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//order of classes
-
+    //elog(WARNING, " D ");
     build_sigma_matrix(cofactor, num_params, label, sigma_matrix);
+    //elog(WARNING, " E ");
     build_sum_vector(cofactor, num_params, label, label, sum_vector);
 
-        //build covariance matrix and mean vectors
-    for (size_t i = 0; i < num_categories; i++) {
-        for (size_t j = 0; j < num_params; j++) {
-            for (size_t k = 0; k < num_params; k++) {
-                sigma_matrix[(j*num_params)+k] -= ((float8)(sum_vector[(i*num_params)+j] * sum_vector[(i*num_params)+k]) / (float8) sum_vector[i*num_params]);//cofactor->count
-            }
-            coef[(i*num_params)+j] = sum_vector[(i*num_params)+j] / sum_vector[(i*num_params)];
-            mean_vector[(j*num_categories)+i] = coef[(i*num_params)+j]; // if transposed (j*num_categories)+i
-        }
-    }
+    //elog(WARNING, " PAR CAT %d ", num_params);
+    //elog(WARNING, " %d ", num_categories);
 
-    //introduce shrinkage
-    //double shrinkage = 0.4;
-    double mu = 0;
-    for (size_t j = 0; j < num_params; j++) {
-        mu += sigma_matrix[(j*num_params)+j];
-    }
-    mu /= (float) num_params;
-
+    /*elog(WARNING, "SIGMA MATRIX: ");
     for (size_t j = 0; j < num_params; j++) {
         for (size_t k = 0; k < num_params; k++) {
-            sigma_matrix[(j*num_params)+k] *= (1-shrinkage);//apply shrinkage part 1
+            elog(WARNING, "%lf ", sigma_matrix[(j*num_params)+k]);
         }
     }
-
+    elog(WARNING, "SUM MATRIX: ");
     for (size_t j = 0; j < num_params; j++) {
-        sigma_matrix[(j*num_params)+j] += shrinkage * mu;
-    }
-
-    //normalize with / count
-    for (size_t j = 0; j < num_params; j++) {
-        for (size_t k = 0; k < num_params; k++) {
-            sigma_matrix[(j*num_params)+k] /= (float8)(cofactor->count);//or / cofactor->count - num_categories
+        for (size_t k = 0; k < num_categories; k++) {
+            elog(WARNING, "%lf ", sum_vector[(j*num_categories)+k]);
         }
-    }
+    }*/
 
-    //Solve with LAPACK
-    int err, lwork, rank;
-    double rcond = -1.0;
-    double wkopt;
-    double* work;
-    int *iwork = (int *) palloc(((int)((3 * num_params * log2(num_params/2)) + (11*num_params))) * sizeof(int));
-    double *s = (double *) palloc(num_params * sizeof(double));
-    int num_params_int = (int) num_params;
-    int num_categories_int = (int) num_categories;
-
-
-    lwork = -1;
-    dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, &wkopt, &lwork, iwork, &err);
-    lwork = (int)wkopt;
-    work = (double*)malloc( lwork*sizeof(double) );
-    dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, work, &lwork, iwork, &err);
-    //elog(WARNING, "finished with err: %d", err);
-
-    //compute intercept
-
-    double alpha = 1;
-    double beta = 0;
-    double *res = (double *)palloc(num_categories*num_categories*sizeof(double));
-
-    char task = 'N';
-    dgemm(&task, &task, &num_categories_int, &num_categories_int, &num_params_int, &alpha, mean_vector, &num_categories_int, coef, &num_params_int, &beta, res, &num_categories_int);
-    //elog(WARNING, "end!");
-    double *intercept = (double *)palloc(num_categories*sizeof(double));
-    for (size_t j = 0; j < num_categories; j++) {
-        intercept[j] = (res[(j*num_categories)+j] * (-0.5)) + log(sum_vector[j * num_params] / cofactor->count);
-    }
-
-    // export in pgpsql. Return values
-    Datum *d = (Datum *)palloc(sizeof(Datum) * (num_categories + 2 + (num_params * num_categories)));
-
-    d[0] = Float4GetDatum((float)num_params);
-    d[1] = Float4GetDatum((float)num_categories);
-
-    //return coefficients
-    for (int i = 0; i < num_params * num_categories; i++) {
-        d[i + 2] = Float4GetDatum((float) coef[i]);
-        //elog(WARNING, "coeff %lf", coef[i]);
-    }
-
-    //return intercept
-    for (int i = 0; i < num_categories; i++) {
-        d[i + 2 + (num_params * num_categories)] = Float4GetDatum((float) intercept[i]);
-    }
-
-    ArrayType *a = construct_array(d, (num_categories + 2 + (num_params * num_categories)), FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
-    PG_RETURN_ARRAYTYPE_P(a);
-}
-
-PG_FUNCTION_INFO_V1(lda_train_from_params);
-
-Datum lda_train_from_params(PG_FUNCTION_ARGS)
-{
-    ArrayType *cofactor_vals = PG_GETARG_ARRAYTYPE_P(0);
-    Oid arrayElementType1 = ARR_ELEMTYPE(cofactor_vals);
-    int16 arrayElementTypeWidth1;
-    bool arrayElementTypeByValue1;
-    Datum *arrayContent1;
-    bool *arrayNullFlags1;
-    int arrayLength1;
-    char arrayElementTypeAlignmentCode1;
-
-    get_typlenbyvalalign(arrayElementType1, &arrayElementTypeWidth1, &arrayElementTypeByValue1, &arrayElementTypeAlignmentCode1);
-    deconstruct_array(cofactor_vals, arrayElementType1, arrayElementTypeWidth1, arrayElementTypeByValue1, arrayElementTypeAlignmentCode1,
-                      &arrayContent1, &arrayNullFlags1, &arrayLength1);
-
-    int num_params = (-1 + sqrt(1+(4*arrayLength1)))/2;
-
-    int label_start = PG_GETARG_INT64(1);
-    int label_end = PG_GETARG_INT64(1);
-    double shrinkage = PG_GETARG_FLOAT8(3);
-
-    float8 *sigma_matrix = (float8 *)palloc0(sizeof(float8) * num_params * num_params);
-
-    //count distinct classes in var
-    size_t num_categories = label_end - label_start;
-
-    double *sum_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
-    double *mean_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
-    double *coef = (double *)palloc0(sizeof(double) * num_params * num_categories);//from mean to coeff
-
-    //uint64_t *idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//order of classes
-    //build sigma
-    size_t row = 0;
-    size_t col = 0;
-
-    //build sigma matrix
-    for (size_t i = 0; i < arrayLength1; i++){
-        sigma[(num_params*row)+col] = (double) DatumGetFloat4(arrayContent1[i]);
-        sigma[(num_params*col)+row] = (double) DatumGetFloat4(arrayContent1[i]);
-        elog(DEBUG1, "val: = %lf", DatumGetFloat4(arrayContent1[i]);
-        col++;
-        if (col%num_params == 0){
-            row++;
-            col = row;
-        }
-    }
-
-    //build sum vector
-    for (size_t i = 0; i < num_categories; i++){
-        for (size_t j = 0; j < num_params; j++){
-            sum_vector[(i*num_params) + j] = sigma[((label_start + i)*num_params) + j];
-        }
-    }
 
     //build covariance matrix and mean vectors
     for (size_t i = 0; i < num_categories; i++) {
@@ -492,7 +367,7 @@ Datum lda_train_from_params(PG_FUNCTION_ARGS)
     int num_params_int = (int) num_params;
     int num_categories_int = (int) num_categories;
 
-
+    //elog(WARNING, " SOLVING ");
     lwork = -1;
     dgelsd( &num_params_int, &num_params_int, &num_categories_int, sigma_matrix, &num_params_int, coef, &num_params_int, s, &rcond, &rank, &wkopt, &lwork, iwork, &err);
     lwork = (int)wkopt;
@@ -520,6 +395,12 @@ Datum lda_train_from_params(PG_FUNCTION_ARGS)
     d[0] = Float4GetDatum((float)num_params);
     d[1] = Float4GetDatum((float)num_categories);
 
+    //returns classes order
+    /*
+    for (int i = 0; i < num_categories; i++) {
+        d[i + 2] = Float4GetDatum((float) idx_classes[i]);
+    }*/
+
     //return coefficients
     for (int i = 0; i < num_params * num_categories; i++) {
         d[i + 2] = Float4GetDatum((float) coef[i]);
@@ -529,16 +410,17 @@ Datum lda_train_from_params(PG_FUNCTION_ARGS)
     //return intercept
     for (int i = 0; i < num_categories; i++) {
         d[i + 2 + (num_params * num_categories)] = Float4GetDatum((float) intercept[i]);
+        //elog(WARNING, "intercept %lf", intercept[i]);
     }
 
     ArrayType *a = construct_array(d, (num_categories + 2 + (num_params * num_categories)), FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
     PG_RETURN_ARRAYTYPE_P(a);
 }
 
-
 PG_FUNCTION_INFO_V1(lda_impute);
 Datum lda_impute(PG_FUNCTION_ARGS)
 {
+    //elog(WARNING, "Predicting...");
     //make sure encoding (order) of features is the same of cofactor and input data
     ArrayType *means_covariance = PG_GETARG_ARRAYTYPE_P(0);
     ArrayType *feats_numerical = PG_GETARG_ARRAYTYPE_P(1);
@@ -615,7 +497,7 @@ Datum lda_impute(PG_FUNCTION_ARGS)
         elog(WARNING, " Feats: %lf ", feats_c[i]);
     }*/
 
-        //end unpacking
+    //end unpacking
 
     char task = 'N';
     double alpha = 1;
