@@ -158,7 +158,7 @@ BEGIN
             ---here start...
             
             label_index := array_position(categorical_columns, col);
-            RAISE DEBUG 'LABEL INDEX %', query_null1;
+            RAISE DEBUG 'LABEL INDEX %', label_index;
             start_ts := clock_timestamp();
             params := lda_train(cofactor_global, label_index - 1, 0);
             end_ts := clock_timestamp();
@@ -172,7 +172,7 @@ BEGIN
             IF array_length(categorical_columns,1) = 1 AND array_length(categorical_columns_null,1) = 1 THEN --only 1 cat. var. null, so no cat. features
             	subquery := 'ARRAY[]';
             ELSE
-	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index]-lower_bound_categorical[label_index] ||' END)' ||
+	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index]-low_bound_categorical[label_index] ||' END)' ||
     	        ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
        		 	' WHERE a.nr != ' || label_index ||')';
        		END IF;
@@ -230,6 +230,8 @@ BEGIN
 
 
             RAISE DEBUG ' %', subquery;
+            RAISE DEBUG 'variance %', params[array_length(params, 1)];
+            RAISE DEBUG 'last param %', params[array_length(params, 1)-1];
             
                         
             query := 'UPDATE ' || output_table_name || 
@@ -252,4 +254,4 @@ END$$;
 
 CALL MICE_baseline('join_table', 'join_table_complete', ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['OP_CARRIER', 'DIVERTED', 'EXTRA_DAY_DEP', 'EXTRA_DAY_ARR']::text[], ARRAY['WHEELS_ON_HOUR', 'WHEELS_OFF_HOUR', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'], ARRAY['DIVERTED']::text[]);
 
-
+SET client_min_messages TO DEBUG;

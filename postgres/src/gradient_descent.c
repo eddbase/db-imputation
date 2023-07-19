@@ -235,6 +235,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
         int size_row = 1;
         //(sigma * (X^T * X))*sigma^T
         dgemv(&task, &size_row, &int_num_params, &alpha, res, &size_row, learned_coeff, &increment, &beta, &variance, &increment);
+        variance /= (double) cofactor->count;
     }
 
     // export params to pgpsql
@@ -242,7 +243,7 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
     if(compute_variance==0)
         d = (Datum *)palloc(sizeof(Datum) * num_params);
     else
-        d = (Datum *)palloc(sizeof(Datum) * num_params + 1);
+        d = (Datum *)palloc(sizeof(Datum) * (num_params + 1));
 
     for (int i = 0; i < num_params; i++) 
     {
@@ -251,7 +252,8 @@ Datum ridge_linear_regression(PG_FUNCTION_ARGS)
     }
 
     if(compute_variance != 0){
-        d[num_params] = variance;
+        elog(DEBUG2, "variance = %f", variance);
+        d[num_params] = Float8GetDatum(variance);
         num_params++;
     }
 
