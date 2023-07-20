@@ -1,0 +1,13 @@
+consoleOutput = ifdef($CONSOLE_OUTPUT, TRUE);
+#84055817x40, 84055817, 44, 34
+F = read($X, rows=60552738, cols=34, format="csv", default=NaN);      #60552738 data file small: rows=15000000, cols: 806,  data file, rows: 39929989, cols: 28  ---  38771, 806  30187235x806
+K = read($TYPES, rows=1, cols=34, format="csv");  # attribute kind file
+print("read!");
+t = time ();
+n = ncol(F);       # number of features/attributes
+m = nrow(F);       # number of data records
+dataset = mice(X=F, cMask=K, iter=1, verbose=TRUE);
+t2 = time ();
+print( "Time one iteration in millsecs= " + t2-t);
+print("writing result");
+write(dataset, "results.txt");
