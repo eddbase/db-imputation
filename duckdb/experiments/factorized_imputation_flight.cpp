@@ -73,7 +73,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
     con.Query("ALTER TABLE " + fact_table_name +
               " ALTER COLUMN n_nulls SET DEFAULT 10;")->Print();//not adding b, replacing column
 
-    con.Query("SET threads TO 1;");
+    //con.Query("SET threads TO 1;");
     std::vector<std::pair<std::string, std::string>> cat_col_info;
     cat_col_info.push_back(std::make_pair("DIVERTED", "join_table"));
     cat_col_info.push_back(std::make_pair("EXTRA_DAY_ARR", "join_table"));
@@ -120,7 +120,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
               "      ON route.ROUTE_ID = schedule.ROUTE_ID) as schedule ON flight.SCHEDULE_ID = schedule.SCHEDULE_ID;";
 
     std::cout<<query<<"\n";
-    con.Query("SET threads TO 10;");
+    //con.Query("SET threads TO 10;");
     begin = std::chrono::high_resolution_clock::now();
     duckdb::Value full_triple = con.Query(query)->GetValue(0,0);
     end = std::chrono::high_resolution_clock::now();
@@ -132,7 +132,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
         //continuous cols
         for(auto &col_null : con_columns_fact_null) {
             std::cout<<"\n\nColumn: "<<col_null<<"\n\n";
-            con.Query("SET threads TO 10;");
+            //con.Query("SET threads TO 10;");
             //remove nulls
             std::string delta_query = "SELECT triple_sum(multiply_triple(cnt2, cnt1)) FROM "
                                       "(SELECT SCHEDULE_ID, triple_sum_no_lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN,  ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP) AS cnt2 "
@@ -177,7 +177,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
                                   std::vector<float>(params.begin() + con_columns_join.size(), params.end()-1));
             new_val += cat_columns_query + "+(random()*"+ std::to_string(params[params.size()-1])+"))::FLOAT";
             //update 1 missing value
-            con.Query("SET threads TO 1;");
+            //con.Query("SET threads TO 1;");
             std::string update_query = "CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "
                                     +fact_table_name+"_complete_"+col_null+
                                     " as flight JOIN ("
@@ -223,7 +223,8 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
         for(auto &col_null : cat_columns_fact_null) {
             std::cout<<"\n\nColumn: "<<col_null<<"\n\n";
             //remove nulls
-            con.Query("SET threads TO 10;");
+
+            //con.Query("SET threads TO 10;");
             std::string delta_query = "SELECT triple_sum(multiply_triple(cnt2, cnt1)) FROM "
                                       "(SELECT SCHEDULE_ID, triple_sum_no_lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN,  ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP) AS cnt2 "
                                       " FROM (SELECT "+col_select+" FROM "+fact_table_name+"_complete_"+col_null+
@@ -267,7 +268,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             std::string select_stmt = (" list_extract("+predict_column_query+", predict_lda("+train_params.ToString()+"::FLOAT[], "+num_cols_query+", "+cat_columns_query+")+1)");
 
             //update 1 missing value
-            con.Query("SET threads TO 1;");
+            //con.Query("SET threads TO 1;");
             std::string update_query = "CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "
                                        " ( SELECT * FROM "+fact_table_name+"_complete_"+col_null+
                                        ") as flight JOIN ("
@@ -285,7 +286,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             std::cout<<"Time updating ==1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //update 2 missing values
-            con.Query("SET threads TO 1;");
+            //con.Query("SET threads TO 1;");
             update_query = "CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null + " END AS new_vals FROM "
                              " ( SELECT * FROM "+fact_table_name+"_complete_2 "
                              ") as flight JOIN ("
