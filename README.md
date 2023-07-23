@@ -21,11 +21,19 @@ The Postgres library requires CMake, BLAS and LAPACK packages, already installed
 4. Run `sql/create_UDFs.sh` to export the functions inside Postgres
 5. Install tablefunc: inside a Postgres shell run `CREATE EXTENSION tablefunc;`
 
-## DuckDB library
-TODO
+## DuckDB
+**Imputation experiments on DuckDB require the library available** [here](https://anonymous.4open.science/r/duckdb_swap-30F7/) , placed under lib/duckdb.
+Other requirements are BLAS, LAPACK and Boost.
 
-## Postgres experiments
-The folder experiments_postgres contains the SQL code for the experiments:
+1. Clone [https://anonymous.4open.science/r/duckdb_swap-30F7/](https://anonymous.4open.science/r/duckdb_swap-30F7/) and place it in `lib/duckdb`
+2. Set inside `main.cpp` the experiments you want to run (boolean variables at the beginning)
+2. Run `cmake .`
+3. Run `make`
+4. Run `./DuckDB_imputation`
+
+
+## (Postgres) experiments
+The folder experiments(_postgres) contains the SQL code for the experiments:
 
 ### Train
 
@@ -38,4 +46,16 @@ The train subfolder contains the scripts for training over each dataset. Require
 
 ### Single table
 
-Contains the imputation experiments over a single table. For each datasets the scripts available are **MICE_partitioned** for the optimized version, **MICE_baseline** for the baseline version. The folder *other systems* contains 
+Contains the imputation experiments over a single table. For each datasets the scripts available are **MICE_partitioned** for the optimized version, **MICE_baseline** for the baseline version. The folder *other systems* contains the Madlib and SystemDS versions.
+
+### Postgres
+For the Postgres version, generate a denormalized table using the script in the generate_dataset folder, setting the number of missing values and import the table inside Postgres. Then, run the script.
+
+#### SystemDS
+
+Edit line 3 and 4 of `single_table/other systems/systemds.dml` with the number of rows and columns in the dataset (60552738, 34 for flight, 84055817, 44 for retailer, ...). Then run it with:
+
+`bin/systemds systemds.dml -nvargs X=input_data.csv TYPES=cat_numerical.csv`
+
+### Multiple tables
+For Postgres, generate a normalized dataset setting the null quantity and import the tables inside the Postgres (truncate the previous tables if they are still in the database).

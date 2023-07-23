@@ -77,7 +77,7 @@ namespace Flight {
         std::cout << "Time cofactor: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";
         begin = std::chrono::high_resolution_clock::now();
-        std::vector<double> params = Triple::ridge_linear_regression(train_triple, 0, 0.001, 0, 1000);
+        std::vector<double> params = Triple::ridge_linear_regression(train_triple, 0, 0.001, 0, 1000, false);
         end = std::chrono::high_resolution_clock::now();
         std::cout << "Time train: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";
@@ -134,7 +134,7 @@ namespace Flight {
         std::cout << "Time cofactor: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";
         begin = std::chrono::high_resolution_clock::now();
-        std::vector<double> params = Triple::ridge_linear_regression(train_triple, 0, 0.001, 0, 1000);
+        std::vector<double> params = Triple::ridge_linear_regression(train_triple, 0, 0.001, 0, 1000, false);
         end = std::chrono::high_resolution_clock::now();
         std::cout << "Time train: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";
@@ -181,7 +181,7 @@ namespace Flight {
         std::cout << "Time cofactor: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";
         begin = std::chrono::high_resolution_clock::now();
-        std::vector<double> params = Triple::ridge_linear_regression(train_triple, 0, 0.001, 0, 1000);
+        std::vector<double> params = Triple::ridge_linear_regression(train_triple, 0, 0.001, 0, 1000, false);
         end = std::chrono::high_resolution_clock::now();
         std::cout << "Time train: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()
                   << "\n";

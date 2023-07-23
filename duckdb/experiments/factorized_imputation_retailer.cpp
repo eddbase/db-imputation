@@ -288,15 +288,14 @@ static void import_data(duckdb::Connection &con, const std::string &path) {
                 //size_t label_index = it - con_columns_fact.begin();
                 int label_index = 0;
                 std::cout << "Label index " << label_index << "\n";
-
-                std::vector<double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
+                std::vector<double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000, true);
                 //predict query
 
-                std::string new_val = "(";
+                std::string new_val = std::to_string((float) params[0])+" + (";
                 for (size_t i = 0; i < con_columns_join.size(); i++) {
                     if (i == label_index)
                         continue;
-                    new_val += "(" + std::to_string((float) params[i]) + " * " + con_columns_join[i] + ")+";
+                    new_val += "(" + std::to_string((float) params[i+1]) + " * " + con_columns_join[i] + ")+";
                 }
 
                 if (cat_columns_join.empty())
@@ -304,8 +303,8 @@ static void import_data(duckdb::Connection &con, const std::string &path) {
 
                 std::string cat_columns_query;
                 query_categorical_num(cat_columns_join, cat_columns_query,
-                                      std::vector<float>(params.begin() + con_columns_join.size(), params.end()));
-                new_val += cat_columns_query + ")::FLOAT";
+                                      std::vector<float>(params.begin() + con_columns_join.size(), params.end()-1));
+                new_val += cat_columns_query + "+random()*"+ std::to_string(params[params.size()-1])+")::FLOAT";
 
 
                 //predict query

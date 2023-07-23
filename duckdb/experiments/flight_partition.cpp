@@ -106,24 +106,24 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
             size_t label_index = it - con_columns.begin();
             std::cout<<"Label index "<<label_index<<"\n";
 
-            std::vector <double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000);
+            std::vector <double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000, true);
             //std::vector <double> params(test.size(), 0);
             //params[0] = 1;
 
 
             //predict query
-            std::string new_val = "(";
+            std::string new_val = std::to_string((float) params[0])+" + (";
             for(size_t i=0; i< con_columns.size(); i++) {
                 if (i==label_index)
                     continue;
-                new_val+="("+ std::to_string((float)params[i])+" * "+con_columns[i]+")+";
+                new_val+="("+ std::to_string((float)params[i+1])+" * "+con_columns[i]+")+";
             }
             if(cat_columns.empty())
                 new_val.pop_back();
 
             std::string cat_columns_query;
-            query_categorical_num(cat_columns, cat_columns_query, std::vector<float>(params.begin()+con_columns.size(), params.end()));
-            new_val+=cat_columns_query+")::FLOAT";
+            query_categorical_num(cat_columns, cat_columns_query, std::vector<float>(params.begin()+con_columns.size(), params.end()-1));
+            new_val+=cat_columns_query+"+random()*"+ std::to_string(params[params.size()-1])+")::FLOAT";
             //update 1 missing value
             std::cout<<"CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
             begin = std::chrono::high_resolution_clock::now();

@@ -633,9 +633,7 @@ namespace Triple {
     //Generate statistics for this function. Given input type ststistics (mainly min and max for every attribute), returns the output statistics
     duckdb::unique_ptr<duckdb::BaseStatistics>
     MultiplyStats(duckdb::ClientContext &context, duckdb::FunctionStatisticsInput &input) {
-        std::cout << "StructPackStats " << std::endl;
         auto &child_stats = input.child_stats;
-        std::cout << "StructPackStats " << child_stats.size() << child_stats[0].ToString() << std::endl;
         auto &expr = input.expr;
         auto struct_stats = duckdb::StructStats::CreateUnknown(expr.return_type);
         /*

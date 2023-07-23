@@ -6,6 +6,8 @@
 #include <math.h>
 #include "utils.h"
 #include<iostream>
+extern "C" void dgemv (char *TRANSA, int *M, int* N, double *ALPHA,
+                   double *A, int *LDA, double *X, int *INCX, double *BETA, double *Y, int *INCY);
 
 
 void print_matrix(size_t sz, const std::vector<double> &m)
@@ -98,7 +100,7 @@ inline double compute_step_size(double step_size, int num_params,
 }
 
 
-std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple, size_t label, double step_size, double lambda, size_t max_num_iterations)
+std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple, size_t label, double step_size, double lambda, size_t max_num_iterations, bool compute_variance)
 {
     cofactor cofactor;
     extract_data(triple, cofactor);
@@ -201,6 +203,32 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
         prev_error = error;
         num_iterations++;
     } while (num_iterations < 1000 || num_iterations < max_num_iterations);
+    double variance = 0;
+    if(compute_variance){
+        //compute variance for stochastic linear regression
+
+        double *learned_coeff_tmp = new double[num_params];
+        for(int i=0; i<num_params; i++)
+            learned_coeff_tmp[i] = learned_coeff[i];
+
+        char task = 'N';
+        double alpha = 1;
+        int increment = 1;
+        double beta = 0;
+        int int_num_params = num_params;
+        double *res = new double[num_params];
+        //sigma * (X^T * X)
+        learned_coeff_tmp[label] = -1;
+        dgemv(&task, &int_num_params, &int_num_params, &alpha, sigma, &int_num_params, learned_coeff_tmp, &increment, &beta, res, &increment);
+        int size_row = 1;
+        //(sigma * (X^T * X))*sigma^T
+        dgemv(&task, &size_row, &int_num_params, &alpha, res, &size_row, learned_coeff_tmp, &increment, &beta, &variance, &increment);
+        variance /= (double) cofactor.N;
+        delete[] res;
+        delete[] learned_coeff_tmp;
+        learned_coeff.push_back(variance);
+    }
+
 
     //std::cout<< "num_iterations = "<< num_iterations;
     // export params to pgpsql

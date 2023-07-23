@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1)
-project(Test)
+project(DuckDB_imputation)
 set(CMAKE_BUILD_PARALLEL_LEVEL 8)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -38,7 +38,7 @@ ExternalProject_Add(
         CMAKE_ARGS
         -G${CMAKE_GENERATOR}
         -DCMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL}
-        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_FLAGS=-std=c++17
         -DCMAKE_CXX_STANDARD=17
@@ -71,11 +71,11 @@ set_target_properties(duckdb PROPERTIES IMPORTED_LOCATION ${INSTALL_DIR}/lib/lib
 
 add_dependencies(duckdb duckdb_ep)
 
-add_executable(Test main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp ML/lda.cpp ML/lda.h ML/utils.cpp ML/utils.h ML/lda_impute.cpp ML/lda_impute.h tests/test_lda.cpp experiments/flight_partition.cpp experiments/flight_partition.h experiments/flight_baseline.cpp experiments/flight_baseline.h experiments/train_flight.cpp experiments/train_flight.h experiments/train_retailer.cpp experiments/train_retailer.h experiments/column_scalability.cpp experiments/column_scalability.h experiments/factorized_imputation_flight.cpp experiments/factorized_imputation_flight.h experiments/factorized_imputation_retailer.cpp experiments/factorized_imputation_retailer.h)
-target_link_libraries(Test duckdb)
-target_link_libraries(Test doctest)
-target_link_libraries(Test ${lapackblas_libraries})
-target_compile_options(Test PRIVATE ${LAPACK_LINKER_FLAGS})
+add_executable(DuckDB_imputation main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp ML/lda.cpp ML/lda.h ML/utils.cpp ML/utils.h ML/lda_impute.cpp ML/lda_impute.h tests/test_lda.cpp experiments/flight_partition.cpp experiments/flight_partition.h experiments/flight_baseline.cpp experiments/flight_baseline.h experiments/train_flight.cpp experiments/train_flight.h experiments/train_retailer.cpp experiments/train_retailer.h experiments/column_scalability.cpp experiments/column_scalability.h experiments/factorized_imputation_flight.cpp experiments/factorized_imputation_flight.h experiments/factorized_imputation_retailer.cpp experiments/factorized_imputation_retailer.h)
+target_link_libraries(DuckDB_imputation duckdb)
+target_link_libraries(DuckDB_imputation doctest)
+target_link_libraries(DuckDB_imputation ${lapackblas_libraries})
+target_compile_options(DuckDB_imputation PRIVATE ${LAPACK_LINKER_FLAGS})
 
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)

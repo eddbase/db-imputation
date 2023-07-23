@@ -18,6 +18,7 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     query.pop_back();
     query.pop_back();
     query += " FROM "+table_name+" LIMIT 10000";
+    con.Query(query)->Print();
     auto collection = con.Query(query);
     std::vector<float> avg = {};
     for (idx_t col_index = 0; col_index<con_columns_nulls.size()+cat_columns_nulls.size(); col_index++){
@@ -28,117 +29,120 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     //CREATE NEW TABLES
     //0, _col_name, 2
     //con.Query("SELECT * from join_table WHERE n_nulls = 0 LIMIT 50")->Print();
-    std::string create_table_query = "CREATE TABLE "+table_name+"_complete_0(";
-    std::string insert_query = "INSERT INTO "+table_name+"_complete_0 SELECT ";
+    std::string create_table_query = "CREATE TABLE "+table_name+"_complete_0 AS SELECT ";
+    //std::string insert_query = "INSERT INTO "+table_name+"_complete_0 SELECT ";
 
     for (auto &col: con_columns){
-        create_table_query += col+" FLOAT, ";
-        insert_query += col+", ";
+        create_table_query += col+"::FLOAT AS "+col+" , ";
+        //insert_query += col+", ";
     }
     for (auto &col: cat_columns){
-        create_table_query += col+" INTEGER, ";
-        insert_query += col+", ";
+        create_table_query += col+"::INTEGER AS "+col+" , ";
+        //insert_query += col+", ";
     }
     create_table_query.pop_back();
     create_table_query.pop_back();
-    insert_query.pop_back();
-    insert_query.pop_back();
-    insert_query += " FROM "+table_name+" WHERE n_nulls = 0";
-    con.Query(create_table_query+")");
-    con.Query(insert_query);
+    //insert_query.pop_back();
+    //insert_query.pop_back();
+    create_table_query += " FROM "+table_name+" WHERE n_nulls = 0";
+    std::cout<<create_table_query<<"\n";
+    con.Query(create_table_query)->Print();
+    //con.Query(insert_query);
 
     //create tables 1 missing value
     idx_t col_index = 0;
     for(auto &col_null: con_columns_nulls){
-        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+"(";
-        insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
+        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+" AS SELECT ";
+        //insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
 
         for (auto &col: con_columns){
-            create_table_query += col+" FLOAT, ";
             if (col == col_null)
-                insert_query += "COALESCE ("+col+", "+std::to_string(avg[col_index])+"), ";
+                //insert_query += "COALESCE ("+col+", "+std::to_string(avg[col_index])+"), ";
+                create_table_query += "COALESCE ("+col+", "+std::to_string(avg[col_index])+")::FLOAT AS "+col+" , ";
             else
-                insert_query += col+", ";
+                //insert_query += col+", ";
+                create_table_query += col+"::FLOAT AS "+col+" , ";
         }
         for (auto &col: cat_columns){
-            create_table_query += col+" INTEGER, ";
-            insert_query += col+", ";
+            create_table_query += col+"::INTEGER AS "+col+" , ";
+            //insert_query += col+", ";
         }
         create_table_query.pop_back();
         create_table_query.pop_back();
-        insert_query.pop_back();
-        insert_query.pop_back();
-        con.Query(create_table_query+")");
+        //insert_query.pop_back();
+        //insert_query.pop_back();
+        //con.Query(create_table_query+")");
+        std::cout<<create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL\n";
         if (order == "")
-            con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL");
+            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL")->Print();
         else
-            con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL ORDER BY "+order);
+            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL ORDER BY "+order)->Print();
         col_index ++;
     }
 
     for(auto &col_null: cat_columns_nulls){
-        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+"(";
-        insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
+        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+" AS SELECT ";
+        //insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
 
         for (auto &col: con_columns){
-            create_table_query += col+" FLOAT, ";
-            insert_query += col+", ";
+            create_table_query += col+"::FLOAT AS "+col+" , ";
+            //insert_query += col+", ";
         }
         for (auto &col: cat_columns){
-            create_table_query += col+" INTEGER, ";
+            //create_table_query += col+" INTEGER, ";
             if (col == col_null)
-                insert_query += "COALESCE ("+col+", "+std::to_string(avg[col_index])+"), ";
+                //insert_query += "COALESCE ("+col+", "+std::to_string(avg[col_index])+"), ";
+                create_table_query += "COALESCE ("+col+", "+std::to_string(avg[col_index])+")::INTEGER AS "+col+" , ";
             else
-                insert_query += col+", ";
+                create_table_query += col+"::INTEGER AS "+col+" , ";
         }
         create_table_query.pop_back();
         create_table_query.pop_back();
-        insert_query.pop_back();
-        insert_query.pop_back();
-        con.Query(create_table_query+")");
+        std::cout<<create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL\n";
+        //insert_query.pop_back();
+        //insert_query.pop_back();
+        //con.Query(create_table_query+")");
         if(order == "")
-            con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL");
+            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL")->Print();
         else
-            con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL ORDER BY "+order);
+            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL ORDER BY "+order)->Print();
         col_index ++;
     }
 
 
     //create tables >=2 missing values
-    create_table_query = "CREATE TABLE "+table_name+"_complete_2(";
-    insert_query = "INSERT INTO "+table_name+"_complete_2 SELECT ";
+    create_table_query = "CREATE TABLE "+table_name+"_complete_2 AS SELECT ";
+    //insert_query = "INSERT INTO "+table_name+"_complete_2 SELECT ";
     for (auto &col: con_columns){
-        create_table_query += col+" FLOAT, ";
+        //create_table_query += col+"::FLOAT, ";
         auto null = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
         if (null != con_columns_nulls.end()) {
             //this column contains null
-            create_table_query += col+"_IS_NULL BOOL, ";
-            insert_query += "COALESCE (" + col + ", " + std::to_string(avg[null - con_columns_nulls.begin()]) + "), "+col+" IS NULL, ";
+            create_table_query += "COALESCE (" + col + ", " + std::to_string(avg[null - con_columns_nulls.begin()]) + ")::FLOAT AS "+col+", "+col+" IS NULL AS "+col+"_IS_NULL, ";
         }
         else
-            insert_query += col+", ";
+            create_table_query += col+"::FLOAT AS "+col+" , ";
     }
 
     for (auto &col: cat_columns){
-        create_table_query += col+" INTEGER, ";
+        //create_table_query += col+" INTEGER, ";
         auto null = std::find(cat_columns_nulls.begin(), cat_columns_nulls.end(), col);
         if (null != cat_columns_nulls.end()) {
-            create_table_query += col+"_IS_NULL BOOL, ";
-            insert_query += "COALESCE (" + col + ", " + std::to_string(avg[null - cat_columns_nulls.begin()+con_columns_nulls.size()]) + "), "+col+" IS NULL, ";
+            create_table_query += "COALESCE (" + col + ", " + std::to_string(avg[null - cat_columns_nulls.begin()+con_columns_nulls.size()]) + ")::INTEGER AS "+col+", "+col+" IS NULL AS "+col+"_IS_NULL, ";
         }
         else
-            insert_query += col+", ";
+            create_table_query += col+"::INTEGER AS "+col+" , ";
     }
     create_table_query.pop_back();
     create_table_query.pop_back();
-    insert_query.pop_back();
-    insert_query.pop_back();
-
-    con.Query(create_table_query+")");
+    //insert_query.pop_back();
+    //insert_query.pop_back();
+    std::cout<<create_table_query+" FROM "+table_name+" WHERE n_nulls >= 2\n";
+    //con.Query(create_table_query+")");
     if(order == "")
-        con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2");
+        con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls >= 2")->Print();
     else
-        con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2 ORDER BY "+order);
+        con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls >= 2 ORDER BY "+order)->Print();
 
     //table is partitioned
 }

@@ -32,11 +32,22 @@
 #include <unistd.h>
 #endif
 
-#define TRAIN_TESTa
+#define TRAIN_TEST
 
 int main(int argc, char* argv[]){
 
-    #ifdef ENABLE_DOCTEST_IN_LIBRARY
+    bool single_table_flight = false;
+    bool single_table_retailer = false;
+    bool single_table_air_quality = false;
+    bool col_scal_exp = false;
+    bool flight_factorized = true;
+    bool retailer_factorized = false;
+    bool train_flight = false;
+    bool train_retailer = false;
+    std::string path = "../../make_datasets/flights_dataset";
+
+
+#ifdef ENABLE_DOCTEST_IN_LIBRARY
     /*doctest::Context ctx;
     ctx.setOption("abort-after", 5);  // default - stop after 5 failed asserts
     ctx.applyCommandLine(argc, argv); // apply command line - argc / argv
@@ -52,42 +63,35 @@ std::cout << "Using Boost "
           << BOOST_VERSION % 100                // patch level
           << std::endl;
 
-    std::string path_train = "/disk/scratch/imputation_project/systemds/data";//argv[1];
-    //std::string path = "/disk/scratch/imputation_project/systemds/data";//argv[1];
-#ifdef TRAIN_TEST
-    //std::string path_train = "/disk/scratch/imputation_project/systemds/data";//argv[1];
-    std::cout<<"Start train experiments...\n";
-    //Flight::test(path_train);
-    //return 0;
-    Retailer::train_mat_sql_lift(path_train, false);
-    Retailer::train_mat_sql_lift(path_train, true);
-    Retailer::train_mat_custom_lift(path_train, false, false);
-    Retailer::train_mat_custom_lift(path_train, false, true);
-    Retailer::train_mat_custom_lift(path_train, true, false);
-    Retailer::train_mat_custom_lift(path_train, true, true);
-    Retailer::train_factorized(path_train, false);
-    Retailer::train_factorized(path_train, true);
+    std::string path_train = "../../make_datasets/flight_dataset";//argv[1];
+    if(train_retailer) {
+        //std::string path_train = "/disk/scratch/imputation_project/systemds/data";//argv[1];
+        std::cout << "Start train experiments...\n";
+        //Flight::test(path_train);
+        //return 0;
+        Retailer::train_mat_sql_lift(path, false);
+        Retailer::train_mat_sql_lift(path, true);
+        Retailer::train_mat_custom_lift(path, false, false);
+        Retailer::train_mat_custom_lift(path, false, true);
+        Retailer::train_mat_custom_lift(path, true, false);
+        Retailer::train_mat_custom_lift(path, true, true);
+        Retailer::train_factorized(path, false);
+        Retailer::train_factorized(path, true);
+    }
+    if(train_flight) {
+        std::cout << "\n\nFlight\n\n";
 
-std::cout<<"\n\nFlight\n\n";
+        Flight::train_mat_sql_lift(path, false);
+        Flight::train_mat_sql_lift(path, true);
+        Flight::train_mat_custom_lift(path, false, false);
+        Flight::train_mat_custom_lift(path, false, true);
+        Flight::train_mat_custom_lift(path, true, false);
+        Flight::train_mat_custom_lift(path, true, true);
+        Flight::train_factorized(path, false);
+        Flight::train_factorized(path, true);
 
-    Flight::train_mat_sql_lift(path_train, false);
-    Flight::train_mat_sql_lift(path_train, true);
-    Flight::train_mat_custom_lift(path_train, false, false);
-    Flight::train_mat_custom_lift(path_train, false, true);
-    Flight::train_mat_custom_lift(path_train, true, false);
-    Flight::train_mat_custom_lift(path_train, true, true);
-    Flight::train_factorized(path_train, false);
-    Flight::train_factorized(path_train, true);
+    }
 
-    return 0;
-#endif
-
-    bool single_table_flight = false;
-    bool single_table_retailer = false;
-    bool single_table_air_quality = false;
-    bool col_scal_exp = false;
-    bool flight_factorized = true;
-    bool retailer_factorized = false;
     if (single_table_flight) {
 
     duckdb::DuckDB db(":memory:");
@@ -303,12 +307,10 @@ if(col_scal_exp){
     }
 
     if (flight_factorized) {
-        std::string path = "/disk/scratch/imputation_project/systemds/data";        //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
         run_flight_partition_factorized_flight(path, "join_table", 1);
     }
 
     if (retailer_factorized) {
-        std::string path = "/disk/scratch/imputation_project/systemds/data";        //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
         run_flight_partition_factorized_retailer(path, "join_table", 1);
     }
 
