@@ -39,7 +39,7 @@ int main(int argc, char* argv[]){
     bool single_table_flight = false;
     bool single_table_retailer = false;
     bool single_table_air_quality = false;
-    bool col_scal_exp = false;
+    //bool col_scal_exp = false;
     bool flight_factorized = true;
     bool retailer_factorized = false;
     bool train_flight = false;
@@ -254,7 +254,7 @@ if (single_table_air_quality) {
         run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
                             mice_iters);
     }
-
+/*
 if(col_scal_exp){
             duckdb::DuckDB db(":memory:");
             duckdb::Connection con(db);
@@ -305,7 +305,7 @@ if(col_scal_exp){
 
             }
     }
-
+*/
     if (flight_factorized) {
         run_flight_partition_factorized_flight(path, "join_table", 1);
     }
