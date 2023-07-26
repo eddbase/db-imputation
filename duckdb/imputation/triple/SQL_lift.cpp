@@ -1,6 +1,6 @@
 
 
-#include "Lift.h"
+#include <triple/SQL_lift.h>
 
 #include <memory>
 #include <stdexcept>

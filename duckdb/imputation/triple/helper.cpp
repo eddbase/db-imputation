@@ -1,14 +1,15 @@
 
 
-#include "helper.h"
+#include <triple/helper.h>
 
-#include "Triple_sum.h"
-#include "Triple_mul.h"
-#include "Lift.h"
-#include "Custom_lift.h"
-#include "Sum_no_lift.h"
-#include "Triple_sub.h"
-#include "../ML/lda_impute.h"
+#include <triple/sum/sum.h>
+#include <triple/mul.h>
+#include <triple/SQL_lift.h>
+#include <triple/lift.h>
+#include <triple/sum/sum_no_lift.h>
+#include <triple/sum/sum_state.h>
+#include <triple/sub.h>
+#include <ML/lda_impute.h>
 
 #include <duckdb/function/scalar/nested_functions.hpp>
 #include <duckdb/function/aggregate_function.hpp>
@@ -18,10 +19,10 @@ namespace Triple {
 
     void register_functions(duckdb::ClientContext &context, const std::vector<size_t> &n_con_columns, const std::vector<size_t> &n_cat_columns){
 
-        auto function = duckdb::AggregateFunction("triple_sum", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, duckdb::AggregateFunction::StateSize<Triple::AggState>,
-                                                  duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>, Triple::ListUpdateFunction,
-                                                  Triple::ListCombineFunction, Triple::ListFinalize, nullptr, Triple::ListBindFunction,
-                                                  duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>, nullptr, nullptr);
+        auto function = duckdb::AggregateFunction("triple_sum", {duckdb::LogicalType::ANY}, duckdb::LogicalTypeId::STRUCT, duckdb::AggregateFunction::StateSize<Triple::SumState>,
+                                                  duckdb::AggregateFunction::StateInitialize<Triple::SumState, Triple::StateFunction>, Triple::Sum,
+                                                  Triple::SumStateCombine, Triple::SumStateFinalize, nullptr, Triple::SumBind,
+                                                  duckdb::AggregateFunction::StateDestroy<Triple::SumState, Triple::StateFunction>, nullptr, nullptr);
 
         duckdb::UDFWrapper::RegisterAggrFunction(function, context);
         std::set<std::pair<int, int>> fun_type_sizes;//remove duplicates
@@ -42,12 +43,12 @@ namespace Triple {
             }
             auto sum_no_lift = duckdb::AggregateFunction("triple_sum_no_lift"+xx, args_sum_no_lift,
                                                          duckdb::LogicalTypeId::STRUCT,
-                                                         duckdb::AggregateFunction::StateSize<Triple::AggState>,
-                                                         duckdb::AggregateFunction::StateInitialize<Triple::AggState, Triple::StateFunction>,
+                                                         duckdb::AggregateFunction::StateSize<Triple::SumState>,
+                                                         duckdb::AggregateFunction::StateInitialize<Triple::SumState, Triple::StateFunction>,
                                                          Triple::SumNoLift,
-                                                         Triple::SumNoLiftCombine, Triple::SumNoLiftFinalize, nullptr,
+                                                         Triple::SumStateCombine, Triple::SumStateFinalize, nullptr,
                                                          Triple::SumNoLiftBind,
-                                                         duckdb::AggregateFunction::StateDestroy<Triple::AggState, Triple::StateFunction>,
+                                                         duckdb::AggregateFunction::StateDestroy<Triple::SumState, Triple::StateFunction>,
                                                          nullptr, nullptr);
             sum_no_lift.null_handling = duckdb::FunctionNullHandling::SPECIAL_HANDLING;
             sum_no_lift.varargs = duckdb::LogicalType::FLOAT;

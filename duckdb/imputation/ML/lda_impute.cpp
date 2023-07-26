@@ -1,11 +1,11 @@
 
-#include "lda_impute.h"
+#include <ML/lda_impute.h>
 
 #include <duckdb.hpp>
 #include <duckdb/planner/expression/bound_function_expression.hpp>
 #include <duckdb/function/scalar/nested_functions.hpp>
 #include <cfloat>
-#include "../triple/From_duckdb.h"
+#include <triple/From_duckdb.h>
 
 #include <iostream>
 

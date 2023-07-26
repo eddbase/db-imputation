@@ -1,8 +1,8 @@
 
 
-#include "lda.h"
+#include <ML/lda.h>
 #include <math.h>
-#include "utils.h"
+#include <ML/utils.h>
 
 //#include <clapack.h>
 #include <float.h>

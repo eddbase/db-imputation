@@ -1,11 +1,11 @@
-#include "factorized_imputation_flight.h"
+#include <factorized_imputation_flight.h>
 #include <iostream>
-#include "../partition.h"
-#include "../triple/Triple_sub.h"
-#include "../triple/Triple_sum.h"
-#include "../ML/lda.h"
-#include "../ML/Regression.h"
-#include "../triple/helper.h"
+#include <partition.h>
+#include <triple/sub.h>
+#include <triple/sum/sum.h>
+#include <ML/lda.h>
+#include <ML/regression.h>
+#include <triple/helper.h>
 
 static void import_data(duckdb::Connection &con, const std::string &path) {
     con.Query("CREATE TABLE route (ROUTE_ID INTEGER PRIMARY KEY, ORIGIN INT, DEST INT, DISTANCE FLOAT);");

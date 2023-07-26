@@ -1,6 +1,6 @@
 
 
-#include "From_duckdb.h"
+#include <triple/From_duckdb.h>
 
 void duckdb::RecursiveFlatten(Vector &vector, idx_t &count) {
     if (vector.GetVectorType() != VectorType::FLAT_VECTOR) {

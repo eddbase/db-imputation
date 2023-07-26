@@ -1,10 +1,10 @@
-#include "column_scalability.h"
-#include "flight_partition.h"
+#include <column_scalability.h>
+#include <flight_partition.h>
 #include <iostream>
-#include "../partition.h"
-#include "../triple/Triple_sub.h"
-#include "../triple/Triple_sum.h"
-#include "../ML/Regression.h"
+#include <partition.h>
+#include <triple/sub.h>
+#include <triple/sum/sum.h>
+#include <ML/regression.h>
 #include <iterator>
 void scalability_col_exp(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters, const std::vector<std::string> &assume_col_con_nulls){
     con.Query("ALTER TABLE "+table_name+" ADD COLUMN n_nulls INTEGER DEFAULT 10;")->Print();

@@ -1,14 +1,14 @@
 
 
-#include "Triple_sub.h"
+#include <triple/sub.h>
 #include <duckdb/function/scalar/nested_functions.hpp>
 
 
-#include "Triple_mul.h"
+#include <triple/mul.h>
 
 #include <iostream>
 #include <algorithm>
-#include "From_duckdb.h"
+#include <triple/From_duckdb.h>
 
 //DataChunk is a set of vectors
 

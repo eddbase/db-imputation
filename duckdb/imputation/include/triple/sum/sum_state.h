@@ -1,22 +1,19 @@
+//
+// Created by Massimo Perini on 26/07/2023.
+//
 
+#ifndef DUCKDB_IMPUTATION_SUM_STATE_H
+#define DUCKDB_IMPUTATION_SUM_STATE_H
 
-#ifndef DUCKDB_TRIPLE_SUM_H
-#define DUCKDB_TRIPLE_SUM_H
-
-#include <vector>
 #include <duckdb.hpp>
-#include <map>
-#include <unordered_map>
-#include <boost/functional/hash.hpp>
-#include <iostream>
 #include <boost/unordered_map.hpp>
 #include <boost/container/flat_map.hpp>
+#include <boost/functional/hash.hpp>
 
-//#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace Triple {
 
-    struct AggState {
+    struct SumState {
         int count;
         int num_attributes;
         int cat_attributes;
@@ -59,23 +56,13 @@ namespace Triple {
         }
     };
 
-    duckdb::unique_ptr<duckdb::FunctionData>
-    ListBindFunction(duckdb::ClientContext &context, duckdb::AggregateFunction &function,
-                     duckdb::vector<duckdb::unique_ptr<duckdb::Expression>> &arguments);
-
-    void ListUpdateFunction(duckdb::Vector inputs[], duckdb::AggregateInputData &aggr_input_data, idx_t input_count,
-                            duckdb::Vector &state_vector, idx_t count);
+    void
+    SumStateCombine(duckdb::Vector &state, duckdb::Vector &combined, duckdb::AggregateInputData &aggr_input_data,
+                     idx_t count);
 
     void
-    ListCombineFunction(duckdb::Vector &state, duckdb::Vector &combined, duckdb::AggregateInputData &aggr_input_data,
-                        idx_t count);
-
-    void ListFinalize(duckdb::Vector &state_vector, duckdb::AggregateInputData &aggr_input_data, duckdb::Vector &result,
+    SumStateFinalize(duckdb::Vector &state_vector, duckdb::AggregateInputData &aggr_input_data, duckdb::Vector &result,
                       idx_t count,
                       idx_t offset);
-
-    duckdb::Value sum_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2);
-
 }
-
-#endif //DUCKDB_TRIPLE_SUM_H
+#endif //DUCKDB_IMPUTATION_SUM_STATE_H

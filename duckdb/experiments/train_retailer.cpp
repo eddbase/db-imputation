@@ -1,10 +1,10 @@
 
 
-#include "train_retailer.h"
+#include <train_retailer.h>
 
 
-#include "../ML/Regression.h"
-#include "../triple/helper.h"
+#include <ML/regression.h>
+#include <triple/helper.h>
 #include <iostream>
 #include <duckdb.hpp>
 #include <iterator>

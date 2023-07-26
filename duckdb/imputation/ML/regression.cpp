@@ -1,10 +1,9 @@
 
 
-#include "Regression.h"
-#include "utils.h"
+#include <ML/regression.h>
+#include <ML/utils.h>
 
 #include <math.h>
-#include "utils.h"
 #include<iostream>
 extern "C" void dgemv (char *TRANSA, int *M, int* N, double *ALPHA,
                    double *A, int *LDA, double *X, int *INCX, double *BETA, double *Y, int *INCY);

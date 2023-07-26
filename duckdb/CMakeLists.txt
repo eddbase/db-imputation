@@ -38,7 +38,7 @@ ExternalProject_Add(
         CMAKE_ARGS
         -G${CMAKE_GENERATOR}
         -DCMAKE_BUILD_PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL}
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         -DCMAKE_CXX_FLAGS=-std=c++17
         -DCMAKE_CXX_STANDARD=17
@@ -71,7 +71,7 @@ set_target_properties(duckdb PROPERTIES IMPORTED_LOCATION ${INSTALL_DIR}/lib/lib
 
 add_dependencies(duckdb duckdb_ep)
 
-add_executable(DuckDB_imputation main.cpp triple/Triple_sum.cpp triple/Triple_sum.h triple/Triple_mul.cpp triple/Triple_mul.h triple/Lift.cpp triple/Lift.h triple/From_duckdb.h triple/From_duckdb.cpp triple/Custom_lift.cpp triple/Custom_lift.h triple/Sum_no_lift.cpp triple/Sum_no_lift.h triple/Triple_sub.cpp triple/Triple_sub.h ML/Regression.cpp ML/Regression.h ML/Regression_predict.cpp ML/Regression_predict.h triple/helper.cpp triple/helper.h partition.cpp partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp ML/lda.cpp ML/lda.h ML/utils.cpp ML/utils.h ML/lda_impute.cpp ML/lda_impute.h tests/test_lda.cpp experiments/flight_partition.cpp experiments/flight_partition.h experiments/flight_baseline.cpp experiments/flight_baseline.h experiments/train_flight.cpp experiments/train_flight.h experiments/train_retailer.cpp experiments/train_retailer.h experiments/column_scalability.cpp experiments/column_scalability.h experiments/factorized_imputation_flight.cpp experiments/factorized_imputation_flight.h experiments/factorized_imputation_retailer.cpp experiments/factorized_imputation_retailer.h)
+add_executable(DuckDB_imputation main.cpp imputation/triple/sum/sum.cpp imputation/include/triple/sum/sum.h imputation/triple/mul.cpp imputation/include/triple/mul.h imputation/triple/SQL_lift.cpp imputation/include/triple/SQL_lift.h imputation/include/triple/From_duckdb.h imputation/triple/From_duckdb.cpp imputation/triple/lift.cpp imputation/include/triple/lift.h imputation/triple/sum/sum_no_lift.cpp imputation/include/triple/sum/sum_no_lift.h imputation/triple/sub.cpp imputation/include/triple/sub.h imputation/ML/regression.cpp imputation/include/ML/regression.h imputation/ML/regression_predict.cpp imputation/include/ML/regression_predict.h imputation/triple/helper.cpp imputation/include/triple/helper.h experiments/partition.cpp include/partition.h tests/test_lift.cpp tests/test_sum.cpp tests/test_mul.cpp imputation/ML/lda.cpp imputation/include/ML/lda.h imputation/ML/utils.cpp imputation/include/ML/utils.h imputation/ML/lda_impute.cpp imputation/include/ML/lda_impute.h tests/test_lda.cpp experiments/flight_partition.cpp include/flight_partition.h experiments/flight_baseline.cpp include/flight_baseline.h experiments/train_flight.cpp include/train_flight.h experiments/train_retailer.cpp include/train_retailer.h experiments/column_scalability.cpp include/column_scalability.h experiments/factorized_imputation_flight.cpp include/factorized_imputation_flight.h experiments/factorized_imputation_retailer.cpp include/factorized_imputation_retailer.h imputation/triple/sum/sum_state.cpp imputation/include/triple/sum/sum_state.h)
 target_link_libraries(DuckDB_imputation duckdb)
 target_link_libraries(DuckDB_imputation doctest)
 target_link_libraries(DuckDB_imputation ${lapackblas_libraries})
@@ -82,7 +82,9 @@ set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 find_package(Boost REQUIRED)
 
+include_directories(imputation/include)
+include_directories(include)
+
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-#    target_link_libraries(Test ${Boost_LIBRARIES})
 endif()

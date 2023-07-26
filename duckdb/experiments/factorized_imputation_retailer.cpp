@@ -1,11 +1,11 @@
 //
-#include "factorized_imputation_retailer.h"
+#include <factorized_imputation_retailer.h>
 #include <iostream>
-#include "../partition.h"
-#include "../triple/Triple_sub.h"
-#include "../triple/Triple_sum.h"
-#include "../ML/Regression.h"
-#include "../triple/helper.h"
+#include <partition.h>
+#include <triple/sub.h>
+#include <triple/sum/sum.h>
+#include <ML/regression.h>
+#include <triple/helper.h>
 
 
 static void import_data(duckdb::Connection &con, const std::string &path) {

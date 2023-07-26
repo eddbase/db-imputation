@@ -1,11 +1,11 @@
 
-#include "Regression_predict.h"
+#include <ML/regression_predict.h>
 #include <duckdb/function/scalar/nested_functions.hpp>
 
 
 #include <iostream>
 #include <algorithm>
-#include "../triple/From_duckdb.h"
+#include <triple/From_duckdb.h>
 
 //DataChunk is a set of vectors
 

@@ -1,9 +1,9 @@
 
-#include "flight_baseline.h"
+#include <flight_baseline.h>
 #include <iostream>
-#include "../partition.h"
-#include "../ML/lda.h"
-#include "../ML/Regression.h"
+#include <partition.h>
+#include <ML/lda.h>
+#include <ML/regression.h>
 #include <iterator>
 void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters){
 

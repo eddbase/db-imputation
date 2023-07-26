@@ -1,9 +1,9 @@
 
 
-#include "train_flight.h"
+#include <train_flight.h>
 
-#include "../triple/helper.h"
-#include "../ML/Regression.h"
+#include <triple/helper.h>
+#include <ML/regression.h>
 #include <iostream>
 #include <duckdb.hpp>
 #include <iterator>

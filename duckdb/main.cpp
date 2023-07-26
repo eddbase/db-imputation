@@ -2,24 +2,24 @@
 #include <iostream>
 #include <duckdb.hpp>
 
-#include "ML/Regression.h"
+#include "ML/regression.h"
 #include "triple/helper.h"
 
 #include "triple/From_duckdb.h"
 #include <chrono>
-#include "experiments/flight_partition.h"
-#include "experiments/flight_baseline.h"
+#include "include/flight_partition.h"
+#include "include/flight_baseline.h"
 
-#include "experiments/train_flight.h"
-#include "experiments/train_retailer.h"
-#include "experiments/column_scalability.h"
+#include "include/train_flight.h"
+#include "include/train_retailer.h"
+#include "include/column_scalability.h"
 
 #include <boost/version.hpp>
 #ifdef ENABLE_DOCTEST_IN_LIBRARY
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "doctest/doctest.h"
-#include "experiments/factorized_imputation_retailer.h"
-#include "experiments/factorized_imputation_flight.h"
+#include "include/factorized_imputation_retailer.h"
+#include "include/factorized_imputation_flight.h"
 
 #else
 #define DOCTEST_CONFIG_DISABLE
@@ -36,13 +36,13 @@
 
 int main(int argc, char* argv[]){
 
-    bool single_table_flight = false;
+    bool single_table_flight = true;
     bool single_table_retailer = false;
     bool single_table_air_quality = true;
     //bool col_scal_exp = false;
-    bool flight_factorized = false;
+    bool flight_factorized = true;
     bool retailer_factorized = false;
-    bool train_flight = false;
+    bool train_flight = true;
     bool train_retailer = false;
     std::string path = "../../make_datasets/flights_dataset";
 

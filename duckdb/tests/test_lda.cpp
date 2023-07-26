@@ -1,12 +1,12 @@
 
 #include <doctest/doctest.h>
 #include <duckdb.hpp>
-#include "../triple/helper.h"
-#include "../partition.h"
+#include <triple/helper.h>
+#include "partition.h"
 #include <iostream>
 
 #include <vector>
-#include "../ML/lda.h"
+#include <ML/lda.h>
 
 using namespace std;
 TEST_CASE("lift") {

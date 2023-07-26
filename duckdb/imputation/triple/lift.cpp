@@ -1,7 +1,7 @@
 
 
-#include "Custom_lift.h"
-#include "From_duckdb.h"
+#include <triple/lift.h>
+#include <triple/From_duckdb.h>
 #include <duckdb/function/scalar/nested_functions.hpp>
 #include <duckdb/planner/expression/bound_function_expression.hpp>
 

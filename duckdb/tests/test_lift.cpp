@@ -2,7 +2,7 @@
 
 #include <doctest/doctest.h>
 #include <duckdb.hpp>
-#include "../triple/helper.h"
+#include <triple/helper.h>
 
 #include <iostream>
 
