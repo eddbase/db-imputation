@@ -390,6 +390,8 @@ void query_categorical_num(const std::vector<std::string> &cat_columns, std::str
 
         predict_column_query +="list_extract(["+params_list+"], list_position(["+list+"], "+cat_columns[i]+")) + ";
     }
-    predict_column_query.pop_back();
-    predict_column_query.pop_back();
+    if(cat_columns.size() > 0) {
+        predict_column_query.pop_back();
+        predict_column_query.pop_back();
+    }
 }

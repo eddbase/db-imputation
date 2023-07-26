@@ -19,11 +19,11 @@ namespace Flight {
                 "FLOAT, WEEKDAY_COS FLOAT, EXTRA_DAY_ARR INTEGER, EXTRA_DAY_DEP INTEGER, SCHEDULE_ID INTEGER);");
 
         con.Query("COPY route FROM '" + path +
-                  "/schedule_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/route_dataset.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY schedule FROM '" + path +
-                  "/airline_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/schedule_dataset.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         con.Query("COPY flight FROM '" + path +
-                  "/airlines_data_dataset_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+                  "/airlines_dataset.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
     }
 
 

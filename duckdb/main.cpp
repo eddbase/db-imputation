@@ -38,9 +38,9 @@ int main(int argc, char* argv[]){
 
     bool single_table_flight = false;
     bool single_table_retailer = false;
-    bool single_table_air_quality = false;
+    bool single_table_air_quality = true;
     //bool col_scal_exp = false;
-    bool flight_factorized = true;
+    bool flight_factorized = false;
     bool retailer_factorized = false;
     bool train_flight = false;
     bool train_retailer = false;
@@ -79,15 +79,23 @@ std::cout << "Using Boost "
         Retailer::train_factorized(path, true);
     }
     if(train_flight) {
-        std::cout << "\n\nFlight\n\n";
+        std::cout << "\n\nTrain\n\n";
 
+        std::cout << "SQL\n";
         Flight::train_mat_sql_lift(path, false);
+        std::cout << "SQL mat.\n";
         Flight::train_mat_sql_lift(path, true);
+        std::cout << "RING\n";
         Flight::train_mat_custom_lift(path, false, false);
+        std::cout << "RING cat\n";
         Flight::train_mat_custom_lift(path, false, true);
+        std::cout << "RING mat.\n";
         Flight::train_mat_custom_lift(path, true, false);
+        std::cout << "RING mat. cat.\n";
         Flight::train_mat_custom_lift(path, true, true);
+        std::cout << "RING ring + fact.\n";
         Flight::train_factorized(path, false);
+        std::cout << "RING ring + fact. cat.\n";
         Flight::train_factorized(path, true);
 
     }
@@ -106,7 +114,6 @@ std::cout << "Using Boost "
     size_t mice_iters = 1;
 
     Triple::register_functions(*con.context, {con_columns.size()}, {cat_columns.size()});
-    std::string path = "/disk/scratch/imputation_project/systemds/data/join_table_flights_0.2.csv";//argv[1];
     //con.Query("SELECT triple_sum_no_lift(b,c,d,e) FROM test where gb = 1")->Print();
 
 
@@ -114,10 +121,10 @@ std::cout << "Using Boost "
     auto begin = std::chrono::high_resolution_clock::now();
     std::string create_table_query = "CREATE TABLE join_table(flight INTEGER,airports INTEGER,OP_CARRIER INTEGER,CRS_DEP_HOUR FLOAT,CRS_DEP_MIN FLOAT,CRS_ARR_HOUR FLOAT,CRS_ARR_MIN FLOAT,ORIGIN INTEGER,DEST INTEGER,DISTANCE FLOAT,index INTEGER,DEP_DELAY FLOAT,TAXI_OUT FLOAT,TAXI_IN FLOAT,ARR_DELAY FLOAT,DIVERTED INTEGER,ACTUAL_ELAPSED_TIME FLOAT,AIR_TIME FLOAT,DEP_TIME_HOUR FLOAT,DEP_TIME_MIN FLOAT,WHEELS_OFF_HOUR FLOAT,WHEELS_OFF_MIN FLOAT,WHEELS_ON_HOUR FLOAT,WHEELS_ON_MIN FLOAT,ARR_TIME_HOUR FLOAT,ARR_TIME_MIN FLOAT,MONTH_SIN FLOAT,MONTH_COS FLOAT,DAY_SIN FLOAT,DAY_COS FLOAT,WEEKDAY_SIN FLOAT,WEEKDAY_COS FLOAT,EXTRA_DAY_ARR INTEGER,EXTRA_DAY_DEP INTEGER);";
     con.Query(create_table_query);
-    //std::string path = "/Users/"/test.csv";
     if (argc > 1)
         path = argv[1];
-    con.Query("COPY join_table FROM '"+path+"' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+    std::cout<<path<<"/join_table_flights.csv";
+    con.Query("COPY join_table FROM '"+path+"/join_table_flights.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
     auto end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time import data (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
     std::cout<<"---- Partitioned ----\n";
@@ -240,10 +247,10 @@ if (single_table_air_quality) {
                                          "    SO2_AVG FLOAT"
                                          ");";
         con.Query(create_table_query);
-        std::string path = "/disk/scratch/imputation_project/quality_exp/air_quality_postgres.csv";
         if (argc > 1)
             path = argv[1];
-        con.Query("COPY join_table FROM '" + path + "' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
+        std::cout<<path<<"/air_quality_postgres.csv";
+        con.Query("COPY join_table FROM '" + path + "/air_quality_postgres.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "Time import data (ms): "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
