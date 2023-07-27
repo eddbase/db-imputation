@@ -235,7 +235,7 @@ BEGIN
             
                         
             query := 'UPDATE ' || output_table_name || 
-                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
+                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
                 ' WHERE ' || col || '_ISNULL';
             RAISE DEBUG '%', query;
 

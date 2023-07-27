@@ -451,7 +451,7 @@ BEGIN
             
             SELECT array_agg(
                 CASE WHEN array_position(columns_lower, LOWER(x)) = label_index THEN
-                    array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') || ' AS ' || x
+                    array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') || ' AS ' || x
                 ELSE
                     x || ' AS ' || x
                 END
@@ -479,7 +479,7 @@ BEGIN
             RAISE INFO 'IMPUTE DATA (1): ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
             
             query := 'UPDATE ' || output_table_name || 
-                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
+                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
                 ' WHERE NULL_CNT >= 2 AND ' || col || '_ISNULL;';
             RAISE DEBUG '%', query;
 

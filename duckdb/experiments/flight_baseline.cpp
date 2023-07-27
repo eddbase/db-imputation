@@ -51,7 +51,7 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
 
             std::string cat_columns_query;
             query_categorical_num(cat_columns, cat_columns_query, std::vector<float>(params.begin()+con_columns.size(), params.end()-1));
-            new_val+=cat_columns_query+" + random()*"+ std::to_string(params[params.size()-1])+")::FLOAT";
+            new_val+=cat_columns_query+" + (sqrt(-2 * ln(random()))*cos(2*pi()*random()) *"+ std::to_string(params[params.size()-1])+"))::FLOAT";
                 //update
             std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete\n";
             begin = std::chrono::high_resolution_clock::now();
