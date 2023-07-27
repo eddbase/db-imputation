@@ -27,8 +27,8 @@ DECLARE
     tmp_columns_names text[];
     label_index int4;
     max_range int4;    
-    categorical_uniq_vals_sorted int[] := ARRAY[];
-    upper_bound_categorical  int[] := ARRAY[];
+    categorical_uniq_vals_sorted int[] := ARRAY[]::int[];
+    upper_bound_categorical  int[] := ARRAY[]::int[];
     low_bound_categorical  int[]; 
 
 BEGIN
@@ -357,6 +357,6 @@ BEGIN
 END$$;
 
 
-CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['AQI', 'CO', 'O3', 'PM10', 'PM2_5', 'NO2', 'NOx', 'NO_', 'WindSpeed', 'WindDirec', 'SO2_AVG'], ARRAY[]::text[], ARRAY['CO', 'O3', 'PM10', 'PM2_5', 'NO2', 'NOx', 'NO_', 'WindSpeed', 'WindDirec', 'SO2_AVG'], ARRAY[]::text[]);
+CALL MICE_incremental_partitioned('join_table', 'join_table_complete', ARRAY['AQI', 'CO', 'O3', 'PM10', 'PM2_5', 'NO2', 'NOx', 'NO_', 'WindSpeed', 'WindDirec', 'SO2_AVG'], ARRAY[]::text[], ARRAY['CO', 'O3', 'PM10', 'PM2_5', 'NO2', 'NOx', 'NO_', 'WindSpeed', 'WindDirec', 'SO2_AVG']::text[], ARRAY[]::text[]);
 
 -- SET client_min_messages TO INFO;

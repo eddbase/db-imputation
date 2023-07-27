@@ -1,19 +1,17 @@
 DROP TABLE IF EXISTS join_table;
 
 CREATE TABLE join_table(
-    AQI INTEGER,
-    SO2 INTEGER,
-    CO INTEGER,
+    AQI FLOAT,
+    CO FLOAT,
     O3 FLOAT,
     PM10 FLOAT,
     PM2_5 FLOAT,
     NO2 FLOAT,
-    NOx INTEGER,
-    NO_ INTEGER,
+    NOx FLOAT,
+    NO_ FLOAT,
     WindSpeed FLOAT,
-    WindDirec INTEGER,
-    CO_8hr FLOAT,
+    WindDirec FLOAT,
     SO2_AVG FLOAT
 );
 
-\copy join_table FROM 'air_quality.csv' WITH (FORMAT CSV, NULL '');
+\copy join_table FROM 'air_quality_postgres.csv' WITH (FORMAT CSV, NULL '');
