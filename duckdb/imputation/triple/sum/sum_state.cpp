@@ -1,6 +1,3 @@
-//
-// Created by Massimo Perini on 26/07/2023.
-//
 
 #include <triple/sum/sum_state.h>
 #include <duckdb/function/scalar/nested_functions.hpp>

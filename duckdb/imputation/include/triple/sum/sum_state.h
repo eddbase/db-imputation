@@ -1,6 +1,4 @@
-//
-// Created by Massimo Perini on 26/07/2023.
-//
+
 
 #ifndef DUCKDB_IMPUTATION_SUM_STATE_H
 #define DUCKDB_IMPUTATION_SUM_STATE_H
