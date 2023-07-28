@@ -57,5 +57,15 @@ Edit lines 3 and 4 of `single_table/other systems/systemds.dml` with the number 
 #### Madlib
 Use *dataset\_denormalized.py* to generate the dataset and import it into PostgreSQL. Then, after installing Madlib run the script inside `single_table/other systems/mice_madlib.sql`.
 
+#### Mindsdb
+1. Install Mindsdb and start it using `python -m mindsdb`
+2. Make sure the dataset is already loaded inside PostgreSQL
+3. Create the output table running the SQL script (`mindsdb_create_<dataset>.sql`)
+4. Set PostgreSQL and MindsDB username, password and port inside the Python script, then run it
+
+#### ImputeDB
+Clone ImputeDB from `https://github.com/mitdbg/imputedb`, then generate the dataset (set `imputedb= True`). Generate the imputedb database with `./imputedb load --db <path database> <path in. dataset>`. Create a text file with the query (`SELECT * from <table_name>`), then run `./imputedb experiment <path database> <query_path> output_dir 1 0 0.9 1`
+
+
 ### Multiple tables
 Contains the imputation experiments over a normalized relation. Generate a normalized dataset setting the null quantity for each column, import the tables inside the Postgres and run the SQL code located under *multiple tables/factorized\_\<dataset>*
