@@ -92,7 +92,7 @@ CREATE OR REPLACE PROCEDURE MICE_madlib(
     INTO tmp_array;
     
     query := 'CREATE UNLOGGED TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=70) ';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=75) ';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
         
@@ -169,7 +169,7 @@ CREATE OR REPLACE PROCEDURE MICE_madlib(
         	RAISE NOTICE 'imputing... %', categorical_columns_null[_counter_2];
             _indep_vars := ARRAY['1'] || array_remove(columns,  categorical_columns_null[_counter_2]);
 
-            EXECUTE ('CREATE TEMPORARY TABLE tmp_table AS (SELECT * FROM '|| output_table_name|| ' WHERE ' || categorical_columns_null[_counter_2] || '_ISNULL IS false)');
+            EXECUTE ('CREATE UNLOGGED TABLE tmp_table AS (SELECT * FROM '|| output_table_name|| ' WHERE ' || categorical_columns_null[_counter_2] || '_ISNULL IS false)');
             RAISE NOTICE 'train... %', categorical_columns_null[_counter_2];
             query := ('SELECT madlib.logregr_train( ''tmp_table'', ''res_logregr'' ,''' || categorical_columns_null[_counter_2] || ''', ''ARRAY[' || array_to_string(_indep_vars, ', ') || ']'', NULL, 1, ''irls'', 0.01, TRUE)');
             RAISE NOTICE '%', query;
@@ -200,9 +200,9 @@ CREATE OR REPLACE PROCEDURE MICE_madlib(
         LOOP
             RAISE NOTICE 'imputing... %', continuous_columns_null[_counter_2];
             _indep_vars := ARRAY['1'] || array_remove(columns,  continuous_columns_null[_counter_2]);
-            RAISE NOTICE '%', 'CREATE TEMPORARY TABLE tmp_table AS (SELECT * FROM '||output_table_name||' WHERE ' || continuous_columns_null[_counter_2] || '_ISNULL IS false)';
+            RAISE NOTICE '%', 'CREATE UNLOGGED TABLE tmp_table AS (SELECT * FROM '||output_table_name||' WHERE ' || continuous_columns_null[_counter_2] || '_ISNULL IS false)';
             
-            EXECUTE ('CREATE TEMPORARY TABLE tmp_table AS (SELECT * FROM '||output_table_name||' WHERE ' || continuous_columns_null[_counter_2] || '_ISNULL IS false)');
+            EXECUTE ('CREATE UNLOGGED TABLE tmp_table AS (SELECT * FROM '||output_table_name||' WHERE ' || continuous_columns_null[_counter_2] || '_ISNULL IS false)');
             
             RAISE NOTICE ' ... %', 'SELECT madlib.linregr_train( ''tmp_table'', ''res_linregr'' ,''' ||
             continuous_columns_null[_counter_2] || ''', ''ARRAY[' || array_to_string(_indep_vars, ', ') || ']'')';
@@ -226,19 +226,11 @@ CREATE OR REPLACE PROCEDURE MICE_madlib(
     END LOOP;
         _end_ts  := clock_timestamp();
         RAISE NOTICE 'Execution time in ms = %' , 1000 * (extract(epoch FROM _end_ts - _start_ts));
-        RAISE NOTICE 'Execution time (JOIN) in ms = %' , 1000 * (extract(epoch FROM _int_ts - _start_ts));
-
 END$$;
 
 CALL MICE_madlib('join_table', 'join_table_complete', ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['OP_CARRIER', 'DIVERTED', 'EXTRA_DAY_DEP', 'EXTRA_DAY_ARR']::text[], ARRAY['WHEELS_ON_HOUR', 'WHEELS_OFF_HOUR', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'], ARRAY['DIVERTED']::text[]);
 
-CALL MICE_madlib('join_table', 'join_table_complete', ARRAY['CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'DISTANCE', 'DEP_DELAY', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'AIR_TIME', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR', 'WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN', 'MONTH_SIN', 'MONTH_COS', 'DAY_SIN', 'DAY_COS', 'WEEKDAY_SIN', 'WEEKDAY_COS'], ARRAY['DIVERTED']::text[], ARRAY['WHEELS_ON_HOUR', 'WHEELS_OFF_HOUR', 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'DEP_DELAY'], ARRAY['DIVERTED']::text[]);
-
-CALL MICE_madlib('join_table', 'join_table_complete', ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'thunder', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow']::text[], ARRAY['inventoryunits', 'maxtemp', 'mintemp', 'supertargetdistance', 'walmartdistance'], ARRAY['rain', 'snow']::text[]);
-
-CREATE UNLOGGED TABLE join_table AS (SELECT * FROM (flight.schedule JOIN flight.distances USING(airports)) AS s JOIN flight.flights USING (flight))
+CALL MICE_madlib('join_table', 'join_table_complete', ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow', 'thunder']::text[], ARRAY['inventoryunits', 'maxtemp', 'mintemp', 'supertargetdistance', 'walmartdistance'], ARRAY['rain', 'snow']::text[]);
 
 CALL MICE_madlib('join_table', 'join_table_complete', ARRAY['AQI', 'CO', 'O3', 'PM10', 'PM2_5', 'NO2', 'NOx', 'NO_', 'WindSpeed', 'WindDirec', 'SO2_AVG'], ARRAY[]::text[], ARRAY['CO', 'O3', 'PM10', 'PM2_5', 'NO2', 'NOx', 'NO_', 'WindSpeed', 'WindDirec', 'SO2_AVG'], ARRAY[]::text[]);
-SET client_min_messages TO DEBUG;
-
----CALL MICE_madlib('join_table', 'join_table_complete', ARRAY['population', 'white', 'asian', 'pacific', 'black', 'medianage', 'occupiedhouseunits', 'houseunits', 'families', 'households', 'husbwife', 'males', 'females', 'householdschildren', 'hispanic', 'rgn_cd', 'clim_zn_nbr', 'tot_area_sq_ft', 'sell_area_sq_ft', 'avghhi', 'supertargetdistance', 'supertargetdrivetime', 'targetdistance', 'targetdrivetime', 'walmartdistance', 'walmartdrivetime', 'walmartsupercenterdistance', 'walmartsupercenterdrivetime' , 'prize', 'feat_1', 'maxtemp', 'mintemp', 'meanwind', 'thunder', 'inventoryunits'], ARRAY['subcategory', 'category', 'categoryCluster', 'rain', 'snow']::text[], ARRAY['inventoryunits', 'maxtemp', 'mintemp', 'supertargetdistance', 'walmartdistance'], ARRAY['rain', 'snow']::text[]);
+--SET client_min_messages TO DEBUG;

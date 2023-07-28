@@ -49,9 +49,13 @@ Contains the imputation experiments over a single table. For each dataset, the s
 
 #### SystemDS
 
+Use *dataset\_denormalized.py* to generate the dataset, setting *SYSTEMDS* to true.
 Edit lines 3 and 4 of `single_table/other systems/systemds.dml` with the number of rows and columns in the dataset (60552738, 34 for flight, 84055817, 44 for retailer, ...). Then run it with:
 
 `bin/systemds systemds.dml -nvargs X=input_data.csv TYPES=cat_numerical.csv`
+
+#### Madlib
+Use *dataset\_denormalized.py* to generate the dataset and import it into PostgreSQL. Then, after installing Madlib run the script inside `single_table/other systems/mice_madlib.sql`.
 
 ### Multiple tables
 Contains the imputation experiments over a normalized relation. Generate a normalized dataset setting the null quantity for each column, import the tables inside the Postgres and run the SQL code located under *multiple tables/factorized\_\<dataset>*
