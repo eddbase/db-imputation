@@ -8,7 +8,7 @@ password = ''
 host = '127.0.0.1'
 port = 47335
 database = ''
-user_postgres = 's2121589'
+user_postgres = 'username'
 
 def get_connection():
         return create_engine(url="mysql+pymysql://{0}:{1}@{2}:{3}/{4}".format(user, password, host, port, database))
