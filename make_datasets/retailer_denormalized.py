@@ -77,9 +77,9 @@ result = load_flights()
 
 if IMPUTEDB:
     result = float_fixed_precision(result, 3)
-    result.to_csv('join_table_flights.csv', header=True, index=False, na_rep='nan', float_format='%.0f')
+    result.to_csv('join_table_retailer.csv', header=True, index=False, na_rep='nan', float_format='%.0f')
 else:
-    result.to_csv('join_table_flights.csv', header=False, index=False, na_rep='', float_format='%.3f')
+    result.to_csv('join_table_retailer.csv', header=False, index=False, na_rep='', float_format='%.3f')
 
 if SYSTEMDS:
     cat_numerical = (((result.nunique()<=2).values).astype(int)).reshape(1,-1)

@@ -82,8 +82,8 @@ CREATE TABLE retailer.Inventory(
     PRIMARY KEY (locn, dateid, ksn)
 );
 
-\copy retailer.Census FROM 'census_dataset_postgres.csv' WITH (FORMAT CSV, NULL '');
-\copy retailer.Location FROM 'location_dataset_postgres.csv' WITH (FORMAT CSV, NULL '');
-\copy retailer.Item FROM 'item_dataset_postgres.csv' WITH (FORMAT CSV, NULL '');
-\copy retailer.Weather FROM 'weather_dataset_postgres.csv' WITH (FORMAT CSV, NULL '');
-\copy retailer.Inventory FROM 'inventory_dataset_postgres.csv' WITH (FORMAT CSV, NULL '');
+\copy retailer.Census FROM 'census_dataset.csv' WITH (FORMAT CSV, NULL '');
+\copy retailer.Location FROM 'location_dataset.csv' WITH (FORMAT CSV, NULL '');
+\copy retailer.Item FROM 'item_dataset.csv' WITH (FORMAT CSV, NULL '');
+\copy retailer.Weather FROM 'weather_dataset.csv' WITH (FORMAT CSV, NULL '');
+\copy retailer.Inventory FROM 'inventory_dataset.csv' WITH (FORMAT CSV, NULL '');
