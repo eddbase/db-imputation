@@ -447,7 +447,7 @@ BEGIN
                     END IF;
 
                     -- TRAIN
-                    label_index := array_position(continuous_columns_null, col);
+                    label_index := array_position(continuous_columns, col);
                     start_ts := clock_timestamp();
                     params := ridge_linear_regression(cofactor_global, label_index - 1, 0.001, 0, 10000, 1);
                     end_ts := clock_timestamp();
