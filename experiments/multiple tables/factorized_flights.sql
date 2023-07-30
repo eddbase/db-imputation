@@ -476,7 +476,7 @@ BEGIN
                     SELECT array_agg(LOWER(x)) FROM unnest(continuous_columns) as x INTO columns_lower;
                     SELECT array_agg(
                     	CASE WHEN array_position(columns_lower, LOWER(x)) = label_index THEN
-                    		array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') || ' AS ' || x
+                    		array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') || ' AS ' || x
                     	WHEN x = 'schedule_id' THEN
                 			'flight.' || x || ' AS ' || x
                 		ELSE
@@ -516,7 +516,7 @@ BEGIN
                     
                     
                     
-                    query := 'UPDATE ' || output_table_name || ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), 'random()*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
+                    query := 'UPDATE ' || output_table_name || ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
                 			' FROM (SELECT * FROM flight.schedule AS schedule JOIN flight.route AS route ON route.ROUTE_ID = schedule.ROUTE_ID) AS subquery
                               WHERE '||output_table_name||'.NULL_CNT >= 2 AND ' ||output_table_name||'.'|| col || '_ISNULL AND subquery.SCHEDULE_ID = '||output_table_name||'.SCHEDULE_ID;';
                              
