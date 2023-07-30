@@ -7,7 +7,7 @@ The folder *make_datasets* contains *\<dataset>\_normalized.py* and *\<dataset>_
 
 *dataset\_denormalized.py* can be used to generate datasets for experiments 6.2 and 6.4. It also includes *SYSTEMDS* and *IMPUTEDB* parameters to generate datasets for SystemDS and ImputeDB instead.
 
-Both scripts expect the dataset in a normalized format(3 tables for Flight, 5 tables for Retailer). Paths and names can be set inside the scripts.
+Both scripts expect the dataset in a normalized format (3 tables for Flight, 5 tables for Retailer). Paths and names can be set inside the scripts.
 
 To generate the tables and load the data in Postgres, please use the SQL commands inside *make_datasets/Postgres*.
 
@@ -32,11 +32,11 @@ Other requirements are BLAS, LAPACK and Boost. The folder DuckDB contains the li
 
 
 ## Experiments
-The folder experiments contain the PostgreSQL SQL code for the experiments:
+The folder experiments contain SQL code for the experiments:
 
 ### Train
 
-The train subfolder contains the scripts for training over each dataset. Requires a normalized dataset without missing values. Methods available in each file are: 
+The train subfolder contains the scripts for training over each dataset in PostgreSQL. Requires a normalized dataset without missing values. Methods available in each file are: 
 
 * train_madlib: Uses Madlib to train over the dataset (requires the Madlib library)
 * train\_postgres_\<dataset>: trains over the parameters computed in a SQL query. Materialized and non materialized versions of the script are available.
@@ -45,12 +45,13 @@ The train subfolder contains the scripts for training over each dataset. Require
 
 ### Single table
 
-Contains the imputation experiments over a single table. For each dataset, the scripts available are **MICE_partitioned** for the optimized version, **MICE_baseline** for the baseline version. The folder *other systems* contains the Madlib and SystemDS versions.
+Contains the imputation experiments over a single table. For each dataset, the scripts available are **MICE_partitioned** for the optimized version, **MICE_baseline** for the baseline version. The folder *other systems* contains the Madlib, SystemDS and Mindsdb scripts.
 
 #### SystemDS
 
-Use *dataset\_denormalized.py* to generate the dataset, setting *SYSTEMDS* to true.
-Edit lines 3 and 4 of `single_table/other systems/systemds.dml` with the number of rows and columns in the dataset (60552738, 34 for flight, 84055817, 44 for retailer, ...). Then run it with:
+To run the imputation with SystemDS, use *dataset\_denormalized.py* to generate the dataset with `SYSTEMDS = true`. It generates two files: a dataset and file containing a sequence of boolean values indicating if a column contains numerical or categorical values.
+
+Edit lines 3 and 4 of `single_table/other systems/systemds.dml` with the number of rows and columns in the dataset (60552738, 34 for flight, 84055817, 44 for retailer, ...). Then run the script with:
 
 `bin/systemds systemds.dml -nvargs X=input_data.csv TYPES=cat_numerical.csv`
 
@@ -61,11 +62,11 @@ Use *dataset\_denormalized.py* to generate the dataset and import it into Postgr
 1. Install Mindsdb and start it using `python -m mindsdb`
 2. Make sure the dataset is already loaded inside PostgreSQL
 3. Create the output table running the SQL script (`mindsdb_create_<dataset>.sql`)
-4. Set PostgreSQL and MindsDB username, password and port inside the Python script, then run it
+4. Set PostgreSQL and MindsDB username, password, port and the columns with missing values inside the Python script, then run it
 
 #### ImputeDB
-Clone ImputeDB from `https://github.com/mitdbg/imputedb`, then generate the dataset (set `imputedb= True`). Generate the imputedb database with `./imputedb load --db <path database> <path in. dataset>`. Create a text file with the query (`SELECT * from <table_name>`), then run `./imputedb experiment <path database> <query_path> output_dir 1 0 0.9 1`
+Clone ImputeDB from `https://github.com/mitdbg/imputedb`, then generate the dataset (set `imputedb= True`). Generate the imputedb database with `./imputedb load --db <path database> <path dataset>`. Create a text file with the query (`SELECT * from <table_name>`), then run `./imputedb experiment <path database> <query_path> <output_dir> 1 0 0.9 1`
 
 
 ### Multiple tables
-Contains the imputation experiments over a normalized relation. Generate a normalized dataset setting the null quantity for each column, import the tables inside the Postgres and run the SQL code located under *multiple tables/factorized\_\<dataset>*
+Contains the imputation experiments over a normalized relation. It requires a normalized dataset with missing values inside the fact table. Then, import the tables inside the Postgres and run the SQL code located under *multiple tables/factorized\_\<dataset>*
