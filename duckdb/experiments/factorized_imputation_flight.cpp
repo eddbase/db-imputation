@@ -73,7 +73,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
     con.Query("ALTER TABLE " + fact_table_name +
               " ALTER COLUMN n_nulls SET DEFAULT 10;")->Print();//not adding b, replacing column
 
-    //con.Query("SET threads TO 1;");
+    con.Query("SET threads TO 1;");
     std::vector<std::pair<std::string, std::string>> cat_col_info;
     cat_col_info.push_back(std::make_pair("DIVERTED", "join_table"));
     cat_col_info.push_back(std::make_pair("EXTRA_DAY_ARR", "join_table"));
@@ -120,7 +120,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
               "      ON route.ROUTE_ID = schedule.ROUTE_ID) as schedule ON flight.SCHEDULE_ID = schedule.SCHEDULE_ID;";
 
     std::cout<<query<<"\n";
-    //con.Query("SET threads TO 10;");
+    con.Query("SET threads TO 10;");
     begin = std::chrono::high_resolution_clock::now();
     duckdb::Value full_triple = con.Query(query)->GetValue(0,0);
     end = std::chrono::high_resolution_clock::now();
@@ -132,7 +132,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
         //continuous cols
         for(auto &col_null : con_columns_fact_null) {
             std::cout<<"\n\nColumn: "<<col_null<<"\n\n";
-            //con.Query("SET threads TO 10;");
+            con.Query("SET threads TO 10;");
             //remove nulls
             std::string delta_query = "SELECT triple_sum(multiply_triple(cnt2, cnt1)) FROM "
                                       "(SELECT SCHEDULE_ID, triple_sum_no_lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN,  ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP) AS cnt2 "
@@ -153,6 +153,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time delta cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
             duckdb::Value train_triple = Triple::subtract_triple(full_triple, null_triple);
+            //train_triple.Print();
 
             //train
             auto it = std::find(con_columns_fact.begin(), con_columns_fact.end(), col_null);
@@ -160,6 +161,8 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             std::cout<<"Label index "<<label_index<<"\n";
 
             std::vector <double> params = Triple::ridge_linear_regression(train_triple, label_index, 0.001, 0, 1000, true);
+            //for (int i=0; i<params.size(); i++)
+            //    params[i] = 0;
             //predict query
 
             std::string new_val = std::to_string((float) params[0])+" + (";
@@ -177,7 +180,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
                                   std::vector<float>(params.begin() + con_columns_join.size(), params.end()-1));
             new_val += cat_columns_query + "+((sqrt(-2 * ln(random()))*cos(2*pi()*random()) *"+ std::to_string(params[params.size()-1])+")))::FLOAT";
             //update 1 missing value
-            //con.Query("SET threads TO 1;");
+            con.Query("SET threads TO 1;");
             std::string update_query = "CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "
                                     +fact_table_name+"_complete_"+col_null+
                                     " as flight JOIN ("
@@ -209,6 +212,8 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
+            con.Query("SET threads TO 10;");
+
             //recompute cofactor
             begin = std::chrono::high_resolution_clock::now();
             null_triple = con.Query(delta_query)->GetValue(0,0);
@@ -224,7 +229,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             std::cout<<"\n\nColumn: "<<col_null<<"\n\n";
             //remove nulls
 
-            //con.Query("SET threads TO 10;");
+            con.Query("SET threads TO 10;");
             std::string delta_query = "SELECT triple_sum(multiply_triple(cnt2, cnt1)) FROM "
                                       "(SELECT SCHEDULE_ID, triple_sum_no_lift(DEP_DELAY, TAXI_OUT, TAXI_IN, ARR_DELAY, ACTUAL_ELAPSED_TIME, AIR_TIME, DEP_TIME_HOUR, DEP_TIME_MIN, WHEELS_OFF_HOUR, WHEELS_OFF_MIN, WHEELS_ON_HOUR, WHEELS_ON_MIN,  ARR_TIME_HOUR, ARR_TIME_MIN, MONTH_SIN, MONTH_COS, DAY_SIN, DAY_COS, WEEKDAY_SIN, WEEKDAY_COS, DIVERTED, EXTRA_DAY_ARR, EXTRA_DAY_DEP) AS cnt2 "
                                       " FROM (SELECT "+col_select+" FROM "+fact_table_name+"_complete_"+col_null+
@@ -268,7 +273,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             std::string select_stmt = (" list_extract("+predict_column_query+", predict_lda("+train_params.ToString()+"::FLOAT[], "+num_cols_query+", "+cat_columns_query+")+1)");
 
             //update 1 missing value
-            //con.Query("SET threads TO 1;");
+            con.Query("SET threads TO 1;");
             std::string update_query = "CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "
                                        " ( SELECT * FROM "+fact_table_name+"_complete_"+col_null+
                                        ") as flight JOIN ("
@@ -307,6 +312,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
             //con.Query("SELECT * from "+table_name+"_complete_2 LIMIT 100")->Print();
 
             //recompute cofactor
+            con.Query("SET threads TO 10;");
             begin = std::chrono::high_resolution_clock::now();
             null_triple = con.Query(delta_query)->GetValue(0,0);
             end = std::chrono::high_resolution_clock::now();

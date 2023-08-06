@@ -20,6 +20,11 @@ namespace Triple {
 
         idx_t size = args.size();//n. of rows to return
 
+        //Flatten is required at the moment because join might not materialize a flatten vector
+        //In the future we can remove it and use UnifiedVectorFormat instead
+        RecursiveFlatten(args.data[0], size);
+        RecursiveFlatten(args.data[1], size);
+
         auto &first_triple_children = duckdb::StructVector::GetEntries(args.data[0]);//vector of pointers to childrens
         auto &sec_triple_children = duckdb::StructVector::GetEntries(args.data[1]);
 
@@ -114,9 +119,10 @@ namespace Triple {
         int *cat_attr_1_val_key = nullptr;
         float *cat_attr_1_val_val = nullptr;
         list_entry_t *v_1_sublist_metadata = nullptr;
-        int *cat_attr_2_val_key = nullptr;
-        float *cat_attr_2_val_val = nullptr;
+        const int *cat_attr_2_val_key = nullptr;
+        const float *cat_attr_2_val_val = nullptr;
         list_entry_t *v_2_sublist_metadata = nullptr;
+        UnifiedVectorFormat v_tmp[2];
 
         if (cat_attr_size_1 >0 || cat_attr_size_2 >0) {
             //init linear categorical
@@ -130,6 +136,7 @@ namespace Triple {
                 auto sublist_meta = duckdb::ListVector::GetData(duckdb::ListVector::GetEntry(*sec_triple_children[3]));
                 auto main_list_len = duckdb::ListVector::GetListSize(*sec_triple_children[3]);
                 total_values += sublist_meta[main_list_len-1].offset + sublist_meta[main_list_len-1].length;
+                //std::cout<<sublist_meta[main_list_len-1].offset<<" "<<sublist_meta[main_list_len-1].length<<std::endl;
             }
 
             Vector cat_relations_vector = duckdb::ListVector::GetEntry(*result_children[3]);
@@ -140,6 +147,7 @@ namespace Triple {
             vector<unique_ptr<duckdb::Vector>> &lin_struct_vector = duckdb::StructVector::GetEntries(cat_relations_vector_sub);
             cat_set_val_key = duckdb::FlatVector::GetData<int>(*((lin_struct_vector)[0]));
             cat_set_val_val = duckdb::FlatVector::GetData<float>(*((lin_struct_vector)[1]));
+
 
             if (cat_attr_size_1 > 0) {
                 Vector v_cat_lin_1 = duckdb::ListVector::GetEntry(*first_triple_children[3]);
@@ -156,8 +164,15 @@ namespace Triple {
                 Vector v_cat_lin_1_values = duckdb::ListVector::GetEntry(v_cat_lin_1);
                 vector<unique_ptr<duckdb::Vector>> &v_cat_lin_1_struct = duckdb::StructVector::GetEntries(
                         v_cat_lin_1_values);
-                cat_attr_2_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
-                cat_attr_2_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
+
+                (v_cat_lin_1_struct[0])->ToUnifiedFormat(size, v_tmp[0]);
+                (v_cat_lin_1_struct[1])->ToUnifiedFormat(size, v_tmp[1]);
+
+                cat_attr_2_val_key = UnifiedVectorFormat::GetData<int32_t>(v_tmp[0]);
+                cat_attr_2_val_val = UnifiedVectorFormat::GetData<float>(v_tmp[1]);
+
+                //cat_attr_2_val_key = duckdb::FlatVector::GetData<int>(*((v_cat_lin_1_struct)[0]));
+                //cat_attr_2_val_val = duckdb::FlatVector::GetData<float>(*((v_cat_lin_1_struct)[1]));
             }
         }
 
@@ -169,7 +184,7 @@ namespace Triple {
             //add first linears
             auto N_1 = UnifiedVectorFormat::GetData<int32_t>(N_data[0])[N_data[0].sel->get_index(i)];
             auto N_2 = UnifiedVectorFormat::GetData<int32_t>(N_data[1])[N_data[1].sel->get_index(i)];
-
+            //std::cout<<"N1 "<<N_1<<" N2 "<<N_2<<"\n";
             for (idx_t column = 0; column < cat_attr_size_1; column++) {
                 auto curr_metadata = v_1_sublist_metadata[column + (i*cat_attr_size_1)];
                 for (idx_t item = 0; item < curr_metadata.length; item++) {
@@ -186,8 +201,10 @@ namespace Triple {
             for (idx_t column = 0; column < cat_attr_size_2; column++) {
                 auto curr_metadata = v_2_sublist_metadata[column + (i*cat_attr_size_2)];
                 for (idx_t item = 0; item < curr_metadata.length; item++) {
-                    cat_set_val_key[item_count] = cat_attr_2_val_key[item + curr_metadata.offset];
-                    cat_set_val_val[item_count] = cat_attr_2_val_val[item + curr_metadata.offset] * N_1;
+                    cat_set_val_key[item_count] = cat_attr_2_val_key[v_tmp[0].sel->get_index(item + curr_metadata.offset)];//[];
+                    //std::cout<<"Key is "<<cat_attr_2_val_key[v_tmp[0].sel->get_index(item + curr_metadata.offset)]<<" at offset "<<item + curr_metadata.offset<<std::endl;
+                    cat_set_val_val[item_count] = cat_attr_2_val_val[v_tmp[1].sel->get_index(item + curr_metadata.offset)]* N_1;//[item + curr_metadata.offset] * N_1;
+                    //std::cout<<"Value is "<<cat_attr_2_val_val[v_tmp[1].sel->get_index(item + curr_metadata.offset)]<<std::endl;
                     item_count++;
                 }
                 sublist_metadata[sublist_metadata_count].length = curr_metadata.length;
