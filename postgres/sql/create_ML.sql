@@ -43,3 +43,21 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression_from_params(
      RETURNS int
      AS :FACTML_LIBRARY, 'lda_impute'
      LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+     
+     
+     
+ CREATE OR REPLACE FUNCTION naive_bayes_train(
+         aggregates nb_aggregates[]
+     )
+     RETURNS float4[]
+     AS :FACTML_LIBRARY, 'naive_bayes_train'
+     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+     
+ CREATE OR REPLACE FUNCTION naive_bayes_predict(
+         params float4[],
+         cont_feats float4[],
+         cat_feats int[]
+     )
+     RETURNS int
+     AS :FACTML_LIBRARY, 'naive_bayes_predict'
+     LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;

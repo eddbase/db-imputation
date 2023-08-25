@@ -10,6 +10,10 @@ else
     echo "Creating relation type..."
     psql -f $SCRIPT_DIR/create_relation_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\' postgres
     
+    echo "Creating Naive Bayes type..."
+    psql -f $SCRIPT_DIR/create_nb_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\' postgres
+
+    
     echo "Creating cofactor type..."
     psql -f $SCRIPT_DIR/create_cofactor_type.sql -v FACTML_LIBRARY=\'$SHARED_FILE\' postgres
 

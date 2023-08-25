@@ -212,7 +212,7 @@ for null in NULLS:
     ## RANDOM FOREST
     
     from missingpy import MissForest
-    imputer = MissForest(max_iter=5, n_estimators=5, n_jobs=-1)
+    imputer = MissForest(max_iter=6, n_estimators=5, n_jobs=-1)
     cols_names = list(missing_data.columns)
     t1 = time.time()
     rf_complete = imputer.fit_transform(missing_data)

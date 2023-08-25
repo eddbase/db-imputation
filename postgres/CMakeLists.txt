@@ -46,7 +46,8 @@ add_library(factML SHARED
     src/serializer.c
         src/lda.c
     src/gradient_descent.c
-)
+        src/nb_aggregates.c
+        src/naive_bayes.c)
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY}/catalog PRIVATE include)
 
