@@ -72,11 +72,12 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
         //insert_query.pop_back();
         //insert_query.pop_back();
         //con.Query(create_table_query+")");
-        std::cout<<create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL\n";
-        if (order == "")
-            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL")->Print();
-        else
-            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL ORDER BY "+order)->Print();
+        create_table_query += " FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL";
+        if (order != "")
+            create_table_query += " ORDER BY "+order;
+
+        std::cout<<create_table_query<<"\n";
+        con.Query(create_table_query)->Print();
         col_index ++;
     }
 
@@ -98,14 +99,19 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
         }
         create_table_query.pop_back();
         create_table_query.pop_back();
-        std::cout<<create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL\n";
+
+        create_table_query+=" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL";
+
+        if(order != "")
+            create_table_query += " ORDER BY "+order;
+
+        std::cout<<create_table_query<<"\n";
+        con.Query(create_table_query)->Print();
         //insert_query.pop_back();
         //insert_query.pop_back();
         //con.Query(create_table_query+")");
-        if(order == "")
-            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL")->Print();
-        else
-            con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL ORDER BY "+order)->Print();
+
+
         col_index ++;
     }
 
@@ -137,13 +143,14 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     create_table_query.pop_back();
     //insert_query.pop_back();
     //insert_query.pop_back();
-    std::cout<<create_table_query+" FROM "+table_name+" WHERE n_nulls >= 2\n";
     //con.Query(create_table_query+")");
-    if(order == "")
-        con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls >= 2")->Print();
-    else
-        con.Query(create_table_query+" FROM "+table_name+" WHERE n_nulls >= 2 ORDER BY "+order)->Print();
+    create_table_query += " FROM "+table_name+" WHERE n_nulls >= 2";
 
+    if(order != "")
+        create_table_query += " ORDER BY "+order;
+
+    std::cout<<create_table_query<<"\n";
+    con.Query(create_table_query)->Print();
     //table is partitioned
 }
 

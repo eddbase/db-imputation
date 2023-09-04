@@ -153,7 +153,7 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
         prev_grad[0] = grad[0];
         learned_coeff[0] = learned_coeff[0] - step_size * update[0];
         double dparam_norm = update[0] * update[0];
-
+        //std::cout<<"Learned coeff 0: "<<learned_coeff[0]<<"\n";
         for (size_t i = 1; i < num_params; i++)
         {
             update[i] = grad[i] + lambda * learned_coeff[i];
@@ -162,6 +162,7 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
             prev_grad[i] = grad[i];
             learned_coeff[i] = learned_coeff[i] - step_size * update[i];
             dparam_norm += update[i] * update[i];
+            //std::cout<<"Learned coeff "<<i<<" : "<<learned_coeff[i]<<"\n";
         }
         learned_coeff[label] = -1;
         gradient_norm -= lambda * lambda; // label correction
@@ -200,6 +201,7 @@ std::vector<double> Triple::ridge_linear_regression(const duckdb::Value &triple,
 
         step_size = compute_step_size(step_size, num_params, learned_coeff, prev_learned_coeff, grad, prev_grad);
         prev_error = error;
+        //std::cout<<"Error "<<error<<"\n";
         num_iterations++;
     } while (num_iterations < 1000 || num_iterations < max_num_iterations);
     double variance = 0;

@@ -47,7 +47,7 @@ add_library(factML SHARED
         src/lda.c
     src/gradient_descent.c
         src/nb_aggregates.c
-        src/naive_bayes.c)
+        src/naive_bayes.c src/qda.c include/datatype.h src/datatype.c)
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY} PRIVATE include)
 target_include_directories(factML PRIVATE ${PGSQL_INCLUDE_DIRECTORY}/catalog PRIVATE include)
 

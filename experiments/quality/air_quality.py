@@ -35,7 +35,7 @@ def compute_statistics(imputed_regression, scaler):
         reg = LinearRegression().fit(train_data.drop(["AQI"], axis=1), train_data["AQI"])
         r2s += [r2_score(test_data["AQI"], reg.predict(test_data.drop("AQI", axis=1)))]
         mse += [mean_squared_error(test_data["AQI"], reg.predict(test_data.drop("AQI", axis=1)))]
-        print("R2: ", r2_score(test_data["AQI"], reg.predict(test_data.drop("AQI", axis=1))))        
+        print("R2: ", r2_score(test_data["AQI"], reg.predict(test_data.drop("AQI", axis=1))), "mse", mean_squared_error(test_data["AQI"], reg.predict(test_data.drop("AQI", axis=1))))        
         #print([d[d["OP_CARRIER"] == "9E"]["DISTANCE"].mean()])
 
     d = {'r2': r2s, 'mse': mse}
@@ -106,7 +106,7 @@ col_imp = {}
 for x in num_cols:
     col_imp[x] = "stochastic"
 
-imp = MiceImputer(n=DATASETS, k=5, strategy="stochastic", return_list=True)
+imp = MiceImputer(n=DATASETS, k=5, strategy="least squares", return_list=True)
 
 t1 = time.time()
 imputed_regression = imp.fit_transform(missing_data)

@@ -39,162 +39,6 @@ int compare( const void* a, const void* b)
 // #include <utils/memutils.h>
 // #include <math.h>
 
-//generate a vector of sum of attributes group by label
-//returns count, sum of numerical attributes, sum of categorical attributes 1-hot encoded
-void build_sum_vector(const cofactor_t *cofactor, size_t num_total_params, int label, int label_categorical_sigma,
-        /* out */ double *sum_vector)
-{
-    //allocates values in sum vector, each sum array is sorted in tuple order
-    const char *relation_data = crelation_array(cofactor);
-    relation_t *current_label;
-    size_t num_categories = sizeof_sigma_matrix(cofactor, -1)  - cofactor->num_continuous_vars - 1;//num_total_params - cofactor->num_continuous_vars - 1;
-    uint64_t *cat_array = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories); // array of categories, stores each key for each categorical variable
-    uint32_t *cat_vars_idxs = (uint32_t *)palloc0(sizeof(uint32_t) * cofactor->num_categorical_vars + 1); // track start each cat. variable
-    cat_vars_idxs[0] = 0;
-
-    size_t search_start = 0;        // within one category class
-    size_t search_end = search_start;
-    uint64_t * classes_order;
-
-    for (size_t i = 0; i < cofactor->num_categorical_vars; i++) {
-        relation_t *r = (relation_t *) relation_data;
-        //create sorted array
-        for (size_t j = 0; j < r->num_tuples; j++) {
-            //size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
-            //if (key_index == search_end){
-            uint64_t value_to_insert = r->tuples[j].key;
-            uint64_t tmp;
-            for (size_t k = search_start; k < search_end; k++){
-                if (value_to_insert < cat_array[k]){
-                    tmp = cat_array[k];
-                    cat_array[k] = value_to_insert;
-                    value_to_insert = tmp;
-                }
-            }
-            cat_array[search_end] = value_to_insert;
-            search_end++;
-            //}
-        }
-        search_start = search_end;
-        cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
-        relation_data += r->sz_struct;
-    }
-    /*for(size_t i = 0; i < num_categories; i++){
-        elog(WARNING, "classes array: %d ", cat_array[i]);
-    }
-    elog(WARNING, "done ");*/
-
-    relation_data = crelation_array(cofactor);
-
-    //add count
-    for (size_t i = 0; i < cofactor->num_categorical_vars; i++){
-        relation_t *r = (relation_t *) relation_data;
-        //cat_vars_idxs[i + 1] = cat_vars_idxs[i] + r->num_tuples;
-
-        if (i == label) {
-            current_label = r;
-
-            //sort keys
-            /*classes_order = (uint64_t *)palloc0(sizeof(uint64_t) * current_label->num_tuples); // array of categories
-            for (size_t j=0;j<current_label->num_tuples;j++) {
-                classes_order[j] = current_label->tuples[j].key;
-            }
-            qsort(classes_order, current_label->num_tuples, sizeof(uint64_t), compare );*/
-
-            for (size_t j=0;j<current_label->num_tuples;j++) {
-                //idx_classes[j] = current_label->tuples[j].key;
-                //search_start = cat_vars_idxs[i];
-                //search_end = cat_vars_idxs[i + 1];
-                size_t idx_key = find_in_array(current_label->tuples[j].key, cat_array, cat_vars_idxs[label], cat_vars_idxs[label+1])-cat_vars_idxs[label];
-                //elog(WARNING, "%d", idx_key);
-                assert(idx_key < current_label->num_tuples);
-                //idx_key += cofactor->num_continuous_vars + 1;
-
-                //sum_vector[(j*num_total_params)+idx_key] = r->tuples[j].value;
-                sum_vector[(idx_key*num_total_params)] = r->tuples[j].value;//count
-                //elog(WARNING, "COUNT: %lf stored in: %d", r->tuples[j].value, idx_key*num_total_params);
-
-                //elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params)+idx_key, r->tuples[j].value);
-                //elog(WARNING, "Processing group by..., pos %d val %f: ", (j*num_total_params), r->tuples[j].value);
-            }
-        }
-
-        //search_start = search_end;
-        relation_data += r->sz_struct;
-    }
-    //for(size_t i=0;i<num_categories;i++)
-    //    elog(WARNING, "index %d value %d", i, cat_array[i]);
-
-
-
-    //numerical features
-    for (size_t numerical = 1; numerical < cofactor->num_continuous_vars + 1; numerical++) {
-        for (size_t categorical = 0; categorical < cofactor->num_categorical_vars; categorical++) {
-            //sum numerical group by label, copy value in sums vector
-            relation_t *r = (relation_t *) relation_data;
-            if (categorical != label) {
-                relation_data += r->sz_struct;
-                continue;
-            }
-            for (size_t j = 0; j < r->num_tuples; j++) {
-                size_t group_by_index = find_in_array(r->tuples[j].key, cat_array, cat_vars_idxs[label], cat_vars_idxs[label+1]) - cat_vars_idxs[label];
-                sum_vector[(group_by_index * num_total_params) + numerical] = r->tuples[j].value;
-            }
-            relation_data += r->sz_struct;
-        }
-    }
-    //group by categorical*categorical
-    for (size_t curr_cat_var = 0; curr_cat_var < cofactor->num_categorical_vars; curr_cat_var++)
-    {
-        for (size_t other_cat_var = curr_cat_var + 1; other_cat_var < cofactor->num_categorical_vars; other_cat_var++)
-        {
-            size_t other_cat;
-            int idx_other;
-            int idx_current;
-            relation_t *r = (relation_t *) relation_data;
-
-            if (curr_cat_var == label) {
-                other_cat = other_cat_var;
-                idx_other = 1;
-                idx_current = 0;
-            }
-            else if (other_cat_var == label){
-                other_cat = curr_cat_var;
-                idx_other = 0;
-                idx_current = 1;
-            }
-            else {
-                relation_data += r->sz_struct;
-                continue;
-            }
-
-            for (size_t j = 0; j < r->num_tuples; j++)
-            {
-                search_start = cat_vars_idxs[other_cat];
-                search_end = cat_vars_idxs[other_cat + 1];
-                size_t key_index_other_var = find_in_array((uint64_t) r->tuples[j].slots[idx_other], cat_array, search_start, search_end) - search_start;
-                //elog(WARNING, "Search curr cat: %d other cat %d idx found: %d search: %d start: %d end: %d", curr_cat_var, other_cat_var, key_index_other_var, r->tuples[j].slots[idx_other], search_start, search_end);
-
-                assert(key_index_other_var < search_end);
-                //elog(WARNING, "contin. vars %d search start %d curr label size keys %d", cofactor->num_continuous_vars, search_start, cat_vars_idxs[label + 1] - cat_vars_idxs[label]);
-
-                key_index_other_var += cofactor->num_continuous_vars + 1 + search_start;
-                if (search_start >= cat_vars_idxs[label])
-                    key_index_other_var -= (cat_vars_idxs[label + 1] - cat_vars_idxs[label]);
-
-                size_t group_by_index = find_in_array((uint64_t) r->tuples[j].slots[idx_current], cat_array, cat_vars_idxs[label], cat_vars_idxs[label + 1]) - cat_vars_idxs[label];
-                //elog(WARNING, "CURRENT LABEL idx found: %d search: %d start: %d end: %d", group_by_index, r->tuples[j].slots[idx_current], cat_vars_idxs[label], cat_vars_idxs[label + 1]);
-                assert(group_by_index < search_end);
-
-                //elog(WARNING, "Setting val: %lf in pos: %d (label: %d)", r->tuples[j].value, key_index_other_var, group_by_index);
-
-                sum_vector[(group_by_index*num_total_params)+key_index_other_var] = r->tuples[j].value;
-                //elog(WARNING, "Processing categorical..., pos %d (categorical %d) val %f ", (group_by_index*num_total_params)+key_index_other_var, key_index_other_var, r->tuples[j].value);
-            }
-            relation_data += r->sz_struct;
-        }
-    }
-}
 /*
 PG_FUNCTION_INFO_V1(remove_label);
 
@@ -293,33 +137,19 @@ Datum lda_train(PG_FUNCTION_ARGS)
         }
         relation_data += r->sz_struct;
     }
-    //elog(WARNING, " C ");
+    uint64_t *cat_array = NULL;
+    uint32_t *cat_vars_idxs = NULL;
+    //todo tot columns does not support skip attributes, this requires sizeof_sigma_matrix
+    size_t tot_columns = n_cols_1hot_expansion(&cofactor, 1, &cat_vars_idxs, &cat_array, 1, 0);//tot columns include label as well, so not used here
     double *sum_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
     double *mean_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
     double *coef = (double *)palloc0(sizeof(double) * num_params * num_categories);//from mean to coeff
 
     //uint64_t *idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//order of classes
     //elog(WARNING, " D ");
-    build_sigma_matrix(cofactor, num_params, label, sigma_matrix);
+    build_sigma_matrix(cofactor, num_params, label, cat_array, cat_vars_idxs, 0, sigma_matrix);
     //elog(WARNING, " E ");
-    build_sum_vector(cofactor, num_params, label, label, sum_vector);
-
-    //elog(WARNING, " PAR CAT %d ", num_params);
-    //elog(WARNING, " %d ", num_categories);
-
-    /*elog(WARNING, "SIGMA MATRIX: ");
-    for (size_t j = 0; j < num_params; j++) {
-        for (size_t k = 0; k < num_params; k++) {
-            elog(WARNING, "%lf ", sigma_matrix[(j*num_params)+k]);
-        }
-    }
-    elog(WARNING, "SUM MATRIX: ");
-    for (size_t j = 0; j < num_params; j++) {
-        for (size_t k = 0; k < num_categories; k++) {
-            elog(WARNING, "%lf ", sum_vector[(j*num_categories)+k]);
-        }
-    }*/
-
+    build_sum_matrix(cofactor, num_params, label, cat_array, cat_vars_idxs, 0, sum_vector);
 
     //build covariance matrix and mean vectors
     for (size_t i = 0; i < num_categories; i++) {

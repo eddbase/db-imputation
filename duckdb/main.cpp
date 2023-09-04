@@ -36,13 +36,13 @@
 
 int main(int argc, char* argv[]){
 
-    bool single_table_flight = true;
+    bool single_table_flight = false;
     bool single_table_retailer = false;
-    bool single_table_air_quality = true;
+    bool single_table_air_quality = false;
     //bool col_scal_exp = false;
     bool flight_factorized = true;
     bool retailer_factorized = false;
-    bool train_flight = true;
+    bool train_flight = false;
     bool train_retailer = false;
     std::string path = "../../make_datasets/flights_dataset";
 

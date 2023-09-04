@@ -12,40 +12,6 @@
 
 #define _USE_MATH_DEFINES
 
-static size_t find_in_array(uint64_t a, const uint64_t *array, size_t start, size_t end)
-{
-    size_t index = start;
-    while (index < end)
-    {
-        if (array[index] == a)
-            break;
-        index++;
-    }
-    return index;
-}
-
-static size_t get_num_categories(const cofactor_t *cofactor, int label_categorical_sigma)
-{
-    size_t num_categories = 0;
-
-    const char *relation_data = crelation_array(cofactor);
-    for (size_t i = 0; i < cofactor->num_categorical_vars; i++)
-    {
-        relation_t *r = (relation_t *) relation_data;
-
-        if (label_categorical_sigma >= 0 && ((size_t)label_categorical_sigma) == i)
-        {
-            //skip this variable
-            relation_data += r->sz_struct;
-            continue;
-        }
-
-        num_categories += r->num_tuples;
-        relation_data += r->sz_struct;
-    }
-    return num_categories;
-}
-
 
 PG_FUNCTION_INFO_V1(naive_bayes_train);
 Datum naive_bayes_train(PG_FUNCTION_ARGS)
@@ -71,54 +37,15 @@ Datum naive_bayes_train(PG_FUNCTION_ARGS)
         aggregates[i] = (cofactor_t *) DatumGetPointer(arrayContent1[i]);
     }
 
-    size_t num_categories = 0;
-    for(size_t k=0; k<n_aggregates; k++) {
-        num_categories += get_num_categories(aggregates[k], -1);
-    }
-
-    uint64_t *cat_array = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//max. size
-    uint32_t *cat_vars_idxs = (uint32_t *)palloc0(sizeof(uint32_t) * aggregates[0]->num_categorical_vars + 1); // track start each cat. variable
-    char **relation_scan = (char **)palloc0(sizeof(char *) * n_aggregates); // track start each cat. variable
+    uint64_t *cat_array = NULL; //(uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//max. size
+    uint32_t *cat_vars_idxs = NULL; //(uint32_t *)palloc0(sizeof(uint32_t) * (aggregates[0]->num_categorical_vars + 1)); // track start each cat. variable
 
     float total_tuples = 0;
     for(size_t k=0; k<n_aggregates; k++) {
-        relation_scan[k] = relation_array(aggregates[k]);
         total_tuples += aggregates[k]->count;
     }
 
-    cat_vars_idxs[0] = 0;
-    size_t search_start = 0;        // within one category class
-    size_t search_end = search_start;
-    //detect number of categorical values in every feature and sort them
-    for (size_t i = 0; i < aggregates[0]->num_categorical_vars; i++) {
-        for(size_t k=0; k<n_aggregates; k++) {
-            relation_t *r = (relation_t *) relation_scan[k];
-            //elog(WARNING, "aggregate %zu num tuples: %zu", k, r->num_tuples);
-            //create sorted array
-            for (size_t j = 0; j < r->num_tuples; j++) {
-                elog(WARNING, "find %zu start %zu end %zu", k, search_start, search_end);
-                size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
-                if (key_index == search_end) {
-                    //elog(WARNING, "new value, key = %zu", r->tuples[j].key);
-                    uint64_t value_to_insert = r->tuples[j].key;
-                    uint64_t tmp;
-                    for (size_t k = search_start; k < search_end; k++) {
-                        if (value_to_insert < cat_array[k]) {
-                            tmp = cat_array[k];
-                            cat_array[k] = value_to_insert;
-                            value_to_insert = tmp;
-                        }
-                    }
-                    cat_array[search_end] = value_to_insert;
-                    search_end++;
-                }
-            }
-            relation_scan[k] += r->sz_struct;
-        }
-        cat_vars_idxs[i + 1] = cat_vars_idxs[i] + (search_end - search_start);
-        search_start = search_end;
-        //elog(WARNING, "cat_var %zu", cat_vars_idxs[i+1]);
-    }
+    size_t total_cols = n_cols_1hot_expansion(aggregates, n_aggregates, &cat_vars_idxs, &cat_array, 0, 0);
 
     //compute mean and variance for every numerical feature
     //result = n. aggregates (classes), n. cat. values (cat_array size), cat_array, probs for each class, mean, variance for every num. feat. in 1st aggregate, prob. each cat. value 1st aggregate, ...
@@ -241,6 +168,7 @@ Datum naive_bayes_predict(PG_FUNCTION_ARGS) {
             }
         }
         k += cat_vars_idxs[n_feats_cat];
+        elog(WARNING, "final prob for class %d %lf", i, total_prob);
 
         if (total_prob > max_prob){
             max_prob = total_prob;
