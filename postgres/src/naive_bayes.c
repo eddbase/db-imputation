@@ -11,6 +11,8 @@
 #include "relation.h"
 
 #define _USE_MATH_DEFINES
+#define  TYPALIGN_INT			'i'
+#define  TYPALIGN_DOUBLE		'd'
 
 
 PG_FUNCTION_INFO_V1(naive_bayes_train);

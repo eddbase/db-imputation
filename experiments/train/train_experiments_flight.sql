@@ -263,7 +263,7 @@ BEGIN
     end_ts := clock_timestamp();
     RAISE INFO 'TIME cofactor: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
-    label_index := array_position(continuous_columns, 'inventoryunits');
+    label_index := array_position(continuous_columns, 'ACTUAL_ELAPSED_TIME');
     start_ts := clock_timestamp();
     params := ridge_linear_regression(cofactor, label_index - 1, 0.001, 0, 10000, 0);
     end_ts := clock_timestamp();
@@ -305,7 +305,7 @@ BEGIN
     end_ts := clock_timestamp();
     RAISE INFO 'TIME cofactor: ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
 
-    label_index := array_position(continuous_columns, 'inventoryunits');
+    label_index := array_position(continuous_columns, 'ACTUAL_ELAPSED_TIME');
     start_ts := clock_timestamp();
     params := ridge_linear_regression(cofactor, label_index - 1, 0.001, 0, 10000, 0);
     end_ts := clock_timestamp();

@@ -11,6 +11,8 @@
 #include <utils/array.h>
 #include <utils/lsyscache.h>
 
+#define  TYPALIGN_INT			'i'
+#define  TYPALIGN_DOUBLE		'd'
 
 extern void dgemm (char *TRANSA, char* TRANSB, int *M, int* N, int *K, double *ALPHA,
                    double *A, int *LDA, double *B, int *LDB, double *BETA, double *C, int *LDC);
