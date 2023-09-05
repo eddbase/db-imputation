@@ -142,8 +142,8 @@ Datum lda_train(PG_FUNCTION_ARGS)
     //todo tot columns does not support skip attributes, this requires sizeof_sigma_matrix
     size_t tot_columns = n_cols_1hot_expansion(&cofactor, 1, &cat_vars_idxs, &cat_array, 1, 0);//tot columns include label as well, so not used here
     double *sum_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
-    double *mean_vector = (double *)palloc0(sizeof(double) * num_params * num_categories);
-    double *coef = (double *)palloc0(sizeof(double) * num_params * num_categories);//from mean to coeff
+    double *mean_vector = (double *)palloc0(sizeof(double) * (num_params-1) * num_categories);
+    double *coef = (double *)palloc0(sizeof(double) * (num_params-1) * num_categories);//from mean to coeff
 
     //uint64_t *idx_classes = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//order of classes
     //elog(WARNING, " D ");
@@ -151,14 +151,31 @@ Datum lda_train(PG_FUNCTION_ARGS)
     //elog(WARNING, " E ");
     build_sum_matrix(cofactor, num_params, label, cat_array, cat_vars_idxs, 0, sum_vector);
 
-    //build covariance matrix and mean vectors
+
+    //shift cofactor, coef and mean
+    for (size_t j = 1; j < num_params; j++) {
+        for (size_t k = 1; k < num_params; k++) {
+            sigma_matrix[((j-1) * (num_params-1)) + (k-1)] = sigma_matrix[(j * num_params) + k];
+        }
+    }
+    num_params--;//Removed constant terms
+
+    for (size_t i = 0; i < num_categories; i++) {
+        for (size_t j = 0; j < num_params+1; j++) {
+            elog(WARNING, "Sum vector %d %d -> %lf", i, j, sum_vector[(i*(num_params+1))+(j)]);
+        }
+    }
+
+            //build covariance matrix and mean vectors
     for (size_t i = 0; i < num_categories; i++) {
         for (size_t j = 0; j < num_params; j++) {
             for (size_t k = 0; k < num_params; k++) {
-                sigma_matrix[(j*num_params)+k] -= ((float8)(sum_vector[(i*num_params)+j] * sum_vector[(i*num_params)+k]) / (float8) sum_vector[i*num_params]);//cofactor->count
+                elog(WARNING, "Cofactor %d %d -> %lf", j, k, sigma_matrix[((j)*(num_params))+(k)]);
+                sigma_matrix[(j*num_params)+k] -= ((float8)(sum_vector[(i*(num_params+1))+(j+1)] * sum_vector[(i*(num_params+1))+(k+1)]) / (float8) sum_vector[i*(num_params+1)]);//cofactor->count
+                //elog(WARNING, "Covariance %d %d -> %lf", j-1, k-1, sigma_matrix[((j-1)*(num_params-1))+(k-1)]);
             }
-            coef[(i*num_params)+j] = sum_vector[(i*num_params)+j] / sum_vector[(i*num_params)];
-            mean_vector[(j*num_categories)+i] = coef[(i*num_params)+j]; // if transposed (j*num_categories)+i
+            coef[(i*num_params)+j] = sum_vector[(i*(num_params+1))+(j+1)] / sum_vector[(i*(num_params+1))];
+            mean_vector[(j*num_categories)+i] = coef[(i*num_params)+(j)]; // if transposed (j*num_categories)+i
         }
     }
 
@@ -184,6 +201,13 @@ Datum lda_train(PG_FUNCTION_ARGS)
     for (size_t j = 0; j < num_params; j++) {
         for (size_t k = 0; k < num_params; k++) {
             sigma_matrix[(j*num_params)+k] /= (float8)(cofactor->count);//or / cofactor->count - num_categories
+        }
+    }
+
+    //shift cofactor, coef and mean
+    for (size_t j = 0; j < num_params; j++) {
+        for (size_t k = 0; k < num_params; k++) {
+            elog(WARNING, "covariance %d %d -> %lf", j, k, sigma_matrix[((j)*(num_params))+(k)]);
         }
     }
 
@@ -216,34 +240,55 @@ Datum lda_train(PG_FUNCTION_ARGS)
     //elog(WARNING, "end!");
     double *intercept = (double *)palloc(num_categories*sizeof(double));
     for (size_t j = 0; j < num_categories; j++) {
-        intercept[j] = (res[(j*num_categories)+j] * (-0.5)) + log(sum_vector[j * num_params] / cofactor->count);
+        intercept[j] = (res[(j*num_categories)+j] * (-0.5)) + log(sum_vector[(j) * (num_params+1)] / cofactor->count);
     }
 
     // export in pgpsql. Return values
-    Datum *d = (Datum *)palloc(sizeof(Datum) * (num_categories + 2 + (num_params * num_categories)));
+    Datum *d = (Datum *)palloc(sizeof(Datum) * (num_categories + (num_params * num_categories) + 2 + cat_vars_idxs[cofactor->num_categorical_vars] + cofactor->num_categorical_vars));
 
-    d[0] = Float4GetDatum((float)num_params);
-    d[1] = Float4GetDatum((float)num_categories);
+    d[0] = Float4GetDatum((float)num_categories);//n. classes
+    d[1] = Float4GetDatum((float)cofactor->num_categorical_vars);//size cat_vars_idxs (cofactor->num_categorical_vars+1) -1 (label)
 
-    //returns classes order
-    /*
-    for (int i = 0; i < num_categories; i++) {
-        d[i + 2] = Float4GetDatum((float) idx_classes[i]);
-    }*/
+    size_t idx_output = 2;
+
+    if (num_params - cofactor->num_continuous_vars > 0) {//categorical variables outside of label must be > 0
+        size_t remove = 0;
+        for (size_t i = 0; i < cofactor->num_categorical_vars + 1; i++) {
+            if (i == label) {
+                remove = cat_vars_idxs[i+1] - cat_vars_idxs[i];
+                continue;
+            }
+            d[idx_output] = Float4GetDatum((float) cat_vars_idxs[i] - remove);
+            idx_output++;
+        }
+        for (size_t i = 0; i < cat_vars_idxs[label]; i++) {
+            d[idx_output] = Float4GetDatum((float) cat_array[i]);
+            idx_output++;
+        }
+        for (size_t i = cat_vars_idxs[label + 1]; i < cat_vars_idxs[cofactor->num_categorical_vars]; i++) {
+            d[idx_output] = Float4GetDatum((float) cat_array[i]);
+            idx_output++;
+        }
+    }
+
+    //add categorical labels
+    for (size_t i = cat_vars_idxs[label]; i < cat_vars_idxs[label + 1]; i++) {
+        d[idx_output] = Float4GetDatum((float) cat_array[i]);
+        idx_output++;
+    }
 
     //return coefficients
     for (int i = 0; i < num_params * num_categories; i++) {
-        d[i + 2] = Float4GetDatum((float) coef[i]);
-        //elog(WARNING, "coeff %lf", coef[i]);
+        d[i + idx_output] = Float4GetDatum((float) coef[i]);
     }
+    idx_output += num_params * num_categories;
 
     //return intercept
     for (int i = 0; i < num_categories; i++) {
-        d[i + 2 + (num_params * num_categories)] = Float4GetDatum((float) intercept[i]);
-        //elog(WARNING, "intercept %lf", intercept[i]);
+        d[i + idx_output] = Float4GetDatum((float) intercept[i]);
     }
 
-    ArrayType *a = construct_array(d, (num_categories + 2 + (num_params * num_categories)), FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
+    ArrayType *a = construct_array(d, (num_categories + (num_params * num_categories) + 2 + cat_vars_idxs[cofactor->num_categorical_vars] + cofactor->num_categorical_vars), FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
     PG_RETURN_ARRAYTYPE_P(a);
 }
 
@@ -286,46 +331,64 @@ Datum lda_impute(PG_FUNCTION_ARGS)
                       &arrayContent4, &arrayNullFlags4, &arrayLength4);
 */
 
-    int num_params = (int) DatumGetFloat4(arrayContent1[0]);
-    int num_categories = (int) DatumGetFloat4(arrayContent1[1]);
-    int size_one_hot = num_params - arrayLength2 - 1;//PG_GETARG_INT64(3);
+    int size_cat_vars_idxs = DatumGetFloat4(arrayContent1[1]);
 
-    //elog(WARNING, " size_one_hot : %d ", size_one_hot);
-    //elog(WARNING, " size_numerical : %d ", arrayLength2);
+    int num_categories = (int) DatumGetFloat4(arrayContent1[0]);
+    size_t curr_param_offset = 2;
+    //int size_one_hot = num_params - arrayLength2 - 1;//PG_GETARG_INT64(3);
 
+    int num_params = arrayLength2;
+    uint64_t *cat_vars_idxs;
+    uint64_t *cat_vars;
+    if (size_cat_vars_idxs > 0) {
+        cat_vars_idxs = (uint64_t *) palloc0(sizeof(uint64_t) * (size_cat_vars_idxs));
+        for(size_t i=0; i<size_cat_vars_idxs; i++){
+            cat_vars_idxs[i] = DatumGetFloat4(arrayContent1[i+curr_param_offset]);
+            elog(WARNING, " cat_vars_idxs %d", cat_vars_idxs[i]);
+        }
+        curr_param_offset += size_cat_vars_idxs;
+        num_params = arrayLength2 + cat_vars_idxs[size_cat_vars_idxs-1];
+        cat_vars = (uint64_t *) palloc0(sizeof(uint64_t) * (cat_vars_idxs[size_cat_vars_idxs-1]));
+        for(size_t i=0; i<cat_vars_idxs[size_cat_vars_idxs-1]; i++){
+            cat_vars[i] = DatumGetFloat4(arrayContent1[i+curr_param_offset]);
+            elog(WARNING, " cat_vars %d", cat_vars[i]);
+        }
+        curr_param_offset += cat_vars_idxs[size_cat_vars_idxs-1];
+    }
 
-    //int *idx_classes = (int *)palloc0(sizeof(int) * num_categories);//classes order
+    int *target_labels = (int *) palloc0(sizeof(int) * num_categories);
+    for(size_t i=0; i<num_categories; i++) {
+        target_labels[i] = DatumGetFloat4(arrayContent1[i + curr_param_offset]);
+    }
+
+    curr_param_offset += num_categories;
+
     double *coefficients = (double *)palloc0(sizeof(double) * num_params * num_categories);
     float *intercept = (float *)palloc0(sizeof(float) * num_categories);
 
     for(int i=0;i< num_categories;i++)
         for(int j=0;j< num_params;j++)
-            coefficients[(j*num_categories)+i] = (double) DatumGetFloat4(arrayContent1[(i*num_params)+j+2]);
+            coefficients[(j*num_categories)+i] = (double) DatumGetFloat4(arrayContent1[(i*num_params)+j+curr_param_offset]);
+
+    curr_param_offset += (num_params * num_categories);
 
     for(int i=0;i<num_categories;i++)
-        intercept[i] = (double) DatumGetFloat4(arrayContent1[i+(num_params * num_categories)+2]);
+        intercept[i] = (double) DatumGetFloat4(arrayContent1[i+curr_param_offset]);
 
     //allocate features
 
-    double *feats_c = (double *)palloc0(sizeof(double) * (size_one_hot + arrayLength2 + 1));
-    feats_c[0] = 1;
-
+    double *feats_c = (double *)palloc0(sizeof(double) * (num_params));
     for(int i=0;i<arrayLength2;i++) {
-        //elog(WARNING, " numerical: %lf ", DatumGetFloat4(arrayContent2[i]));
-        feats_c[1 + i] = (double) DatumGetFloat4(arrayContent2[i]);
+        feats_c[i] = (double) DatumGetFloat4(arrayContent2[i]);
     }
 
-    int cat_padding = 0;
     for(int i=0;i<arrayLength3;i++) {
-        feats_c[1 + arrayLength2 + DatumGetInt64(arrayContent3[i])] = 1;//cat_padding
-        //elog(WARNING, " categorical: %d ", DatumGetInt64(arrayContent3[i]));
-        //elog(WARNING, " categorical + padding: %d ", DatumGetInt64(cat_padding + DatumGetInt64(arrayContent3[i])));
-        //cat_padding += DatumGetInt64(arrayContent4[i]);
+        int class = DatumGetInt64(arrayContent3[i]);
+        size_t index = find_in_array(class, cat_vars, cat_vars_idxs[i], cat_vars_idxs[i+1]);
+        elog(WARNING, "find %d between %d %d -> index %d", class, cat_vars_idxs[i], cat_vars_idxs[i+1], index);
+        assert (index < cat_vars_idxs[i+1]);//1-hot used here, without removing values from 1-hot
+        feats_c[arrayLength2 + index] = 1;//1-hot
     }
-
-    /*for(int i=0;i<size_one_hot + arrayLength2 + 1;i++) {
-        elog(WARNING, " Feats: %lf ", feats_c[i]);
-    }*/
 
     //end unpacking
 
@@ -342,12 +405,11 @@ Datum lda_impute(PG_FUNCTION_ARGS)
 
     for(int i=0;i<num_categories;i++) {
         double val = res[i] + intercept[i];
+        elog(WARNING, " val: %lf", val);
         if (val > max){
             max = val;
-            class = i;
+            class = target_labels[i];
         }
     }
-    //elog(WARNING, "Prediction: %d", class);
-
     PG_RETURN_INT64(class);
 }

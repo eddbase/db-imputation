@@ -123,51 +123,62 @@ Datum naive_bayes_predict(PG_FUNCTION_ARGS) {
 
     int n_classes = DatumGetFloat4(arrayContent1[0]);
     int size_idxs = DatumGetFloat4(arrayContent1[1]);
-    uint64_t *cat_vars_idxs = (uint64_t *)palloc0(sizeof(uint64_t) * (size_idxs));//max. size
-    for(size_t i=0; i<size_idxs; i++)
-        cat_vars_idxs[i] = DatumGetFloat4(arrayContent1[i+2]);
+    size_t k=2+n_classes;//2+priors
+    size_t prior_offset = 2;
+    uint64_t *cat_vars_idxs;
+    uint64_t *cat_vars;
 
-    uint64_t *cat_vars = (uint64_t *)palloc(sizeof(uint64_t) * cat_vars_idxs[size_idxs-1]);//max. size
-    for (size_t i=0; i<cat_vars_idxs[size_idxs-1];i++)
-        cat_vars[i] = DatumGetFloat4(arrayContent1[i+2+size_idxs]);
+    if(size_idxs > 0) {
+        cat_vars_idxs = (uint64_t *) palloc0(sizeof(uint64_t) * (size_idxs));//max. size
+        for (size_t i = 0; i < size_idxs; i++)
+            cat_vars_idxs[i] = DatumGetFloat4(arrayContent1[i + 2]);
 
-    for(size_t i=0; i<size_idxs; i++){
-        elog(WARNING, "n_feats_cat_idxs %zu", cat_vars_idxs[i]);
-    }
-    for(size_t i=0; i<cat_vars_idxs[size_idxs-1]; i++){
-        elog(WARNING, "cat. feats. %zu", cat_vars[i]);
+        cat_vars = (uint64_t *) palloc(sizeof(uint64_t) * cat_vars_idxs[size_idxs - 1]);//max. size
+        for (size_t i = 0; i < cat_vars_idxs[size_idxs - 1]; i++)
+            cat_vars[i] = DatumGetFloat4(arrayContent1[i + 2 + size_idxs]);
+
+        for (size_t i = 0; i < size_idxs; i++) {
+            elog(WARNING, "n_feats_cat_idxs %zu", cat_vars_idxs[i]);
+        }
+        for (size_t i = 0; i < cat_vars_idxs[size_idxs - 1]; i++) {
+            elog(WARNING, "cat. feats. %zu", cat_vars[i]);
+        }
+
+        k=2+cat_vars_idxs[size_idxs-1]+size_idxs+n_classes;
+        prior_offset = 2+cat_vars_idxs[size_idxs-1]+size_idxs;
     }
 
     int best_class = 0;
     double max_prob = 0;
-    size_t k=2+cat_vars_idxs[size_idxs-1]+size_idxs+n_classes;
-
     for(size_t i=0; i<n_classes; i++){
-        double total_prob = DatumGetFloat4(arrayContent1[2+cat_vars_idxs[size_idxs-1]+size_idxs+i]);
+        double total_prob = DatumGetFloat4(arrayContent1[prior_offset+i]);
         elog(WARNING, "total prob %f", total_prob);
 
         for(size_t j=0; j<n_feats_cont; j++){
             double variance = DatumGetFloat4(arrayContent1[k+(j*2)+1]);
-            variance += 0.00000001;//avoid division by 0
+            variance += 0.000000001;//avoid division by 0
             double mean = DatumGetFloat4(arrayContent1[k+(j*2)]);
             total_prob *= ((double)1 / sqrt(2*M_PI*variance)) * exp( -(pow((DatumGetFloat4(arrayContent2[j]) - mean), 2)) / ((double)2*variance));
             elog(WARNING, "total prob %f (normal mean %lf var %lf)", total_prob, mean, variance);
         }
 
         k += (2*n_feats_cont);
-        for(size_t j=0; j<n_feats_cat; j++){
-            uint64_t class = DatumGetInt64(arrayContent3[j]);
-            size_t index = find_in_array(class, cat_vars, cat_vars_idxs[j], cat_vars_idxs[j+1]);
-            elog(WARNING, "class %zu index %zu", class, index);
-            if (index == cat_vars_idxs[j+1])//class not found in train dataset
-                total_prob *= 0;
-            else {
-                total_prob *= DatumGetFloat4(arrayContent1[k + index]);//cat. feats need to be monot. increasing
-                elog(WARNING, "multiply %lf", DatumGetFloat4(arrayContent1[k + index]));
-                elog(WARNING, "total prob %lf", total_prob);
+        if (size_idxs > 0) {//if categorical features
+            for (size_t j = 0; j < n_feats_cat; j++) {
+                uint64_t class = DatumGetInt64(arrayContent3[j]);
+                size_t index = find_in_array(class, cat_vars, cat_vars_idxs[j], cat_vars_idxs[j + 1]);
+                elog(WARNING, "class %zu index %zu", class, index);
+                if (index == cat_vars_idxs[j + 1])//class not found in train dataset
+                    total_prob *= 0;
+                else {
+                    total_prob *= DatumGetFloat4(
+                            arrayContent1[k + index]);//cat. feats need to be monot. increasing
+                    elog(WARNING, "multiply %lf", DatumGetFloat4(arrayContent1[k + index]));
+                    elog(WARNING, "total prob %lf", total_prob);
+                }
             }
+            k += cat_vars_idxs[n_feats_cat];
         }
-        k += cat_vars_idxs[n_feats_cat];
         elog(WARNING, "final prob for class %d %lf", i, total_prob);
 
         if (total_prob > max_prob){

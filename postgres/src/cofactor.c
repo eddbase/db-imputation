@@ -908,14 +908,12 @@ void build_sum_matrix(const cofactor_t *cofactor, size_t num_total_params, int l
             //one of the two is the label
             for (size_t j = 0; j < r->num_tuples; j++)
             {
-                size_t key_index_other_var = find_in_array((uint64_t) r->tuples[j].slots[idx_other], cat_array, cat_vars_idxs[other_cat], cat_vars_idxs[other_cat + 1]) - cat_vars_idxs[other_cat];
-                if (drop_first && key_index_other_var == cat_vars_idxs[other_cat + 1] - cat_vars_idxs[other_cat])
+                size_t key_index_other_var = find_in_array((uint64_t) r->tuples[j].slots[idx_other], cat_array, cat_vars_idxs[other_cat], cat_vars_idxs[other_cat + 1]);
+                if (drop_first && key_index_other_var == cat_vars_idxs[other_cat + 1])
                     continue;//skip
 
-                assert(key_index_other_var < cat_vars_idxs[other_cat + 1] - cat_vars_idxs[other_cat]);
-                key_index_other_var += cofactor->num_continuous_vars + 1 + search_start;
-                if (search_start >= cat_vars_idxs[label])
-                    key_index_other_var -= (cat_vars_idxs[label + 1] - cat_vars_idxs[label]);//remove offset label
+                assert(key_index_other_var < cat_vars_idxs[other_cat + 1]);
+                key_index_other_var += cofactor->num_continuous_vars + 1;
 
                 size_t group_by_index = find_in_array((uint64_t) r->tuples[j].slots[idx_current], cat_array, cat_vars_idxs[label], cat_vars_idxs[label + 1]) - cat_vars_idxs[label];
                 if (drop_first && group_by_index == cat_vars_idxs[label + 1] - cat_vars_idxs[label])

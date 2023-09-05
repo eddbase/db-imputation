@@ -35,7 +35,7 @@ CREATE OR REPLACE FUNCTION ridge_linear_regression_from_params(
      LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
 
 
- CREATE OR REPLACE FUNCTION lda_impute(
+ CREATE OR REPLACE FUNCTION lda_predict(
          train_data float4[],
          feats_numerical float4[],
          feats_categorical int[]
