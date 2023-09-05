@@ -250,6 +250,7 @@ Datum qda_predict(PG_FUNCTION_ARGS)
 
     int n_classes = DatumGetFloat4(arrayContent1[0]);
     int size_idxs = DatumGetFloat4(arrayContent1[1]);
+    int one_hot_size = 0;
     uint64_t *cat_vars_idxs;
     uint64_t *cat_vars;
     elog(WARNING, "c");
@@ -260,7 +261,8 @@ Datum qda_predict(PG_FUNCTION_ARGS)
         for (size_t i = 0; i < size_idxs; i++)
             cat_vars_idxs[i] = DatumGetFloat4(arrayContent1[i + 2]);
 
-        cat_vars = (uint64_t *) palloc(sizeof(uint64_t) * cat_vars_idxs[size_idxs - 1]);//max. size
+        one_hot_size = cat_vars_idxs[size_idxs - 1];
+        cat_vars = (uint64_t *) palloc(sizeof(uint64_t) * one_hot_size);//max. size
         for (size_t i = 0; i < cat_vars_idxs[size_idxs - 1]; i++)
             cat_vars[i] = DatumGetFloat4(arrayContent1[i + 2 + size_idxs]);
 
@@ -276,7 +278,7 @@ Datum qda_predict(PG_FUNCTION_ARGS)
     elog(WARNING, "d");
 
     /////
-    size_t n_params = size_idxs + arrayLength2;
+    size_t n_params = one_hot_size + arrayLength2;
     double *features = (double *)palloc0(sizeof(double) * (n_params));
     double *quad_matrix = (double *)palloc0(sizeof(double) * (n_params*n_params));
     double *lin_matrix = (double *)palloc0(sizeof(double) * (n_params*n_params));
@@ -290,11 +292,16 @@ Datum qda_predict(PG_FUNCTION_ARGS)
         features[i] = DatumGetFloat4(arrayContent2[i]);
 
     for(int i=0; i<arrayLength3; i++){//categorical feats
-        int class = DatumGetFloat4(arrayContent3[i]);
+        int class = DatumGetInt64(arrayContent3[i]);
         size_t index = find_in_array(class, cat_vars, cat_vars_idxs[i], cat_vars_idxs[i+1]);
-        features[index+arrayLength2] = 1;
+        elog(WARNING, "1-hot class %d -> index %d (from %d to %d)", class, index, cat_vars_idxs[i], cat_vars_idxs[i+1]);
+        if (index < cat_vars_idxs[i+1])
+            features[index+arrayLength2] = 1;
     }
-    elog(WARNING, "f");
+
+    for(int i=0; i<n_params; i++){
+        elog(WARNING, "feats %lf", features[i]);
+    }
 
     int best_class = 0;
     double max_prob = -DBL_MAX;

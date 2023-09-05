@@ -29,10 +29,10 @@ BEGIN
 	params := qda_train(aggregates);
 	RAISE INFO 'params % labels % ', params, labels;
 		
-	pred := qda_predict(params, ARRAY[1.078045, -0.527662, 0, 4], ARRAY[]::integer[]);
-	RAISE INFO 'prediction %', labels[pred+1];--postgres array starts from 1
-	pred := qda_predict(params, ARRAY[-3.354932, -1.869335, 6, 7], ARRAY[]::integer[]);
-	RAISE INFO 'prediction %', labels[pred+1];--postgres array starts from 1
+	pred := qda_predict(params, ARRAY[-1.056512, 0.709194], ARRAY[6, 2]::integer[]);--0
+	RAISE INFO 'index % prediction %', pred, labels[pred+1];--postgres array starts from 1
+	pred := qda_predict(params, ARRAY[4.648401, 3.105455], ARRAY[8, 2]::integer[]);--1
+	RAISE INFO 'index % prediction %', pred, labels[pred+1];--postgres array starts from 1
 
 END$$;
 
