@@ -8,33 +8,18 @@
 #include <ML/lda.h>
 #include <ML/regression.h>
 #include <iterator>
-void run_flight_partition(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters){
-    con.Query("ALTER TABLE "+table_name+" ADD COLUMN n_nulls INTEGER DEFAULT 10;")->Print();
-    std::string query = "CREATE TABLE rep AS SELECT ";
-
-    for (auto &col : con_columns_nulls)
-        query += "CASE WHEN "+col+" IS NULL THEN 1 ELSE 0 END + ";
-    for (auto &col : cat_columns_nulls)
-        query += "CASE WHEN "+col+" IS NULL THEN 1 ELSE 0 END + ";
-    query.pop_back();
-    query.pop_back();
-    con.Query(query+"::INTEGER FROM "+table_name);
-    //swap
-    //works only with another vector (flat vector)
-    con.Query("ALTER TABLE "+table_name+" ALTER COLUMN n_nulls SET DEFAULT 10;")->Print();//not adding b, replace s with rep
-
-    //con.Query("SELECT OP_CARRIER, COUNT(*) FROM join_table WHERE WHEELS_ON_HOUR is not null GROUP BY OP_CARRIER")->Print();
-
+void run_flight_partition(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters, const std::string sort){
+    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
     build_list_of_uniq_categoricals(cat_columns, con, table_name);
     //partition according to n. missing values
     auto begin = std::chrono::high_resolution_clock::now();
-    partition(table_name, con_columns, con_columns_nulls, cat_columns, cat_columns_nulls, con);
+    partition(table_name, con_columns, con_columns_nulls, cat_columns, cat_columns_nulls, con, sort);
     auto end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time partitioning (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     //run MICE
     //compute main cofactor
-    query = "SELECT triple_sum_no_lift(";
+    std::string query = "SELECT triple_sum_no_lift(";
     for(auto &col: con_columns){
         query +=col+", ";
     }
@@ -125,9 +110,15 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
             query_categorical_num(cat_columns, cat_columns_query, std::vector<float>(params.begin()+con_columns.size(), params.end()-1));
             new_val+=cat_columns_query+"+(sqrt(-2 * ln(random()))*cos(2*pi()*random()) *"+ std::to_string(params[params.size()-1])+"))::FLOAT";
             //update 1 missing value
-            std::cout<<"CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
+            std::cout<<"CREATE TABLE rep2 AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null);
+            con.Query("CREATE TABLE rep2 AS SELECT "+new_val+" AS new_vals FROM "+table_name+"_complete_"+col_null);
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT new_vals from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
             con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time updating ==1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
@@ -136,15 +127,35 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
             //new_val = "10";
             //std::cout<<"UPDATE "+table_name+"_complete_2 SET "+col_null+" = "+new_val+" WHERE "+col_null+"_IS_NULL\n";
             //con.Query("UPDATE "+table_name+"_complete_2 SET "+col_null+" = "+new_val+" WHERE "+col_null+"_IS_NULL")->Print();
-            std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
+            std::cout<<"CREATE TABLE rep2 AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
+            con.Query("CREATE TABLE rep2 AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT test from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
+
             con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
             //con.Query("SELECT * from "+table_name+"_complete_"+col_null+" LIMIT 100")->Print();
             //con.Query("SELECT * from "+table_name+"_complete_2 LIMIT 100")->Print();
 
+            //update all missing partition
+            std::cout<<"CREATE TABLE rep2 AS SELECT "+new_val+" AS test FROM "+table_name+"_complete_3";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep2 AS SELECT "+new_val+" AS test FROM "+table_name+"_complete_3");
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT test from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
+            con.Query("ALTER TABLE "+table_name+"_complete_3 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time updating all null partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //recompute cofactor
             begin = std::chrono::high_resolution_clock::now();
@@ -207,7 +218,13 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
             //update 1 missing value
             std::cout<<"CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null<<"\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null);
+            con.Query("CREATE TABLE rep2 AS SELECT "+select_stmt+" AS new_vals FROM "+table_name+"_complete_"+col_null);
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT new_vals from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
             con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+" ALTER COLUMN "+col_null+" SET DEFAULT 10;");//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time updating =1 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
@@ -215,10 +232,30 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
             //update 2 missing values
             std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
+            con.Query("CREATE TABLE rep2 AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete_2");
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT test from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
             con.Query("ALTER TABLE "+table_name+"_complete_2 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<". Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+
+            //update all missing partition
+            std::cout<<"CREATE TABLE rep AS SELECT "+select_stmt+" AS test FROM "+table_name+"_complete_3";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep AS SELECT "+select_stmt+" AS test FROM "+table_name+"_complete_3");
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT test from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
+            con.Query("ALTER TABLE "+table_name+"_complete_3 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time updating all null partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //recompute cofactor
             begin = std::chrono::high_resolution_clock::now();
@@ -228,4 +265,7 @@ void run_flight_partition(duckdb::Connection &con, const std::vector<std::string
             full_triple = Triple::sum_triple(train_triple, null_triple);
         }
     }
+
+    drop_partition(table_name, con_columns_nulls, cat_columns_nulls, con);
+
 }

@@ -11,6 +11,8 @@ from sklearn.preprocessing import LabelEncoder
 NULL = 0.05
 SYSTEMDS = False
 IMPUTEDB = False
+PATTERN = "mcar"
+feat_mar = "boh..."
 
 def load_flights(path = "flights_dataset/", nulls={'DIVERTED':NULL, 'WHEELS_ON_HOUR':NULL, 'WHEELS_OFF_HOUR':NULL, 'TAXI_OUT':NULL, 'TAXI_IN':NULL, 'ARR_DELAY':NULL, 'DEP_DELAY':NULL}, max_rows = None):#'snow':0.1
 
@@ -87,8 +89,13 @@ def load_flights(path = "flights_dataset/", nulls={'DIVERTED':NULL, 'WHEELS_ON_H
     #add nulls last table
 
     for col in columns_nulls:
-        idx_nan = np.sort(np.random.choice(len(airlines_data), int(len(airlines_data) * nulls[col]), replace=False))
-        airlines_data.iloc[idx_nan, airlines_data.columns.get_loc(col)] = np.nan
+        if PATTERN == "mcar":
+            idx_nan = np.sort(np.random.choice(len(airlines_data), int(len(airlines_data) * nulls[col]), replace=False))
+            airlines_data.iloc[idx_nan, airlines_data.columns.get_loc(col)] = np.nan
+        elif PATTERN == "mar":
+            pass
+        elif PATTERN == "nmar":
+            pass
 
     label_encoder = LabelEncoder()
     airlines_data["ORIGIN"] = label_encoder.fit_transform(airlines_data["ORIGIN"])

@@ -6,7 +6,7 @@ from sklearn.metrics import r2_score
 from autoimpute.analysis import MiLinearRegression
 from autoimpute.imputations import MiceImputer
 
-import miceforest as mf
+#import miceforest as mf
 from sklearn.datasets import load_iris
 import pandas as pd
 import numpy as np
@@ -20,39 +20,39 @@ import sklearn
 from math import pi
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
+from sklearn.metrics import mean_squared_error
+
+from gain import gain
+from MIWAE_functions import *
 
 import scipy
 
 import numpy as np
 
-def sample_rows(data, sampling = "MCAR", fraction = 0.2, column = "col"):
+def sample_rows(data, sampling = "MCAR", fraction = 0.2, column_sample = "col"):#sample according to vals in column_sample
     # Completely At Random
     if sampling == 'MCAR':
         rows = np.random.permutation(data.index)[:int(len(data)*fraction)]
     elif sampling == ('MNAR') or sampling == 'MAR':
-        n_values_to_discard = int(len(data) * min(fraction, 1.0))
-        perc_lower_start = np.random.randint(0, len(data) - n_values_to_discard)
-        perc_idx = range(perc_lower_start, perc_lower_start + n_values_to_discard)
-        # Not At Random
-        if sampling == 'MNAR':
-            # pick a random percentile of values in this column
-            rows = data[column].sort_values().iloc[perc_idx].index
-        # At Random
-        elif sampling == 'MAR':
-            depends_on_col = np.random.choice(list(set(data.columns) - {column}))
-            # pick a random percentile of values in other column
-            rows = data[depends_on_col].sort_values().iloc[perc_idx].index
+        sorted_index = data[column_sample].sort_values().index.values
+        sum_prob = (len(sorted_index)*(len(sorted_index)+1))/2
+        probs_ = np.arange(1, len(sorted_index)+1)/sum_prob
+        probs = np.zeros(len(sorted_index))
+        probs[sorted_index] = probs_
+        rows = np.random.choice(data.index, size=int(fraction*len(data)), replace=False, p=probs)
     return rows
 
-def corrupt_data(data, sampling, fraction, columns):    
+def corrupt_data(data, sampling, fraction, columns, column_sample = "col"):    
     corrupted_data = data.copy(deep=True)
+    true_values = {}
     for col in columns:
         rows = sample_rows(corrupted_data, sampling, fraction, col)
         #print(rows)
+        true_values[col] = corrupted_data.loc[rows, [col]].copy()
         corrupted_data.loc[rows, [col]] = np.nan
-    return corrupted_data
+    return corrupted_data, true_values
 
-def compute_statistics(imputed_regression, scaler):
+def compute_statistics(imputed_regression, scaler, true_values):
     means = []
     sums = []
     sums_vector_1 = []
@@ -60,6 +60,7 @@ def compute_statistics(imputed_regression, scaler):
     r2s = []
     mse = []
     coeff_lr = []
+    MSE = []
 
     for dataset in imputed_regression:
         d = dataset.copy()
@@ -78,6 +79,10 @@ def compute_statistics(imputed_regression, scaler):
         mse += [mean_squared_error(test_data["ACTUAL_ELAPSED_TIME"], reg.predict(test_data.drop("ACTUAL_ELAPSED_TIME",  axis=1)))]
         print("R2: ", r2_score(test_data["ACTUAL_ELAPSED_TIME"], reg.predict(test_data.drop("ACTUAL_ELAPSED_TIME", axis=1))))
         coeff_lr += [reg.coef_[list(data.columns).index("DISTANCE")]]
+        
+        for key, item in true_values.items():
+            MSE += [mean_squared_error(item.values, d[key].values[item.index])]
+            #print("MSE: ", MSE)
         
         #print([d[d["OP_CARRIER"] == "9E"]["DISTANCE"].mean()])
 
@@ -161,6 +166,7 @@ def read_data():
     df["EXTRA_DAY_DEP"] = ((df["DEP_TIME_HOUR"] < df["CRS_DEP_HOUR"]) & (df["DEP_DELAY"] >= 0)).astype(int)
     
     num_cols = ["DEP_DELAY", 'TAXI_OUT', 'TAXI_IN', 'ARR_DELAY', 'ACTUAL_ELAPSED_TIME', 'DISTANCE', 'DEP_TIME_HOUR', 'DEP_TIME_MIN', 'CRS_DEP_HOUR', 'CRS_DEP_MIN', 'CRS_ARR_HOUR', 'CRS_ARR_MIN', 'WHEELS_OFF_HOUR', 'WHEELS_OFF_MIN', 'WHEELS_ON_HOUR','WHEELS_ON_MIN', 'ARR_TIME_HOUR', 'ARR_TIME_MIN',]  # list(set(airlines_data.columns)-{"ORIGIN", "DEST", "OP_CARRIER", "OP_CARRIER_FL_NUM", "FL_DAT>
+    
     scaler1 = StandardScaler()
     scaler2 = StandardScaler()
     scaler2.fit(df[["DISTANCE"]])
@@ -182,16 +188,30 @@ NULLS = [0.01, 0.025, 0.1, 0.4]
 train_size = 0.8
 
 print("statistics FULL DATASET: ")
-df_res = compute_statistics([data.drop(["DEST","ORIGIN", "OP_CARRIER_FL_NUM", "OP_CARRIER"], axis=1)], scaler)
+df_res = compute_statistics([data.drop(["DEST","ORIGIN", "OP_CARRIER_FL_NUM", "OP_CARRIER"], axis=1)], scaler, {})
 df_res["nulls"] = 0
 df_res["alg"] = "full"
 df_res["time"] = 0
 
 
 for null in NULLS:
-    missing_data = corrupt_data(data, "MCAR", null, ["DIVERTED", "WHEELS_ON_HOUR", "WHEELS_OFF_HOUR", "TAXI_OUT", "TAXI_IN", "ARR_DELAY", "DEP_DELAY", "DISTANCE"])
+    missing_data, true_values = corrupt_data(data, "MCAR", null, ["DIVERTED", "WHEELS_ON_HOUR", "WHEELS_OFF_HOUR", "TAXI_OUT", "TAXI_IN", "ARR_DELAY", "DEP_DELAY", "DISTANCE"])
     missing_data.drop(["DEST","ORIGIN", "OP_CARRIER_FL_NUM", "OP_CARRIER"], axis=1, inplace=True)
-        
+    gain_parameters = {'batch_size': 128,
+                     'hint_rate': 0.9,
+                     'alpha': 100,
+                     'iterations': 10000}
+    ###GAIN
+    imputed_data_gain = gain(missing_data.values, gain_parameters)
+    imputed_data_gain = pd.DataFrame(imputed_data_gain, index=missing_data.index, columns=missing_data.columns)
+    df_res1 = compute_statistics([imputed_data_gain], scaler, true_values)
+    
+    ###MIWAE
+    x_miwae = MIWAE(missing_data.values)
+    imputed_data_miwae = pd.DataFrame(x_miwae, index=missing_data.index, columns=missing_data.columns)
+    df_res1 = compute_statistics([imputed_data_gain], scaler, true_values)
+    
+    ###MICE
     imp = MiceImputer(n=DATASETS, k=6, strategy={"DIVERTED":"stochastic", "WHEELS_ON_HOUR": "stochastic", 'WHEELS_OFF_HOUR': "stochastic", 'TAXI_OUT': "stochastic", 'TAXI_IN': "stochastic", 'ARR_DELAY': "stochastic",'DEP_DELAY':'stochastic', 'DISTANCE':'stochastic'}
                   , return_list=True, seed=101)
 
@@ -202,7 +222,7 @@ for null in NULLS:
     print("time ", t_)
     print("statistics MICE: ")
     
-    df_res1 = compute_statistics([k[1] for k in imputed_regression], scaler)
+    df_res1 = compute_statistics([k[1] for k in imputed_regression], scaler, true_values)
     df_res1["nulls"] = null
     df_res1["alg"] = "mice"
     df_res1["time"] = t_
@@ -210,25 +230,26 @@ for null in NULLS:
     df_res = pd.concat([df_res, df_res1], ignore_index=True)
     
     ## RANDOM FOREST
-    
-    from missingpy import MissForest
-    imputer = MissForest(max_iter=6, n_estimators=5, n_jobs=-1)
-    cols_names = list(missing_data.columns)
-    t1 = time.time()
-    rf_complete = imputer.fit_transform(missing_data)
-    rf_complete = pd.DataFrame(rf_complete, columns = cols_names)
-    t_ = time.time()-t1
-    print("time ", t_)
-    
-    # Return the completed dataset.
-    rf_complete = [rf_complete]
-    #print(rf_complete)
-    print("statistics RF: ")
-    df_res1 = compute_statistics(rf_complete, scaler)
-    df_res1["nulls"] = null
-    df_res1["alg"] = "RF"
-    df_res1["time"] = t_
-    df_res = pd.concat([df_res, df_res1], ignore_index=True)
+    RF = False
+    if RF:
+        from missingpy import MissForest
+        imputer = MissForest(max_iter=6, n_estimators=5, n_jobs=-1)
+        cols_names = list(missing_data.columns)
+        t1 = time.time()
+        rf_complete = imputer.fit_transform(missing_data)
+        rf_complete = pd.DataFrame(rf_complete, columns = cols_names)
+        t_ = time.time()-t1
+        print("time ", t_)
+
+        # Return the completed dataset.
+        rf_complete = [rf_complete]
+        #print(rf_complete)
+        print("statistics RF: ")
+        df_res1 = compute_statistics(rf_complete, scaler, true_values)
+        df_res1["nulls"] = null
+        df_res1["alg"] = "RF"
+        df_res1["time"] = t_
+        df_res = pd.concat([df_res, df_res1], ignore_index=True)
 
     
     ## DEEP LEARNING
@@ -241,7 +262,7 @@ for null in NULLS:
     imputations_dl = imputer.generate_samples(m=DATASETS).output_list
     #print(imputations_dl)
     print("statistics DL: ")
-    df_res1 = compute_statistics(imputations_dl, scaler)
+    df_res1 = compute_statistics(imputations_dl, scaler, true_values)
     df_res1["nulls"] = null
     df_res1["alg"] = "DL"
     df_res1["time"] = t_
@@ -255,8 +276,8 @@ for null in NULLS:
     t_ = time.time()-t1
     print("time ", time.time()-t_)
     #print("MEAN")
-    print("statistics MEAN: ", compute_statistics([k[1] for k in imputed_regression], scaler))
-    df_res1 = compute_statistics([k[1] for k in imputed_regression], scaler)
+    print("statistics MEAN: ", compute_statistics([k[1] for k in imputed_regression], scaler, true_values))
+    df_res1 = compute_statistics([k[1] for k in imputed_regression], scaler, true_values)
     df_res1["nulls"] = null
     df_res1["alg"] = "mean"
     df_res1["time"] = t_

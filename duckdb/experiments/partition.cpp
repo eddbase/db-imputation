@@ -45,6 +45,44 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     //insert_query.pop_back();
     //insert_query.pop_back();
     create_table_query += " FROM "+table_name+" WHERE n_nulls = 0";
+    if(order != "")
+        create_table_query += " ORDER BY "+order;
+    std::cout<<create_table_query<<"\n";
+
+    con.Query(create_table_query)->Print();
+    //con.Query(insert_query);
+
+    //CREATE NEW TABLES
+    //0, _col_name, 2
+    //con.Query("SELECT * from join_table WHERE n_nulls = 0 LIMIT 50")->Print();
+    create_table_query = "CREATE TABLE "+table_name+"_complete_3 AS SELECT ";
+    //std::string insert_query = "INSERT INTO "+table_name+"_complete_0 SELECT ";
+
+    for (auto &col: con_columns){
+        auto null_index = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
+        if (null_index == con_columns_nulls.end() )
+            create_table_query += col+"::FLOAT AS "+col+" , ";
+        else
+            create_table_query += "COALESCE ("+col+", "+std::to_string(avg[null_index-con_columns_nulls.begin()])+")::FLOAT AS "+col+" , ";
+        //insert_query += col+", ";
+    }
+    for (auto &col: cat_columns){
+        auto null_index = std::find(cat_columns_nulls.begin(), cat_columns_nulls.end(), col);
+        if (null_index == cat_columns_nulls.end() )
+            create_table_query += col+"::INTEGER AS "+col+" , ";
+        else
+            create_table_query += "COALESCE ("+col+", "+std::to_string(avg[(null_index-cat_columns_nulls.begin())+con_columns_nulls.size()])+")::INTEGER AS "+col+" , ";
+        //insert_query += col+", ";
+    }
+
+
+    create_table_query.pop_back();
+    create_table_query.pop_back();
+    //insert_query.pop_back();
+    //insert_query.pop_back();
+    create_table_query += " FROM "+table_name+" WHERE n_nulls = "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
+    if(order != "")
+        create_table_query += " ORDER BY "+order;
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
     //con.Query(insert_query);
@@ -144,7 +182,7 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     //insert_query.pop_back();
     //insert_query.pop_back();
     //con.Query(create_table_query+")");
-    create_table_query += " FROM "+table_name+" WHERE n_nulls >= 2";
+    create_table_query += " FROM "+table_name+" WHERE n_nulls >= 2 AND n_nulls < "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
 
     if(order != "")
         create_table_query += " ORDER BY "+order;
@@ -152,6 +190,283 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
     //table is partitioned
+    //now fix row_group sequential
+
+    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    con.Query("SET threads TO 1;");
+
+    con.Query("CREATE TABLE "+table_name+"_complete_3_tmp AS SELECT * from "+table_name+"_complete_3");
+    con.Query("CREATE TABLE "+table_name+"_complete_2_tmp AS SELECT * from "+table_name+"_complete_2");
+    con.Query("CREATE TABLE "+table_name+"_complete_0_tmp AS SELECT * from "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp AS SELECT * FROM "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp AS SELECT * FROM "+table_name+"_complete_"+col_null);
+
+    con.Query("SET threads TO "+ std::to_string(parallelism));
+
+    con.Query("DROP TABLE "+table_name+"_complete_3");
+    con.Query("DROP TABLE "+table_name+"_complete_2");
+    con.Query("DROP TABLE "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("DROP TABLE "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("DROP TABLE "+table_name+"_complete_"+col_null);
+
+    con.Query("ALTER TABLE "+table_name+"_complete_3_tmp RENAME TO "+table_name+"_complete_3");
+    con.Query("ALTER TABLE "+table_name+"_complete_2_tmp RENAME TO "+table_name+"_complete_2");
+    con.Query("ALTER TABLE "+table_name+"_complete_0_tmp RENAME TO "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+"_tmp RENAME TO "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+"_tmp RENAME TO "+table_name+"_complete_"+col_null);
+
+    con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_3")->Print();
+    con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_2")->Print();
+    con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_0")->Print();
+    for(auto &col_null: con_columns_nulls)
+        con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
+
+
+}
+
+void drop_partition(const std::string &table_name, const std::vector<std::string> &con_columns_nulls,
+                    const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con){
+    con.Query("DROP TABLE "+table_name+"_complete_3");
+    con.Query("DROP TABLE "+table_name+"_complete_2");
+    con.Query("DROP TABLE "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("DROP TABLE "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("DROP TABLE "+table_name+"_complete_"+col_null);
+
+}
+
+void partition_inverse(const std::string &table_name, const std::vector<std::string> &con_columns, const std::vector<std::string> &con_columns_nulls,
+               const std::vector<std::string> &cat_columns, const std::vector<std::string> &cat_columns_nulls, duckdb::Connection &con, const std::string& order){
+
+    //query averages (SELECT AVG(col) FROM table LIMIT 10000)
+    std::string query = "SELECT ";
+    for (auto &col: con_columns_nulls)
+        query += "AVG("+col+"), ";
+    for (auto &col: cat_columns_nulls)
+        query += "MODE("+col+"), ";
+    query.pop_back();
+    query.pop_back();
+    query += " FROM "+table_name+" LIMIT 10000";
+    con.Query(query)->Print();
+    auto collection = con.Query(query);
+    std::vector<float> avg = {};
+    for (idx_t col_index = 0; col_index<con_columns_nulls.size()+cat_columns_nulls.size(); col_index++){
+        duckdb::Value v = collection->GetValue(col_index, 0);
+        avg.push_back(v.GetValue<float>());
+    }
+
+    //CREATE NEW TABLES
+    //0, _col_name, 2
+    //con.Query("SELECT * from join_table WHERE n_nulls = 0 LIMIT 50")->Print();
+    std::string create_table_query = "CREATE TABLE "+table_name+"_complete_0 AS SELECT ";
+    //std::string insert_query = "INSERT INTO "+table_name+"_complete_0 SELECT ";
+
+    for (auto &col: con_columns){
+        create_table_query += col+"::FLOAT AS "+col+" , ";
+        //insert_query += col+", ";
+    }
+    for (auto &col: cat_columns){
+        create_table_query += col+"::INTEGER AS "+col+" , ";
+        //insert_query += col+", ";
+    }
+    create_table_query.pop_back();
+    create_table_query.pop_back();
+    //insert_query.pop_back();
+    //insert_query.pop_back();
+    create_table_query += " FROM "+table_name+" WHERE n_not_nulls = 0";
+    if(order != "")
+        create_table_query += " ORDER BY "+order;
+    std::cout<<create_table_query<<"\n";
+    con.Query(create_table_query)->Print();
+
+    create_table_query = "CREATE TABLE "+table_name+"_complete_3 AS SELECT ";
+    //std::string insert_query = "INSERT INTO "+table_name+"_complete_0 SELECT ";
+
+    for (auto &col: con_columns){
+        auto null_index = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
+        if (null_index == con_columns_nulls.end() )
+            create_table_query += col+"::FLOAT AS "+col+" , ";
+        else
+            create_table_query += "COALESCE ("+col+", "+std::to_string(avg[null_index-con_columns_nulls.begin()])+")::FLOAT AS "+col+" , ";
+        //insert_query += col+", ";
+    }
+    for (auto &col: cat_columns){
+        auto null_index = std::find(cat_columns_nulls.begin(), cat_columns_nulls.end(), col);
+        if (null_index == cat_columns_nulls.end() )
+            create_table_query += col+"::INTEGER AS "+col+" , ";
+        else
+            create_table_query += "COALESCE ("+col+", "+std::to_string(avg[(null_index-cat_columns_nulls.begin())+con_columns_nulls.size()])+")::INTEGER AS "+col+" , ";
+        //insert_query += col+", ";
+    }
+
+    create_table_query.pop_back();
+    create_table_query.pop_back();
+    //insert_query.pop_back();
+    //insert_query.pop_back();
+    create_table_query += " FROM "+table_name+" WHERE n_not_nulls = "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
+    if(order != "")
+        create_table_query += " ORDER BY "+order;
+    std::cout<<create_table_query<<"\n";
+    con.Query(create_table_query)->Print();
+
+
+    //con.Query(insert_query);
+
+    //create tables 1 missing value
+    idx_t col_index = 0;
+    for(auto &col_null: con_columns_nulls){
+        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+" AS SELECT ";
+        //insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
+
+        for (auto &col: con_columns){
+            auto null_index = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
+            if (col == col_null ||  null_index == con_columns_nulls.end() )
+                create_table_query += col+"::FLOAT AS "+col+" , ";
+            else
+                create_table_query += "COALESCE ("+col+", "+std::to_string(avg[null_index-con_columns_nulls.begin()])+")::FLOAT AS "+col+" , ";
+            //insert_query += col+", ";
+        }
+        for (auto &col: cat_columns){
+            auto null_index = std::find(cat_columns_nulls.begin(), cat_columns_nulls.end(), col);
+            if (null_index == cat_columns_nulls.end() )
+                create_table_query += col+"::INTEGER AS "+col+" , ";
+            else
+                create_table_query += "COALESCE ("+col+", "+std::to_string(avg[(null_index-cat_columns_nulls.begin())+con_columns_nulls.size()])+")::INTEGER AS "+col+" , ";
+            //insert_query += col+", ";
+        }
+        create_table_query.pop_back();
+        create_table_query.pop_back();
+        //con.Query(create_table_query+")");
+        create_table_query += " FROM "+table_name+" WHERE n_not_nulls = 1 AND "+col_null+" IS NOT NULL";
+        if (order != "")
+            create_table_query += " ORDER BY "+order;
+
+        std::cout<<create_table_query<<"\n";
+        con.Query(create_table_query)->Print();
+        col_index ++;
+    }
+
+    for(auto &col_null: cat_columns_nulls){
+        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+" AS SELECT ";
+        //insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
+
+        for (auto &col: con_columns){
+            auto null_index = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
+            if (null_index == con_columns_nulls.end())
+                create_table_query += col+"::FLOAT AS "+col+" , ";
+            else
+                create_table_query += "COALESCE ("+col+", "+std::to_string(avg[null_index-con_columns_nulls.begin()])+")::FLOAT AS "+col+" , ";
+            //insert_query += col+", ";
+        }
+        for (auto &col: cat_columns){
+            auto null_index = std::find(cat_columns_nulls.begin(), cat_columns_nulls.end(), col);
+            if (col == col_null || null_index == cat_columns_nulls.end() )
+                create_table_query += col+"::INTEGER AS "+col+" , ";
+            else
+                create_table_query += "COALESCE ("+col+", "+std::to_string(avg[(null_index-cat_columns_nulls.begin())+con_columns_nulls.size()])+")::INTEGER AS "+col+" , ";
+            //insert_query += col+", ";
+        }
+
+        create_table_query.pop_back();
+        create_table_query.pop_back();
+
+        create_table_query+=" FROM "+table_name+" WHERE n_not_nulls = 1 AND "+col_null+" IS NOT NULL";
+
+        if(order != "")
+            create_table_query += " ORDER BY "+order;
+
+        std::cout<<create_table_query<<"\n";
+        con.Query(create_table_query)->Print();
+        //insert_query.pop_back();
+        //insert_query.pop_back();
+        //con.Query(create_table_query+")");
+        col_index ++;
+    }
+
+
+    //create tables >=2 missing values
+    create_table_query = "CREATE TABLE "+table_name+"_complete_2 AS SELECT ";
+    //insert_query = "INSERT INTO "+table_name+"_complete_2 SELECT ";
+    for (auto &col: con_columns){
+        //create_table_query += col+"::FLOAT, ";
+        auto null = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
+        if (null != con_columns_nulls.end()) {
+            //this column contains null
+            create_table_query += "COALESCE (" + col + ", " + std::to_string(avg[null - con_columns_nulls.begin()]) + ")::FLOAT AS "+col+", "+col+" IS NOT NULL AS "+col+"_IS_NOT_NULL, ";
+        }
+        else
+            create_table_query += col+"::FLOAT AS "+col+" , ";
+    }
+
+    for (auto &col: cat_columns){
+        //create_table_query += col+" INTEGER, ";
+        auto null = std::find(cat_columns_nulls.begin(), cat_columns_nulls.end(), col);
+        if (null != cat_columns_nulls.end()) {
+            create_table_query += "COALESCE (" + col + ", " + std::to_string(avg[null - cat_columns_nulls.begin()+con_columns_nulls.size()]) + ")::INTEGER AS "+col+", "+col+" IS NOT NULL AS "+col+"_IS_NOT_NULL, ";
+        }
+        else
+            create_table_query += col+"::INTEGER AS "+col+" , ";
+    }
+    create_table_query.pop_back();
+    create_table_query.pop_back();
+    //insert_query.pop_back();
+    //insert_query.pop_back();
+    //con.Query(create_table_query+")");
+    create_table_query += " FROM "+table_name+" WHERE n_not_nulls >= 2 AND n_not_nulls < "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
+
+    if(order != "")
+        create_table_query += " ORDER BY "+order;
+
+    std::cout<<create_table_query<<"\n";
+    con.Query(create_table_query)->Print();
+    //table is partitioned
+
+    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    con.Query("SET threads TO 1;");
+
+    con.Query("CREATE TABLE "+table_name+"_complete_3_tmp AS SELECT * from "+table_name+"_complete_3");
+    con.Query("CREATE TABLE "+table_name+"_complete_2_tmp AS SELECT * from "+table_name+"_complete_2");
+    con.Query("CREATE TABLE "+table_name+"_complete_0_tmp AS SELECT * from "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp AS SELECT * FROM "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp AS SELECT * FROM "+table_name+"_complete_"+col_null);
+
+    con.Query("SET threads TO "+ std::to_string(parallelism));
+
+    con.Query("DROP TABLE "+table_name+"_complete_3");
+    con.Query("DROP TABLE "+table_name+"_complete_2");
+    con.Query("DROP TABLE "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("DROP TABLE "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("DROP TABLE "+table_name+"_complete_"+col_null);
+
+    con.Query("ALTER TABLE "+table_name+"_complete_3_tmp RENAME TO "+table_name+"_complete_3");
+    con.Query("ALTER TABLE "+table_name+"_complete_2_tmp RENAME TO "+table_name+"_complete_2");
+    con.Query("ALTER TABLE "+table_name+"_complete_0_tmp RENAME TO "+table_name+"_complete_0");
+    for(auto &col_null: con_columns_nulls)
+        con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+"_tmp RENAME TO "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("ALTER TABLE "+table_name+"_complete_"+col_null+"_tmp RENAME TO "+table_name+"_complete_"+col_null);
+
+    con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_3")->Print();
+    con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_2")->Print();
+    con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_0")->Print();
+    for(auto &col_null: con_columns_nulls)
+        con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
+    for(auto &col_null: cat_columns_nulls)
+        con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
+
 }
 
 void partition_reduce_col_null(const std::string &table_name, const std::vector<std::string> &con_columns, const std::vector<std::string> &con_columns_nulls,
@@ -176,8 +491,8 @@ void partition_reduce_col_null(const std::string &table_name, const std::vector<
     //CREATE NEW TABLES
     //0, _col_name, 2
     //con.Query("SELECT * from join_table WHERE n_nulls = 0 LIMIT 50")->Print();
-    std::string create_table_query = "CREATE TABLE "+table_name+"_complete_0(";
-    std::string insert_query = "INSERT INTO "+table_name+"_complete_0 SELECT ";
+    std::string create_table_query = "CREATE TABLE "+table_name+"_complete_0_tmp(";
+    std::string insert_query = "INSERT INTO "+table_name+"_complete_0_tmp SELECT ";
 
     for (auto &col: con_columns){
 
@@ -208,8 +523,8 @@ void partition_reduce_col_null(const std::string &table_name, const std::vector<
     //create tables 1 missing value
     idx_t col_index = 0;
     for(auto &col_null: assume_columns_nulls){
-        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+"(";
-        insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+" SELECT ";
+        create_table_query = "CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp(";
+        insert_query = "INSERT INTO "+table_name+"_complete_"+col_null+"_tmp SELECT ";
 
         for (auto &col: con_columns){
             create_table_query += col+" FLOAT, ";
@@ -239,8 +554,8 @@ void partition_reduce_col_null(const std::string &table_name, const std::vector<
 
 
     //create tables >=2 missing values
-    create_table_query = "CREATE TABLE "+table_name+"_complete_2(";
-    insert_query = "INSERT INTO "+table_name+"_complete_2 SELECT ";
+    create_table_query = "CREATE TABLE "+table_name+"_complete_2_tmp(";
+    insert_query = "INSERT INTO "+table_name+"_complete_2_tmp SELECT ";
     for (auto &col: con_columns){
         create_table_query += col+" FLOAT, ";
         auto null = std::find(con_columns_nulls.begin(), con_columns_nulls.end(), col);
@@ -269,7 +584,11 @@ void partition_reduce_col_null(const std::string &table_name, const std::vector<
     insert_query.pop_back();
 
     con.Query(create_table_query+")");
-    con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2");
+    con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2 AND n_nulls <"+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size()));
+
+
+    //todo expand partitioning
+
 }
 
 
@@ -283,6 +602,10 @@ void init_baseline(const std::string &table_name, const std::vector<std::string>
     query.pop_back();
     query += " FROM "+table_name+" LIMIT 10000";
     auto collection = con.Query(query);
+
+    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    con.Query("SET threads TO 1;");
+
     con.Query("CREATE TABLE "+table_name+"_complete AS SELECT * FROM "+table_name);
     std::vector<float> avg = {};
     for (idx_t col_index = 0; col_index<con_columns_nulls.size()+cat_columns_nulls.size(); col_index++){
@@ -314,6 +637,7 @@ void init_baseline(const std::string &table_name, const std::vector<std::string>
         con.Query(query);
         con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+cat_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
     }
+    con.Query("SET threads TO "+ std::to_string(parallelism));
 
 }
 

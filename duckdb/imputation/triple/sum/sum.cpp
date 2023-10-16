@@ -389,5 +389,4 @@ namespace Triple {
         auto ret = duckdb::Value::STRUCT(struct_values);
         return ret;
     }
-
 }

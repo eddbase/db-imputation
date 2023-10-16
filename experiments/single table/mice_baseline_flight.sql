@@ -86,7 +86,7 @@ BEGIN
     INTO tmp_array;
         
     query := 'CREATE UNLOGGED TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=80)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=15)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     
@@ -175,13 +175,17 @@ BEGIN
 	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index]-low_bound_categorical[label_index] ||' END)' ||
     	        ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
        		 	' WHERE a.nr != ' || label_index ||')';
+       		 	
+       		 	subquery := 'ARRAY['|| array_to_string(categorical_columns[:label_index-1] || categorical_columns[label_index+1 :], ', ') ||']';
+
+       		 	
        		END IF;
 
             RAISE DEBUG ' %', subquery;
             
                         
             query := 'UPDATE ' || output_table_name || 
-                ' SET ' || col || ' = (ARRAY[' || array_to_string(categorical_uniq_vals_sorted[low_bound_categorical[label_index]+1 : upper_bound_categorical[label_index]], ', ') ||'])[1+ lda_impute(ARRAY[ ' || array_to_string(params, ', ') || ']::float4[], ' || 'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float4[], '
+                ' SET ' || col || ' = (ARRAY[' || array_to_string(categorical_uniq_vals_sorted[low_bound_categorical[label_index]+1 : upper_bound_categorical[label_index]], ', ') ||'])[1+ lda_predict(ARRAY[ ' || array_to_string(params, ', ') || ']::float4[], ' || 'ARRAY[ ' || array_to_string(continuous_columns, ', ') || ' ]::float4[], '
                 || subquery || ' ::int[])] WHERE ' ||col||'_ISNULL';
             RAISE DEBUG 'UPDATE QUERY: %', query;
 
@@ -232,7 +236,6 @@ BEGIN
             RAISE DEBUG ' %', subquery;
             RAISE DEBUG 'variance %', params[array_length(params, 1)];
             RAISE DEBUG 'last param %', params[array_length(params, 1)-1];
-            
                         
             query := 'UPDATE ' || output_table_name || 
                 ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||

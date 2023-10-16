@@ -140,6 +140,13 @@ void scalability_col_exp(duckdb::Connection &con, const std::vector<std::string>
             //con.Query("SELECT * from "+table_name+"_complete_"+col_null+" LIMIT 100")->Print();
             //con.Query("SELECT * from "+table_name+"_complete_2 LIMIT 100")->Print();
 
+            //update all missing partition
+            std::cout<<"CREATE TABLE rep AS SELECT "+new_val+" AS test FROM "+table_name+"_complete_3";
+            begin = std::chrono::high_resolution_clock::now();
+            con.Query("CREATE TABLE rep AS SELECT "+new_val+" AS test FROM "+table_name+"_complete_3");
+            con.Query("ALTER TABLE "+table_name+"_complete_3 ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
+            end = std::chrono::high_resolution_clock::now();
+            std::cout<<"Time updating all null partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
             //recompute cofactor
             begin = std::chrono::high_resolution_clock::now();

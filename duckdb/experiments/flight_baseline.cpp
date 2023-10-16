@@ -5,7 +5,7 @@
 #include <ML/lda.h>
 #include <ML/regression.h>
 #include <iterator>
-void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters){
+void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string> &con_columns, const std::vector<std::string> &cat_columns, const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls, const std::string &table_name, size_t mice_iters, const std::string sort){
 
     build_list_of_uniq_categoricals(cat_columns, con, table_name);
     auto begin = std::chrono::high_resolution_clock::now();
@@ -13,7 +13,8 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
     auto end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time prepare dataset (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
     //start MICE
-
+    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    
     for (int mice_iter =0; mice_iter<mice_iters;mice_iter++){
         //continuous cols
         for(auto &col_null : con_columns_nulls) {
@@ -55,7 +56,13 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
                 //update
             std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");
+            con.Query("CREATE TABLE rep2 AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+new_val+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT test from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
             con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<"Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
@@ -102,7 +109,13 @@ void run_flight_baseline(duckdb::Connection &con, const std::vector<std::string>
             //update 2 missing values
             std::cout<<"CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete\n";
             begin = std::chrono::high_resolution_clock::now();
-            con.Query("CREATE TABLE rep AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");
+            con.Query("CREATE TABLE rep2 AS SELECT CASE WHEN "+col_null+"_IS_NULL THEN "+select_stmt+" ELSE "+col_null+" END AS test FROM "+table_name+"_complete");
+
+            con.Query("SET threads TO 1;");
+            con.Query("CREATE TABLE rep AS SELECT test from rep2");
+            con.Query("SET threads TO "+ std::to_string(parallelism));
+            con.Query("DROP TABLE rep2");
+
             con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+col_null+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
             end = std::chrono::high_resolution_clock::now();
             std::cout<<". Time updating >=2 partition (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";

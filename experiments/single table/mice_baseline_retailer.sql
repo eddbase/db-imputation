@@ -83,7 +83,7 @@ BEGIN
     INTO tmp_array;
         
     query := 'CREATE UNLOGGED TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=80)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=15)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     
@@ -229,7 +229,7 @@ BEGIN
             
                         
             query := 'UPDATE ' || output_table_name || 
-                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(params[array_length(params, 1)])::text), ' + ') ||
+                ' SET ' || col || ' = ' || array_to_string(array_append(array_prepend(params[1]::text, tmp_array || tmp_array2), '(sqrt(-2 * ln(random()))*cos(2*pi()*random()))*'||sqrt(0)::text), ' + ') ||
                 ' WHERE ' || col || '_ISNULL';
             RAISE DEBUG '%', query;
 

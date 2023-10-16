@@ -8,6 +8,7 @@
 #include "triple/From_duckdb.h"
 #include <chrono>
 #include "include/flight_partition.h"
+#include "include/flight_partition_2.h"
 #include "include/flight_baseline.h"
 
 #include "include/train_flight.h"
@@ -33,6 +34,30 @@
 #endif
 
 #define TRAIN_TEST
+
+std::string count_n_nulls(const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls){
+    std::string query = "";
+    for (auto &col : con_columns_nulls)
+        query += "CASE WHEN "+col+" IS NULL THEN 1 ELSE 0 END + ";
+    for (auto &col : cat_columns_nulls)
+        query += "CASE WHEN "+col+" IS NULL THEN 1 ELSE 0 END + ";
+    query.pop_back();
+    query.pop_back();
+    query+="::INTEGER ";
+    return query;
+}
+
+std::string count_n_not_nulls(const std::vector<std::string> &con_columns_nulls, const std::vector<std::string> &cat_columns_nulls){
+    std::string query = "";
+    for (auto &col : con_columns_nulls)
+        query += "CASE WHEN "+col+" IS NOT NULL THEN 1 ELSE 0 END + ";
+    for (auto &col : cat_columns_nulls)
+        query += "CASE WHEN "+col+" IS NOT NULL THEN 1 ELSE 0 END + ";
+    query.pop_back();
+    query.pop_back();
+    query+="::INTEGER ";
+    return query;
+}
 
 int main(int argc, char* argv[]){
 
@@ -118,19 +143,31 @@ std::cout << "Using Boost "
 
 
     //import data
-    auto begin = std::chrono::high_resolution_clock::now();
     std::string create_table_query = "CREATE TABLE join_table(flight INTEGER,airports INTEGER,OP_CARRIER INTEGER,CRS_DEP_HOUR FLOAT,CRS_DEP_MIN FLOAT,CRS_ARR_HOUR FLOAT,CRS_ARR_MIN FLOAT,ORIGIN INTEGER,DEST INTEGER,DISTANCE FLOAT,index INTEGER,DEP_DELAY FLOAT,TAXI_OUT FLOAT,TAXI_IN FLOAT,ARR_DELAY FLOAT,DIVERTED INTEGER,ACTUAL_ELAPSED_TIME FLOAT,AIR_TIME FLOAT,DEP_TIME_HOUR FLOAT,DEP_TIME_MIN FLOAT,WHEELS_OFF_HOUR FLOAT,WHEELS_OFF_MIN FLOAT,WHEELS_ON_HOUR FLOAT,WHEELS_ON_MIN FLOAT,ARR_TIME_HOUR FLOAT,ARR_TIME_MIN FLOAT,MONTH_SIN FLOAT,MONTH_COS FLOAT,DAY_SIN FLOAT,DAY_COS FLOAT,WEEKDAY_SIN FLOAT,WEEKDAY_COS FLOAT,EXTRA_DAY_ARR INTEGER,EXTRA_DAY_DEP INTEGER);";
     con.Query(create_table_query);
     if (argc > 1)
         path = argv[1];
     std::cout<<path<<"/join_table_flights.csv";
+
+    con.Query("SET preserve_insertion_order = true");
+    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    std::cout<<"current parallelism : "<<parallelism<<std::endl;
+
     con.Query("COPY join_table FROM '"+path+"/join_table_flights.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
-    auto end = std::chrono::high_resolution_clock::now();
-    std::cout<<"Time import data (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+    con.Query("CREATE TABLE join_table_tmp AS SELECT flight,airports,OP_CARRIER,CRS_DEP_HOUR,CRS_DEP_MIN,CRS_ARR_HOUR,"
+              "CRS_ARR_MIN,ORIGIN,DEST,DISTANCE,index,DEP_DELAY,TAXI_OUT,TAXI_IN,ARR_DELAY,DIVERTED,ACTUAL_ELAPSED_TIME,"
+              "AIR_TIME,DEP_TIME_HOUR,DEP_TIME_MIN,WHEELS_OFF_HOUR,WHEELS_OFF_MIN,WHEELS_ON_HOUR,WHEELS_ON_MIN,ARR_TIME_HOUR"
+              ",ARR_TIME_MIN,MONTH_SIN,MONTH_COS,DAY_SIN,DAY_COS,WEEKDAY_SIN,WEEKDAY_COS,EXTRA_DAY_ARR,EXTRA_DAY_DEP,"+
+              count_n_nulls(con_columns_nulls, cat_columns_nulls)+" AS n_nulls, "+ count_n_not_nulls(con_columns_nulls, cat_columns_nulls)+
+              " AS n_not_nulls FROM join_table ORDER BY flight");
+    con.Query("DROP TABLE join_table");
+    con.Query("ALTER TABLE join_table_tmp RENAME TO join_table");
+
     std::cout<<"---- Partitioned ----\n";
-    run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters);
+    run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
+    run_flight_partition_alt(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
     std::cout<<"---- Baseline ----\n";
-    run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters);
+    run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
     }
     if (single_table_retailer) {
 duckdb::DuckDB db(":memory:");
@@ -201,6 +238,10 @@ duckdb::DuckDB db(":memory:");
                                          ");";
         con.Query(create_table_query);
         std::string path = "/disk/scratch/imputation_project/systemds/data/join_table_retailer_20.csv";
+        con.Query("SET preserve_insertion_order = true");
+        int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+        std::cout<<"current parallelism : "<<parallelism<<std::endl;
+        //con.Query("SET threads TO 1;")
         if (argc > 1)
             path = argv[1];
         con.Query("COPY join_table FROM '" + path + "' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
@@ -209,10 +250,10 @@ duckdb::DuckDB db(":memory:");
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
         std::cout << "---- Flight Partitioned ----\n";
         run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
-                             mice_iters);
+                             mice_iters, "flight");
         std::cout << "---- Baseline ----\n";
         run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
-                            mice_iters);
+                            mice_iters, "flight");
     }
 
 
@@ -256,10 +297,10 @@ if (single_table_air_quality) {
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
         std::cout << "---- Flight Partitioned ----\n";
         run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
-                             mice_iters);
+                             mice_iters, "");
         std::cout << "---- Baseline ----\n";
         run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
-                            mice_iters);
+                            mice_iters, "");
     }
 /*
 if(col_scal_exp){

@@ -90,15 +90,31 @@ train_size = 0.8
 missing_data = data.drop(['SiteName', 'DataCreationDate'], axis=1)
 
 cols_names = list(missing_data.columns)
-imp = IterativeImputer(random_state=0, sample_posterior=True)
-t1 = time.time()
-imputed_regression = imp.fit_transform(missing_data)
-imputed_regression = pd.DataFrame(imputed_regression, columns = cols_names)
-t_ = time.time()-t1
-print("time sklearn", t_)
-df_res1 = compute_statistics([imputed_regression], scaler)
-
 #print(rf_complete)
+
+###GAIN
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import numpy as np
+from gain import gain
+
+gain_parameters = {'batch_size': 128, 'hint_rate': 0.9, 'alpha': 100, 'iterations': 10000}
+t1 = time.time()
+imputed_regression = gain(missing_data.to_numpy(), gain_parameters)
+print("MICE")
+t_ = time.time()-t1
+print("time lib", t_)
+print("statistics MICE: ")
+imputed_regression = pd.DataFrame(imputed_regression, columns=imputed_regression.columns)
+df_res_gain = compute_statistics([imputed_regression], scaler)
+df_res_gain["alg"] = "GAIN"
+df_res_gain["time"] = t_
+
+###END GAIN
+
 
 
 
@@ -118,6 +134,9 @@ print("statistics MICE: ")
 df_res = compute_statistics([k[1] for k in imputed_regression], scaler)
 df_res["alg"] = "mice"
 df_res["time"] = t_
+
+df_res = pd.concat([df_res, df_res_gain], ignore_index=True)
+
     
 ## RANDOM FOREST
 

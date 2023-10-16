@@ -85,5 +85,5 @@ if SYSTEMDS:
     cat_numerical = (((result.nunique()<=2).values).astype(int)).reshape(1,-1)
     cat_numerical[0, result.columns.get_loc("subcategory")] = 1
     cat_numerical[0, result.columns.get_loc("category")] = 1
-    cat_numerical[0, a.columns.get_loc("categoryCluster")] = 1
+    cat_numerical[0, result.columns.get_loc("categoryCluster")] = 1
     np.savetxt("cat_numerical.csv", cat_numerical, delimiter=",")
