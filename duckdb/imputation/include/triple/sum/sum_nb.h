@@ -19,7 +19,7 @@ namespace Triple {
              duckdb::Vector &state_vector, idx_t count);
 
 
-    duckdb::Value sum_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2);
+    duckdb::Value sum_nb_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2);
 
 }
 

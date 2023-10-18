@@ -83,7 +83,7 @@ BEGIN
     INTO tmp_array;
         
     query := 'CREATE UNLOGGED TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=15)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=75)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     
@@ -172,6 +172,9 @@ BEGIN
 	            subquery := '(SELECT array_agg(array_position((ARRAY[' || array_to_string(categorical_uniq_vals_sorted, ' ,') || '])[bound_down+1 : bound_up], a.elem) - 1 + bound_down - CASE WHEN a.nr < ' || label_index || ' THEN 0 ELSE ' || upper_bound_categorical[label_index] - low_bound_categorical[label_index] ||' END)' ||
     	        ' FROM unnest(ARRAY[' || array_to_string(categorical_columns, ', ') || ']::int[], ARRAY[' || array_to_string(upper_bound_categorical , ', ') || ']::int[], ARRAY[' || array_to_string(low_bound_categorical , ', ') ||']::int[]) WITH ORDINALITY a(elem, bound_up, bound_down, nr) ' ||
        		 	' WHERE a.nr != ' || label_index ||')';
+       		 	
+       		 	subquery := 'ARRAY['|| array_to_string(categorical_columns[:label_index-1] || categorical_columns[label_index+1 :], ', ') ||']';
+
        		END IF;
 
             RAISE DEBUG ' %', subquery;

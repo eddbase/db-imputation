@@ -217,6 +217,8 @@ static void import_data(duckdb::Connection &con, const std::string &path) {
         end = std::chrono::high_resolution_clock::now();
         std::cout << "Time full cofactor (ms): "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
+        std::clog << "Time full cofactor (ms): "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
 
         //start MICE
 

@@ -156,7 +156,7 @@ namespace Triple {
         }
     }
 
-    vector<Value> sum_list_of_structs(const vector<Value> &v1, const vector<Value> &v2){
+    static vector<Value> sum_list_of_structs(const vector<Value> &v1, const vector<Value> &v2){
         std::map<int, float> content;
         vector<Value> col_cat_lin = {};
         for(size_t k=0; k<v1.size(); k++){
@@ -183,7 +183,7 @@ namespace Triple {
         return col_cat_lin;
     }
 
-    duckdb::Value sum_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2){
+    duckdb::Value sum_nb_triple(const duckdb::Value &triple_1, const duckdb::Value &triple_2){
 
         auto first_triple_children = duckdb::StructValue::GetChildren(triple_1);//vector of pointers to childrens
         auto sec_triple_children = duckdb::StructValue::GetChildren(triple_2);

@@ -326,16 +326,37 @@ namespace Triple {
         const vector<Value> &linear_1 = duckdb::ListValue::GetChildren(first_triple_children[1]);
         const vector<Value> &linear_2 = duckdb::ListValue::GetChildren(sec_triple_children[1]);
         vector<Value> lin = {};
-        for(idx_t i=0;i<linear_1.size();i++)
-            lin.push_back(Value(linear_1[i].GetValue<float>() + linear_2[i].GetValue<float>()));
+        if (!linear_1.empty() && !linear_2.empty()) {
+            for (idx_t i = 0; i < linear_1.size(); i++)
+                lin.push_back(Value(linear_1[i].GetValue<float>() + linear_2[i].GetValue<float>()));
+        }
+        else if (!linear_1.empty()){
+            for (idx_t i = 0; i < linear_1.size(); i++)
+                lin.push_back(Value(linear_1[i].GetValue<float>()));
+        }
+        else if (!linear_2.empty()){
+            for (idx_t i = 0; i < linear_2.size(); i++)
+                lin.push_back(Value(linear_2[i].GetValue<float>()));
+        }
 
         struct_values.emplace_back("lin_num", duckdb::Value::LIST(LogicalType::FLOAT, lin));
 
         const vector<Value> &quad_1 = duckdb::ListValue::GetChildren(first_triple_children[2]);
         const vector<Value> &quad_2 = duckdb::ListValue::GetChildren(sec_triple_children[2]);
         vector<Value> quad = {};
-        for(idx_t i=0;i<quad_1.size();i++)
-            quad.push_back(Value(quad_1[i].GetValue<float>() + quad_2[i].GetValue<float>()));
+
+        if (!quad_1.empty() && !quad_2.empty() > 0) {
+            for(idx_t i=0;i<quad_1.size();i++)
+                quad.push_back(Value(quad_1[i].GetValue<float>() + quad_2[i].GetValue<float>()));
+        }
+        else if (!quad_1.empty()){
+            for (idx_t i = 0; i < quad_1.size(); i++)
+                quad.push_back(Value(quad_1[i].GetValue<float>()));
+        }
+        else if (!quad_2.empty()){
+            for (idx_t i = 0; i < quad_2.size(); i++)
+                quad.push_back(Value(quad_2[i].GetValue<float>()));
+        }
 
         struct_values.emplace_back("quad_num", duckdb::Value::LIST(LogicalType::FLOAT, quad));
 
@@ -360,11 +381,27 @@ namespace Triple {
         const vector<Value> &num_cat_1 = duckdb::ListValue::GetChildren(first_triple_children[4]);
         const vector<Value> &num_cat_2 = duckdb::ListValue::GetChildren(sec_triple_children[4]);
         vector<Value> num_cat_res = {};
-        for(idx_t i=0;i<num_cat_1.size();i++) {//for each cat. column copy into map
-            const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(num_cat_1[i]);
-            const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(num_cat_2[i]);
-            num_cat_res.push_back(duckdb::Value::LIST(sum_list_of_structs(pairs_cat_col_1, pairs_cat_col_2)));
+
+        if (!num_cat_1.empty() && !num_cat_2.empty() > 0) {
+            for(idx_t i=0;i<num_cat_1.size();i++) {//for each cat. column copy into map
+                const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(num_cat_1[i]);
+                const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(num_cat_2[i]);
+                num_cat_res.push_back(duckdb::Value::LIST(sum_list_of_structs(pairs_cat_col_1, pairs_cat_col_2)));
+            }
         }
+        else if (!num_cat_1.empty()){
+            for(idx_t i=0;i<num_cat_1.size();i++) {//for each cat. column copy into map
+                const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(num_cat_1[i]);
+                num_cat_res.push_back(duckdb::Value::LIST(pairs_cat_col_1));
+            }
+        }
+        else if (!num_cat_2.empty()){
+            for(idx_t i=0;i<num_cat_2.size();i++) {//for each cat. column copy into map
+                const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(num_cat_2[i]);
+                num_cat_res.push_back(duckdb::Value::LIST(pairs_cat_col_2));
+            }
+        }
+
         struct_values.emplace_back("quad_num_cat", duckdb::Value::LIST(LogicalType::LIST(LogicalType::STRUCT(struct_values_l)),num_cat_res));
 
         //cat*cat
@@ -372,17 +409,31 @@ namespace Triple {
         const vector<Value> &cat_cat_1 = duckdb::ListValue::GetChildren(first_triple_children[5]);
         const vector<Value> &cat_cat_2 = duckdb::ListValue::GetChildren(sec_triple_children[5]);
         vector<Value> cat_cat_res = {};
-        for(idx_t i=0;i<cat_cat_1.size();i++) {//for each cat. column copy into map
-            const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(cat_cat_1[i]);
-            const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(cat_cat_2[i]);
-            cat_cat_res.push_back(duckdb::Value::LIST(sum_list_of_structs_key2(pairs_cat_col_1, pairs_cat_col_2)));
+
+        if (!cat_cat_1.empty() && !cat_cat_2.empty() > 0) {
+            for(idx_t i=0;i<cat_cat_1.size();i++) {//for each cat. column copy into map
+                const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(cat_cat_1[i]);
+                const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(cat_cat_2[i]);
+                cat_cat_res.push_back(duckdb::Value::LIST(sum_list_of_structs_key2(pairs_cat_col_1, pairs_cat_col_2)));
+            }
+        }
+        else if (!cat_cat_1.empty()){
+            for(idx_t i=0;i<cat_cat_1.size();i++) {//for each cat. column copy into map
+                const vector<Value> &pairs_cat_col_1 = duckdb::ListValue::GetChildren(cat_cat_1[i]);
+                cat_cat_res.push_back(duckdb::Value::LIST(pairs_cat_col_1));
+            }
+        }
+        else if (!cat_cat_2.empty()){
+            for(idx_t i=0;i<cat_cat_2.size();i++) {//for each cat. column copy into map
+                const vector<Value> &pairs_cat_col_2 = duckdb::ListValue::GetChildren(cat_cat_2[i]);
+                cat_cat_res.push_back(duckdb::Value::LIST(pairs_cat_col_2));
+            }
         }
 
         child_list_t<LogicalType> struct_values_l2;
         struct_values_l2.emplace_back("key1", LogicalType::INTEGER);
         struct_values_l2.emplace_back("key2", LogicalType::INTEGER);
         struct_values_l2.emplace_back("value", LogicalType::FLOAT);
-
 
         struct_values.emplace_back("quad_cat", duckdb::Value::LIST(LogicalType::LIST(LogicalType::STRUCT(struct_values_l2)), cat_cat_res));
 

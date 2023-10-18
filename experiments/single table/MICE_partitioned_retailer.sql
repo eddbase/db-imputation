@@ -248,7 +248,7 @@ BEGIN
     	    	max_nulls := array_length(continuous_columns_null, 1) + array_length(categorical_columns_null, 1);
     			query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt2' || 
              	' PARTITION OF ' || output_table_name ||
-             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=15)';
+             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=75)';
              	
              	RAISE DEBUG '%', query;
     			EXECUTE query;
@@ -264,7 +264,7 @@ BEGIN
              	max_nulls := array_length(continuous_columns_null, 1);
             	query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_nullcnt2' || 
              	' PARTITION OF ' || output_table_name ||
-             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=15)';
+             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=75)';
              	
              	RAISE DEBUG '%', query;
     			EXECUTE query;

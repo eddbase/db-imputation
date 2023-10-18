@@ -1,7 +1,7 @@
 
 #include <iostream>
 #include <duckdb.hpp>
-
+#include <cstdio>
 #include "ML/regression.h"
 #include "triple/helper.h"
 
@@ -71,6 +71,14 @@ int main(int argc, char* argv[]){
     bool train_retailer = false;
     std::string path = "../../make_datasets/flights_dataset";
 
+    std::ofstream out("log.txt");
+
+    // Get the rdbuf of clog.
+    // We need it to reset the value before exiting.
+    auto old_rdbuf = std::clog.rdbuf();
+    // Set the rdbuf of clog.
+    std::clog.rdbuf(out.rdbuf());
+
 
 #ifdef ENABLE_DOCTEST_IN_LIBRARY
     /*doctest::Context ctx;
@@ -87,6 +95,12 @@ std::cout << "Using Boost "
           << BOOST_VERSION / 100 % 1000 << "."  // minor version
           << BOOST_VERSION % 100                // patch level
           << std::endl;
+
+    std::clog << "Using Boost "
+              << BOOST_VERSION / 100000     << "."  // major version
+              << BOOST_VERSION / 100 % 1000 << "."  // minor version
+              << BOOST_VERSION % 100                // patch level
+              << std::endl;
 
     std::string path_train = "../../make_datasets/flight_dataset";//argv[1];
     if(train_retailer) {
@@ -152,22 +166,18 @@ std::cout << "Using Boost "
     con.Query("SET preserve_insertion_order = true");
     int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
     std::cout<<"current parallelism : "<<parallelism<<std::endl;
+    std::clog<<"current parallelism : "<<parallelism<<std::endl;
 
-    con.Query("COPY join_table FROM '"+path+"/join_table_flights.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
-    con.Query("CREATE TABLE join_table_tmp AS SELECT flight,airports,OP_CARRIER,CRS_DEP_HOUR,CRS_DEP_MIN,CRS_ARR_HOUR,"
-              "CRS_ARR_MIN,ORIGIN,DEST,DISTANCE,index,DEP_DELAY,TAXI_OUT,TAXI_IN,ARR_DELAY,DIVERTED,ACTUAL_ELAPSED_TIME,"
-              "AIR_TIME,DEP_TIME_HOUR,DEP_TIME_MIN,WHEELS_OFF_HOUR,WHEELS_OFF_MIN,WHEELS_ON_HOUR,WHEELS_ON_MIN,ARR_TIME_HOUR"
-              ",ARR_TIME_MIN,MONTH_SIN,MONTH_COS,DAY_SIN,DAY_COS,WEEKDAY_SIN,WEEKDAY_COS,EXTRA_DAY_ARR,EXTRA_DAY_DEP,"+
-              count_n_nulls(con_columns_nulls, cat_columns_nulls)+" AS n_nulls, "+ count_n_not_nulls(con_columns_nulls, cat_columns_nulls)+
-              " AS n_not_nulls FROM join_table ORDER BY flight");
-    con.Query("DROP TABLE join_table");
-    con.Query("ALTER TABLE join_table_tmp RENAME TO join_table");
+        con.Query("COPY join_table FROM '"+path+"/join_table_flights.csv' (FORMAT CSV, AUTO_DETECT TRUE , nullstr '', DELIMITER ',')");
 
-    std::cout<<"---- Partitioned ----\n";
-    run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
-    run_flight_partition_alt(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
+    std::cout<<"---- Partitioned----\n";
+    std::clog << "---- Partitioned----\n";
+        run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
+        std::clog << "---- Partitioned high missing----\n";
+        run_flight_partition_alt(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
     std::cout<<"---- Baseline ----\n";
-    run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
+    std::clog <<"---- Baseline ----\n";
+        run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
     }
     if (single_table_retailer) {
 duckdb::DuckDB db(":memory:");
@@ -248,10 +258,14 @@ duckdb::DuckDB db(":memory:");
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "Time import data (ms): "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
+        std::clog << "---- Partitioned----\n";
         std::cout << "---- Flight Partitioned ----\n";
         run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
                              mice_iters, "flight");
+        std::clog << "---- Partitioned high missing----\n";
+        run_flight_partition_alt(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "index");
         std::cout << "---- Baseline ----\n";
+        std::clog << "---- Baseline----\n";
         run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
                             mice_iters, "flight");
     }
@@ -295,11 +309,21 @@ if (single_table_air_quality) {
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "Time import data (ms): "
                   << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "\n";
+
         std::cout << "---- Flight Partitioned ----\n";
+        std::clog << "---- Air quality Partitioned----\n";
+
         run_flight_partition(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
                              mice_iters, "");
-        std::cout << "---- Baseline ----\n";
-        run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
+
+        std::clog << "---- Partitioned high missing----\n";
+        run_flight_partition_alt(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name, mice_iters, "");
+
+
+    std::cout << "---- Baseline ----\n";
+    std::clog << "---- Baseline ----\n";
+
+    run_flight_baseline(con, con_columns, cat_columns, con_columns_nulls, cat_columns_nulls, table_name,
                             mice_iters, "");
     }
 /*
@@ -361,7 +385,7 @@ if(col_scal_exp){
     if (retailer_factorized) {
         run_flight_partition_factorized_retailer(path, "join_table", 1);
     }
-
+    std::clog.rdbuf(old_rdbuf);
 
 return 0;
 }

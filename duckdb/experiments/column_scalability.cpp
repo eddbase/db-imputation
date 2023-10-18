@@ -59,6 +59,7 @@ void scalability_col_exp(duckdb::Connection &con, const std::vector<std::string>
     full_triple.Print();
     end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+    std::clog<<"Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     //con.Query("SELECT lift(WHEELS_ON_HOUR) FROM join_table")->Print();
 

@@ -86,7 +86,7 @@ BEGIN
     INTO tmp_array;
         
     query := 'CREATE UNLOGGED TABLE ' || output_table_name || '( ' ||
-                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=15)';
+                array_to_string(tmp_array, ', ') || ', ROW_ID serial) WITH (fillfactor=75)';
     RAISE DEBUG '%', query;
     EXECUTE QUERY;
     

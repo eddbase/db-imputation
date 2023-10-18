@@ -45,8 +45,8 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     //insert_query.pop_back();
     //insert_query.pop_back();
     create_table_query += " FROM "+table_name+" WHERE n_nulls = 0";
-    if(order != "")
-        create_table_query += " ORDER BY "+order;
+    /*if(order != "")
+        create_table_query += " ORDER BY "+order;*/
     std::cout<<create_table_query<<"\n";
 
     con.Query(create_table_query)->Print();
@@ -81,8 +81,8 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     //insert_query.pop_back();
     //insert_query.pop_back();
     create_table_query += " FROM "+table_name+" WHERE n_nulls = "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
-    if(order != "")
-        create_table_query += " ORDER BY "+order;
+    /*if(order != "")
+        create_table_query += " ORDER BY "+order;*/
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
     //con.Query(insert_query);
@@ -111,8 +111,8 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
         //insert_query.pop_back();
         //con.Query(create_table_query+")");
         create_table_query += " FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL";
-        if (order != "")
-            create_table_query += " ORDER BY "+order;
+        /*if (order != "")
+            create_table_query += " ORDER BY "+order;*/
 
         std::cout<<create_table_query<<"\n";
         con.Query(create_table_query)->Print();
@@ -140,8 +140,8 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
 
         create_table_query+=" FROM "+table_name+" WHERE n_nulls = 1 AND "+col_null+" IS NULL";
 
-        if(order != "")
-            create_table_query += " ORDER BY "+order;
+        /*if(order != "")
+            create_table_query += " ORDER BY "+order;*/
 
         std::cout<<create_table_query<<"\n";
         con.Query(create_table_query)->Print();
@@ -184,17 +184,17 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     //con.Query(create_table_query+")");
     create_table_query += " FROM "+table_name+" WHERE n_nulls >= 2 AND n_nulls < "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
 
-    if(order != "")
-        create_table_query += " ORDER BY "+order;
+    /*if(order != "")
+        create_table_query += " ORDER BY "+order;*/
 
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
     //table is partitioned
     //now fix row_group sequential
 
-    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
-    con.Query("SET threads TO 1;");
-
+    //int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    //con.Query("SET threads TO 1;");
+    /*
     con.Query("CREATE TABLE "+table_name+"_complete_3_tmp AS SELECT * from "+table_name+"_complete_3");
     con.Query("CREATE TABLE "+table_name+"_complete_2_tmp AS SELECT * from "+table_name+"_complete_2");
     con.Query("CREATE TABLE "+table_name+"_complete_0_tmp AS SELECT * from "+table_name+"_complete_0");
@@ -203,7 +203,7 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
     for(auto &col_null: cat_columns_nulls)
         con.Query("CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp AS SELECT * FROM "+table_name+"_complete_"+col_null);
 
-    con.Query("SET threads TO "+ std::to_string(parallelism));
+    //con.Query("SET threads TO "+ std::to_string(parallelism));
 
     con.Query("DROP TABLE "+table_name+"_complete_3");
     con.Query("DROP TABLE "+table_name+"_complete_2");
@@ -228,6 +228,7 @@ void partition(const std::string &table_name, const std::vector<std::string> &co
         con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
     for(auto &col_null: cat_columns_nulls)
         con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
+    */
 
 
 }
@@ -283,8 +284,8 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
     //insert_query.pop_back();
     //insert_query.pop_back();
     create_table_query += " FROM "+table_name+" WHERE n_not_nulls = 0";
-    if(order != "")
-        create_table_query += " ORDER BY "+order;
+    /*if(order != "")
+        create_table_query += " ORDER BY "+order;*/
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
 
@@ -313,8 +314,8 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
     //insert_query.pop_back();
     //insert_query.pop_back();
     create_table_query += " FROM "+table_name+" WHERE n_not_nulls = "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
-    if(order != "")
-        create_table_query += " ORDER BY "+order;
+    /*if(order != "")
+        create_table_query += " ORDER BY "+order;*/
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
 
@@ -347,8 +348,8 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
         create_table_query.pop_back();
         //con.Query(create_table_query+")");
         create_table_query += " FROM "+table_name+" WHERE n_not_nulls = 1 AND "+col_null+" IS NOT NULL";
-        if (order != "")
-            create_table_query += " ORDER BY "+order;
+        /*if (order != "")
+            create_table_query += " ORDER BY "+order;*/
 
         std::cout<<create_table_query<<"\n";
         con.Query(create_table_query)->Print();
@@ -381,8 +382,8 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
 
         create_table_query+=" FROM "+table_name+" WHERE n_not_nulls = 1 AND "+col_null+" IS NOT NULL";
 
-        if(order != "")
-            create_table_query += " ORDER BY "+order;
+        /*if(order != "")
+            create_table_query += " ORDER BY "+order;*/
 
         std::cout<<create_table_query<<"\n";
         con.Query(create_table_query)->Print();
@@ -423,16 +424,16 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
     //con.Query(create_table_query+")");
     create_table_query += " FROM "+table_name+" WHERE n_not_nulls >= 2 AND n_not_nulls < "+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size());
 
-    if(order != "")
-        create_table_query += " ORDER BY "+order;
+    /*if(order != "")
+        create_table_query += " ORDER BY "+order;*/
 
     std::cout<<create_table_query<<"\n";
     con.Query(create_table_query)->Print();
     //table is partitioned
 
-    int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
-    con.Query("SET threads TO 1;");
-
+    //int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
+    //con.Query("SET threads TO 1;");
+    /*
     con.Query("CREATE TABLE "+table_name+"_complete_3_tmp AS SELECT * from "+table_name+"_complete_3");
     con.Query("CREATE TABLE "+table_name+"_complete_2_tmp AS SELECT * from "+table_name+"_complete_2");
     con.Query("CREATE TABLE "+table_name+"_complete_0_tmp AS SELECT * from "+table_name+"_complete_0");
@@ -441,7 +442,7 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
     for(auto &col_null: cat_columns_nulls)
         con.Query("CREATE TABLE "+table_name+"_complete_"+col_null+"_tmp AS SELECT * FROM "+table_name+"_complete_"+col_null);
 
-    con.Query("SET threads TO "+ std::to_string(parallelism));
+    //con.Query("SET threads TO "+ std::to_string(parallelism));
 
     con.Query("DROP TABLE "+table_name+"_complete_3");
     con.Query("DROP TABLE "+table_name+"_complete_2");
@@ -466,6 +467,7 @@ void partition_inverse(const std::string &table_name, const std::vector<std::str
         con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
     for(auto &col_null: cat_columns_nulls)
         con.Query("SELECT COUNT(*) FROM "+table_name+"_complete_"+col_null);
+    */
 
 }
 
@@ -586,9 +588,6 @@ void partition_reduce_col_null(const std::string &table_name, const std::vector<
     con.Query(create_table_query+")");
     con.Query(insert_query+" FROM "+table_name+" WHERE n_nulls >= 2 AND n_nulls <"+std::to_string(cat_columns_nulls.size()+con_columns_nulls.size()));
 
-
-    //todo expand partitioning
-
 }
 
 
@@ -604,7 +603,7 @@ void init_baseline(const std::string &table_name, const std::vector<std::string>
     auto collection = con.Query(query);
 
     int parallelism = con.Query("SELECT current_setting('threads')")->GetValue<int>(0, 0);
-    con.Query("SET threads TO 1;");
+    //con.Query("SET threads TO 1;");
 
     con.Query("CREATE TABLE "+table_name+"_complete AS SELECT * FROM "+table_name);
     std::vector<float> avg = {};
@@ -637,7 +636,8 @@ void init_baseline(const std::string &table_name, const std::vector<std::string>
         con.Query(query);
         con.Query("ALTER TABLE "+table_name+"_complete ALTER COLUMN "+cat_columns_nulls[col_index]+" SET DEFAULT 10;")->Print();//not adding b, replace s with rep
     }
-    con.Query("SET threads TO "+ std::to_string(parallelism));
+
+    //con.Query("SET threads TO "+ std::to_string(parallelism));
 
 }
 

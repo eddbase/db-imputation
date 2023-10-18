@@ -6,6 +6,7 @@
 #include <ML/lda.h>
 #include <ML/regression.h>
 #include <triple/helper.h>
+#include <iterator>
 
 static void import_data(duckdb::Connection &con, const std::string &path) {
     con.Query("CREATE TABLE route (ROUTE_ID INTEGER PRIMARY KEY, ORIGIN INT, DEST INT, DISTANCE FLOAT);");
@@ -125,6 +126,7 @@ void run_flight_partition_factorized_flight(const std::string &path, const std::
     duckdb::Value full_triple = con.Query(query)->GetValue(0,0);
     end = std::chrono::high_resolution_clock::now();
     std::cout<<"Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
+    std::clog<<"Time full cofactor (ms): "<<std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count()<<"\n";
 
     //start MICE
 

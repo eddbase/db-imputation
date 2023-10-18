@@ -254,7 +254,7 @@ BEGIN
     	    	max_nulls := array_length(continuous_columns_null, 1) + array_length(categorical_columns_null, 1);
     			query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_notnullcnt2' || 
              	' PARTITION OF ' || output_table_name ||
-             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=15)';
+             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=75)';
              	
              	RAISE DEBUG '%', query;
     			EXECUTE query;--2+ not null
@@ -270,7 +270,7 @@ BEGIN
              	max_nulls := array_length(continuous_columns_null, 1);
             	query := 'CREATE UNLOGGED TABLE ' || output_table_name || '_notnullcnt2' || 
              	' PARTITION OF ' || output_table_name ||
-             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=15)';
+             	' FOR VALUES FROM (2) TO (' || max_nulls || ') WITH (fillfactor=75)';
              	
              	RAISE DEBUG '%', query;
     			EXECUTE query;
@@ -349,7 +349,12 @@ BEGIN
                 ')) '
             'FROM ' || output_table_name || ' WHERE NOT_NULL_CNT = '|| max_nulls;
     RAISE DEBUG '%', query;
+    
+    start_ts := clock_timestamp();
     EXECUTE query INTO STRICT cofactor_fixed;
+    end_ts := clock_timestamp();
+    RAISE INFO 'shared cofactor ms = %', 1000 * (extract(epoch FROM end_ts - start_ts));
+
 
     COMMIT;
     

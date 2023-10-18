@@ -5,7 +5,7 @@ static inline size_t size_scalar_array(size_t num_cont, int is_cofactor)
 {
     // num_cont * (num_cont + 3) / 2
     if (is_cofactor){
-        elog(WARNING, "IS COFACTOR ");
+        //elog(WARNING, "IS COFACTOR ");
         return (num_cont *(num_cont+ 3)) >> 1;
     }
     return num_cont * 2;
@@ -27,29 +27,29 @@ size_t n_cols_1hot_expansion(const cofactor_t **cofactors, size_t n_aggregates, 
     for(size_t k=0; k<n_aggregates; k++) {
         num_categories += get_num_categories(crelation_array(cofactors[k], is_cofactor), cofactors[k]->num_categorical_vars, -1);//potentially overestimate
     }
-    elog(WARNING, "1 %d %d", cofactors[0]->num_categorical_vars + 1, num_categories);
+    //elog(WARNING, "1 %d %d", cofactors[0]->num_categorical_vars + 1, num_categories);
     uint32_t *cat_vars_idxs = (uint32_t *)palloc0(sizeof(uint32_t) * (cofactors[0]->num_categorical_vars + 1)); // track start each cat. variable
     uint64_t *cat_array = (uint64_t *)palloc0(sizeof(uint64_t) * num_categories);//max. size
 
     (*cat_idxs) = cat_vars_idxs;
     (*cat_unique_array) = cat_array;
-    elog(WARNING, "2");
+    //elog(WARNING, "2");
 
     cat_vars_idxs[0] = 0;
     size_t search_start = 0;        // within one category class
     size_t search_end = search_start;
-    elog(WARNING, "3");
+    //elog(WARNING, "3");
 
     char **relation_scan = (char **)palloc0(sizeof(char *) * n_aggregates); // track start each cat. variable
     for(size_t k=0; k<n_aggregates; k++) {
         relation_scan[k] = relation_array(cofactors[k], is_cofactor);
     }
-    elog(WARNING, "4");
+    //elog(WARNING, "4");
 
     for (size_t i = 0; i < cofactors[0]->num_categorical_vars; i++) {
         for(size_t k=0; k<n_aggregates; k++) {
             relation_t *r = (relation_t *) relation_scan[k];
-            elog(WARNING, "5");
+            //elog(WARNING, "5");
             //create sorted array
             for (size_t j = 0; j < r->num_tuples; j++) {
                 size_t key_index = find_in_array(r->tuples[j].key, cat_array, search_start, search_end);
@@ -72,7 +72,7 @@ size_t n_cols_1hot_expansion(const cofactor_t **cofactors, size_t n_aggregates, 
         cat_vars_idxs[i + 1] = cat_vars_idxs[i] + (search_end - search_start);
         search_start = search_end;
     }
-    elog(WARNING, "6");
+    //elog(WARNING, "6");
 
     if (drop_first){//remove first entry for each categorical attribute (avoids multicollinearity)
         for (size_t i = 0; i < cofactors[0]->num_categorical_vars; i++){
@@ -95,7 +95,7 @@ size_t get_num_categories(const char *relation_data_o, size_t num_categorical_va
     const char *relation_data = relation_data_o;
     for (size_t i = 0; i < num_categorical_vars; i++)
     {
-        elog(WARNING, "NUM_CAT_VARS %d", i);
+        //elog(WARNING, "NUM_CAT_VARS %d", i);
         relation_t *r = (relation_t *) relation_data;
 
         if (label_categorical_sigma >= 0 && ((size_t)label_categorical_sigma) == i)
@@ -104,7 +104,7 @@ size_t get_num_categories(const char *relation_data_o, size_t num_categorical_va
             relation_data += r->sz_struct;
             continue;
         }
-        elog(WARNING, "num_tuples %lu", r->num_tuples);
+        //elog(WARNING, "num_tuples %lu", r->num_tuples);
         num_categories += r->num_tuples;
         relation_data += r->sz_struct;
     }
