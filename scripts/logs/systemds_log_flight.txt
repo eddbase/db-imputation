@@ -44,7 +44,7 @@ Overriding SYSTEMDS_STANDALONE_OPTS with env var: -Xmx200g -Xms100g -Xmn80g
 #  Running script mice_flights.dml locally with opts: -nvargs X=data/join_table_flights_0.2.csv TYPES=data/cat_numerical.csv
 ###############################################################################
 Executing command:     java -Xmx200g -Xms100g -Xmn80g    -cp ./systemds-3.0.0.jar:./lib/*:./target/lib/*   -Dlog4j.configuration=file:./conf/log4j.properties   org.apache.sysds.api.DMLScript   -f mice.dml   -exec singlenode   -config ./conf/SystemDS-config.xml   -nvargs X=data/join_table_flights_0.2.csv TYPES=data/cat_numerical.csv
-Time one iteration in millsecs=16265362
+Time one iteration in millsecs=1626362
 writing result
 SYSTEMDS_ROOT not set defaulting to current dir /disk/scratch/imputation_project/systemds
 Overriding SYSTEMDS_STANDALONE_OPTS with env var: -Xmx200g -Xms100g -Xmn80g
