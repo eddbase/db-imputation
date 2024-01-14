@@ -1,4 +1,23 @@
-# Instruction
+# PostgreSQL
+
+The PostgreSQL implementation of the ML library as well as the imputation component is available here: 
+
+#### [https://github.com/eddbase/postgres-imputation](https://github.com/eddbase/postgres-imputation)
+
+It also contains examples and build instructions.
+
+-
+
+# DuckDB
+
+The PostgreSQL implementation of the ML library as well as the imputation component is available here:
+
+#### [https://github.com/eddbase/duckdb-imputation](https://github.com/eddbase/duckdb-imputation)
+
+It also contains examples and build instructions.
+
+-
+This repository mainly contains scrips to generate the datasets and to run specific experiments, as well as code for imputation with other tools.
 
 ## Generate dataset
 The folder *make_datasets* contains *\<dataset>\_normalized.py* and *\<dataset>_denormalized.py* to generate the normalized/denormalized dataset used in the experiments. For each column, they contain a parameter **NULL** which should be set as the fraction of missing values to generate.
@@ -11,24 +30,6 @@ Both scripts expect the dataset in a normalized format (3 tables for Flight, 5 t
 
 To generate the tables and load the data in Postgres, please use the SQL commands inside *make_datasets/Postgres*.
 
-## Postgres library
-
-The Postgres library requires CMake, BLAS and LAPACK packages, already installed on most systems.
-
-1. Make sure `pg_config --includedir-server` and `pg_config --pkglibdir` work properly, otherwise set the variables *PGSQL\_INCLUDE\_DIRECTORY* and *PGSQL\_LIB\_DIRECTORY* inside CMakeLists.txt according to the installation path of PostgreSQL in your system.
-2. Run `cmake .`
-3. Run `make`
-4. Run `sql/create_UDFs.sh` to export the functions inside Postgres
-
-## DuckDB
-**Imputation experiments on DuckDB require the library available** [here](https://anonymous.4open.science/r/duckdb_swap-30F7/) , placed under lib/duckdb.
-Other requirements are BLAS, LAPACK and Boost. The folder DuckDB contains the library and the code for every experiment.
-
-1. Clone [https://anonymous.4open.science/r/duckdb_swap-30F7/](https://anonymous.4open.science/r/duckdb_swap-30F7/) and place it in `lib/duckdb`
-2. Set inside `main.cpp` the experiments you want to run (boolean variables at the beginning)
-2. Run `cmake .`
-3. Run `make`
-4. Run `./DuckDB_imputation`
 
 
 ## Experiments
@@ -51,7 +52,7 @@ Contains the imputation experiments over a single table. For each dataset, the s
 
 To run the imputation with SystemDS, use *dataset\_denormalized.py* to generate the dataset with `SYSTEMDS = true`. It generates two files: a dataset and file containing a sequence of boolean values indicating if a column contains numerical or categorical values.
 
-Edit lines 3 and 4 of `single_table/other systems/systemds.dml` with the number of rows and columns in the dataset (60552738, 34 for flight, 84055817, 44 for retailer, ...). Then run the script with:
+Edit lines 3 and 4 of `single_table/other systems/systemds.dml` with the number of rows and columns in the dataset (60552738, 34 for flight, 84055817, 44 for retailer). Then run the script with:
 
 `bin/systemds systemds.dml -nvargs X=input_data.csv TYPES=cat_numerical.csv`
 
