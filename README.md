@@ -1,12 +1,27 @@
+This repository contains code to run the experiments in:
+
+```
+@article{imp_2024_pacmmod,
+title={{In-Database Data Imputation}},
+author={Perini, Massimo and Nikolic, Milos},
+journal={Proc. ACM Manag. Data (PACMMOD)},
+volume={2},
+doi={10.1145/3639326},
+year={2024},
+publisher={Association for Computing Machinery},
+} 
+
+```
+
 # PostgreSQL
 
 The PostgreSQL implementation of the ML library as well as the imputation component is available here: 
 
 #### [https://github.com/eddbase/postgres-imputation](https://github.com/eddbase/postgres-imputation)
 
-It also contains examples and build instructions.
+It also contains examples and build instructions. If you want to use our PostgreSQL implementation this is all you need.
 
--
+***
 
 # DuckDB
 
@@ -14,13 +29,21 @@ The PostgreSQL implementation of the ML library as well as the imputation compon
 
 #### [https://github.com/eddbase/duckdb-imputation](https://github.com/eddbase/duckdb-imputation)
 
-It also contains examples and build instructions.
+It also contains examples and build instructions. If you want to use our DuckDB implementation this is all you need.
 
--
+***
+
 This repository mainly contains scrips to generate the datasets and to run specific experiments, as well as code for imputation with other tools.
 
 ## Generate dataset
-The folder *make_datasets* contains *\<dataset>\_normalized.py* and *\<dataset>_denormalized.py* to generate the normalized/denormalized dataset used in the experiments. For each column, they contain a parameter **NULL** which should be set as the fraction of missing values to generate.
+
+Datasets are:
+
+* Airline Delay and Cancellation Data, 2009 - 2018: [https://www.kaggle.com/datasets/yuanyuwendymu/airline-delay-and-cancellation-data-2009-2018/data](https://www.kaggle.com/datasets/yuanyuwendymu/airline-delay-and-cancellation-data-2009-2018/data)
+* Taiwan air quality: [https://www.kaggle.com/datasets/yenruchen/taiwans-air-quality-data-by-hours](https://www.kaggle.com/datasets/yenruchen/taiwans-air-quality-data-by-hours)
+* Retailer: confidential
+
+The folder *make_datasets* contains *\<dataset>\_normalized.py* and *\<dataset>_denormalized.py*, which generates the normalized/denormalized datasets used in the experiments. For each column, they contain a parameter **NULL** which should be set as the fraction of missing values.
 
 *dataset\_normalized.py* can be used to generate datasets for experiments 6.1 (without missing values) and 6.3 (with missing values)
 
@@ -28,8 +51,7 @@ The folder *make_datasets* contains *\<dataset>\_normalized.py* and *\<dataset>_
 
 Both scripts expect the dataset in a normalized format (3 tables for Flight, 5 tables for Retailer). Paths and names can be set inside the scripts.
 
-To generate the tables and load the data in Postgres, please use the SQL commands inside *make_datasets/Postgres*.
-
+The SQL schema and the code to load the data in PostgreSQL is inside *make_datasets/Postgres*.
 
 
 ## Experiments
@@ -71,3 +93,14 @@ Clone ImputeDB from `https://github.com/mitdbg/imputedb`, then generate the data
 
 ### Multiple tables
 Contains the imputation experiments over a normalized relation. It requires a normalized dataset with missing values inside the fact table. Then, import the tables inside the Postgres and run the SQL code located under *multiple tables/factorized\_\<dataset>*
+
+### Quality
+
+`experiments/quality/` contains the Python code to train and measure the imputation quality of other imputation methods. It contains NULLS,
+PATTERNS, and DATASET which should be set as the fractions of missing values, the missingness patterns to generate and the datasets (denormalized) used.
+
+### Script
+
+* `systemds_script.sh` runs SystemDS imputation for a specific dataset, generating imputations for every missingness ratio. Datasets with nulls need to be already generated.
+* `postgres_script.sh` runs the three techniques to impute data with postgres generating imputations for every missingness ratio. Datasets with nulls need to be already generated.
+* `madlib_script.sh` runs SystemDS imputation for a specific dataset, generating imputations for every missingness ratio. Datasets with nulls need to be already generated
